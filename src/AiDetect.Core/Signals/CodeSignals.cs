@@ -58,7 +58,7 @@ internal sealed class CodeSignals(AnalysisContext ctx, SignalBuilder b)
 
         b.Rate("doc.complete", SignalGroup.Documentation,
             ai: "XML-doc заполнен полностью: <param> на каждый параметр и <returns>", human: "XML-doc неполный (нет <param>/<returns>)",
-            hits: K.DocMethodsComplete, total: K.DocMethodsWithParams, humanAt: 0.3, aiAt: 0.95, k: 3, weight: 0.8, alpha: 0.5,
+            hits: K.DocMethodsComplete, total: K.DocMethodsWithParams, humanAt: 0.3, aiAt: 0.95, k: 3, weight: 0.4, alpha: 0.5,
             detail: (h, t) => $"{h:0} из {t:0} документированных методов с параметрами", exAi: K.DocMethodsComplete);
 
         b.Rate("doc.template", SignalGroup.Documentation,
@@ -88,7 +88,7 @@ internal sealed class CodeSignals(AnalysisContext ctx, SignalBuilder b)
 
             b.Add("cmt.restating", SignalGroup.Comments,
                 _a[K.RestatingComments] / prose >= 0.15 ? "Комментарии пересказывают следующую строку кода" : "Комментарии не пересказывают код",
-                Soften(SignalBuilder.Map(_a[K.RestatingComments] / prose, 0.0, 0.3), 0.25), SignalBuilder.Rel(prose, 4), 0.7,
+                Soften(SignalBuilder.Map(_a[K.RestatingComments] / prose, 0.0, 0.3), 0.25), SignalBuilder.Rel(prose, 4), 0.5,
                 $"{_a[K.RestatingComments]:0} из {prose:0} комментариев повторяют идентификаторы следующей строки", _a.GetExamples(K.RestatingComments),
                 _a[K.RestatingComments] / prose);
 
@@ -124,8 +124,12 @@ internal sealed class CodeSignals(AnalysisContext ctx, SignalBuilder b)
 
             if (share >= 0.3)
             {
-                b.Add("cmt.language", SignalGroup.Comments, "Комментарии/сообщения на русском — так обычно пишет человек (Claude по умолчанию пишет по-английски)",
-                    -Math.Min(1, share * 1.3), SignalBuilder.Rel(cyr, 3), 1.1,
+                // Грамотные русские комментарии с заглавной буквы Claude тоже пишет (по инструкции CLAUDE.md), небрежные — почти только человек.
+                double polished = _a[K.CyrillicComments] > 0 ? _a[K.CyrillicPolishedComments] / _a[K.CyrillicComments] : 0;
+                double strength = Math.Min(1, share * 1.3) * (1 - (0.7 * polished));
+                b.Add("cmt.language", SignalGroup.Comments,
+                    polished >= 0.7 ? "Комментарии на русском (аккуратные — так пишет и Claude по инструкции, слабый признак)" : "Небрежные комментарии на русском — так обычно пишет человек",
+                    -strength, SignalBuilder.Rel(cyr, 3), 1.1,
                     $"{cyr:0} русскоязычных из {cyr + lat:0}" + (baseShare is { } bs ? $" (в проекте: {SignalBuilder.Pct(bs)})" : ""),
                     _a.GetExamples(K.CyrillicComments), share);
             }
@@ -152,7 +156,7 @@ internal sealed class CodeSignals(AnalysisContext ctx, SignalBuilder b)
             e = SignalBuilder.AdjustForBaseline(e, baseAvg is { } ba ? SignalBuilder.Map(ba, 5.0, 9.5) : null, 0.4);
             b.Add("name.length", SignalGroup.Naming,
                 avg >= 7.5 ? "Длинные описательные имена переменных и параметров" : "Короткие имена переменных и параметров",
-                e, SignalBuilder.Rel(names.Count, 15), 0.8,
+                e, SignalBuilder.Rel(names.Count, 15), 0.4,
                 $"средняя длина {avg:0.0} символа по {names.Count} именам" + (baseAvg is { } ba2 ? $" (в проекте {ba2:0.0})" : ""), [], avg);
             b.TrackShift("name.length", "длина имён", avg, baseAvg, e, baseAvg is { } ba3 ? SignalBuilder.Map(ba3, 5.0, 9.5) : null, v => $"{v:0.0}");
 
@@ -259,7 +263,7 @@ internal sealed class CodeSignals(AnalysisContext ctx, SignalBuilder b)
 
         b.Rate("api.stringEmpty", SignalGroup.ModernSyntax,
             ai: "string.Empty вместо \"\"", human: "Пустые строки литералом \"\"",
-            hits: K.StringEmpty, total: null, totalKeys: [K.StringEmpty, K.EmptyStringLiteral], humanAt: 0.2, aiAt: 0.9, k: 3, weight: 0.35, alpha: 0.5,
+            hits: K.StringEmpty, total: null, totalKeys: [K.StringEmpty, K.EmptyStringLiteral], humanAt: 0.2, aiAt: 0.9, k: 3, weight: 0.2, alpha: 0.5,
             detail: (h, t) => $"{h:0} из {t:0} пустых строк", exHuman: K.EmptyStringLiteral);
 
         b.Rate("prop.stringEmptyInit", SignalGroup.ModernSyntax,
@@ -269,7 +273,7 @@ internal sealed class CodeSignals(AnalysisContext ctx, SignalBuilder b)
 
         b.Rate("api.readOnlyCollections", SignalGroup.ModernSyntax,
             ai: "IReadOnlyList/IReadOnlyCollection в сигнатурах", human: "List<>/массивы в сигнатурах",
-            hits: K.ReadOnlyCollections, total: null, totalKeys: [K.ReadOnlyCollections, K.MutableCollectionsInSignatures], humanAt: 0.05, aiAt: 0.6, k: 3, weight: 0.45, alpha: 0.5,
+            hits: K.ReadOnlyCollections, total: null, totalKeys: [K.ReadOnlyCollections, K.MutableCollectionsInSignatures], humanAt: 0.05, aiAt: 0.6, k: 3, weight: 0.55, alpha: 0.5,
             detail: (h, t) => $"{h:0} из {t:0} коллекций в сигнатурах — read-only");
 
         b.Rate("api.utcNow", SignalGroup.ModernSyntax,
@@ -295,7 +299,7 @@ internal sealed class CodeSignals(AnalysisContext ctx, SignalBuilder b)
             {
                 b.Add("api.nameof", SignalGroup.ModernSyntax,
                     nameofDensity >= 0.8 ? "Частое использование nameof(...)" : "nameof почти не используется",
-                    SignalBuilder.Map(nameofDensity, 0.05, 1.5), SignalBuilder.Rel(lines, 100), 0.3,
+                    SignalBuilder.Map(nameofDensity, 0.05, 1.5), SignalBuilder.Rel(lines, 100), 0.5,
                     $"{_a[K.Nameof]:0} раз на {lines:0} строк", [], nameofDensity);
             }
         }
@@ -396,7 +400,7 @@ internal sealed class CodeSignals(AnalysisContext ctx, SignalBuilder b)
         if (_a[K.ThrowMessageQuoted] >= 2)
         {
             b.Add("exc.quoted", SignalGroup.Exceptions, "Значения в сообщениях взяты в кавычки: '{orderId}'",
-                1, SignalBuilder.Rel(_a[K.ThrowMessageQuoted], 2), 0.3, $"{_a[K.ThrowMessageQuoted]:0} сообщений",
+                1, SignalBuilder.Rel(_a[K.ThrowMessageQuoted], 2), 0.2, $"{_a[K.ThrowMessageQuoted]:0} сообщений",
                 _a.GetExamples(K.ThrowMessageQuoted), _a[K.ThrowMessageQuoted]);
         }
 
@@ -429,7 +433,7 @@ internal sealed class CodeSignals(AnalysisContext ctx, SignalBuilder b)
 
         b.Rate("fld.readonly", SignalGroup.Structure,
             ai: "Все приватные поля readonly", human: "Изменяемые приватные поля (без readonly)",
-            hits: K.ReadonlyFields, total: K.PrivateFields, humanAt: 0.5, aiAt: 1.0, k: 3, weight: 0.4, alpha: 0.5,
+            hits: K.ReadonlyFields, total: K.PrivateFields, humanAt: 0.5, aiAt: 1.0, k: 3, weight: 0.5, alpha: 0.5,
             detail: (h, t) => $"{h:0} из {t:0} приватных полей readonly");
 
         b.Rate("ord.members", SignalGroup.Structure,
@@ -444,7 +448,7 @@ internal sealed class CodeSignals(AnalysisContext ctx, SignalBuilder b)
             int max = lengths.Max();
             b.Add("mth.long", SignalGroup.Structure,
                 longShare >= 0.1 ? $"Есть длинные методы (до {max} строк)" : "Все методы компактные",
-                SignalBuilder.Map(longShare, 0.15, 0.0), SignalBuilder.Rel(lengths.Count, 6), 0.5,
+                SignalBuilder.Map(longShare, 0.15, 0.0), SignalBuilder.Rel(lengths.Count, 6), 0.3,
                 $"{lengths.Count(l => l > 50)} из {lengths.Count} методов длиннее 50 строк, максимум {max}", [], longShare);
 
             double avgCx = _a.MethodComplexities.Count > 0 ? _a.MethodComplexities.Average() : 0;
@@ -562,7 +566,7 @@ internal sealed class CodeSignals(AnalysisContext ctx, SignalBuilder b)
 
         b.Rate("test.naming", SignalGroup.Tests,
             ai: "Имена тестов по шаблону Method_Scenario_ExpectedResult", human: "Имена тестов без единого шаблона",
-            hits: K.TestNamePattern, total: K.TestMethods, humanAt: 0.15, aiAt: 0.9, k: 3, weight: 0.6, alpha: 0.5,
+            hits: K.TestNamePattern, total: K.TestMethods, humanAt: 0.15, aiAt: 0.9, k: 3, weight: 0.4, alpha: 0.5,
             detail: (h, t) => $"{h:0} из {t:0} тестов", exAi: K.TestNamePattern);
 
         b.Rate("test.theory", SignalGroup.Tests,

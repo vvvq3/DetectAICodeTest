@@ -1,0 +1,88 @@
+From 932ae45f99d104c288faf4a945fca6d845501b09 Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Mon, 30 Nov 2020 10:06:00 +0000
+Subject: [PATCH 2/2] Add FolderCleanupService tests
+
+---
+ .../Services/FolderCleanupServiceTests.cs     | 69 +++++++++++++++++++
+ 1 file changed, 69 insertions(+)
+ create mode 100644 test/Core.Test/Services/FolderCleanupServiceTests.cs
+
+diff --git a/test/Core.Test/Services/FolderCleanupServiceTests.cs b/test/Core.Test/Services/FolderCleanupServiceTests.cs
+new file mode 100644
+index 000000000..41d5d6f00
+--- /dev/null
++++ b/test/Core.Test/Services/FolderCleanupServiceTests.cs
+@@ -0,0 +1,69 @@
++using System;
++using System.Collections.Generic;
++using System.Threading.Tasks;
++using Bit.Core.Models.Table;
++using Bit.Core.Repositories;
++using Bit.Core.Services;
++using Microsoft.Extensions.Logging.Abstractions;
++using NSubstitute;
++using Xunit;
++
++namespace Bit.Core.Test.Services
++{
++    public class FolderCleanupServiceTests
++    {
++        private readonly IFolderRepository _folderRepository = Substitute.For<IFolderRepository>();
++        private readonly ICipherRepository _cipherRepository = Substitute.For<ICipherRepository>();
++        private readonly FolderCleanupService _sut;
++
++        public FolderCleanupServiceTests()
++        {
++            _sut = new FolderCleanupService(_folderRepository, _cipherRepository, NullLogger<FolderCleanupService>.Instance);
++        }
++
++        [Fact]
++        public async Task AnalyzeAsync_EmptyUserId_ThrowsArgumentException()
++        {
++            await Assert.ThrowsAsync<ArgumentException>(() => _sut.AnalyzeAsync(Guid.Empty));
++        }
++
++        [Fact]
++        public async Task AnalyzeAsync_FolderWithoutCiphers_IsReportedAsEmpty()
++        {
++            // Arrange
++            var userId = Guid.NewGuid();
++            var folder = new Folder { Id = Guid.NewGuid(), UserId = userId, Name = "2.abc|def" };
++            _folderRepository.GetManyByUserIdAsync(userId).Returns(new List<Folder> { folder });
++            _cipherRepository.GetManyByUserIdAsync(userId, false).Returns(new List<Bit.Core.Models.Data.CipherDetails>());
++
++            // Act
++            var summary = await _sut.AnalyzeAsync(userId);
++
++            // Assert
++            Assert.Equal(1, summary.TotalFolders);
++            Assert.Contains(folder.Id, summary.EmptyFolderIds);
++        }
++
++        [Fact]
++        public async Task AnalyzeAsync_FoldersWithSameName_AreGroupedAsDuplicates()
++        {
++            // Arrange
++            var userId = Guid.NewGuid();
++            var folders = new List<Folder>
++            {
++                new Folder { Id = Guid.NewGuid(), UserId = userId, Name = "2.same" },
++                new Folder { Id = Guid.NewGuid(), UserId = userId, Name = "2.same" },
++                new Folder { Id = Guid.NewGuid(), UserId = userId, Name = "2.other" },
++            };
++            _folderRepository.GetManyByUserIdAsync(userId).Returns(folders);
++            _cipherRepository.GetManyByUserIdAsync(userId, false).Returns(new List<Bit.Core.Models.Data.CipherDetails>());
++
++            // Act
++            var summary = await _sut.AnalyzeAsync(userId);
++
++            // Assert
++            Assert.Single(summary.DuplicateFolderGroups);
++            Assert.Equal(2, summary.DuplicateFolderGroups[0].Count);
++        }
++    }
++}
+-- 
+2.43.0
+

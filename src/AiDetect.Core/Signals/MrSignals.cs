@@ -141,7 +141,7 @@ internal sealed partial class MrSignals(AnalysisContext ctx, SignalBuilder b)
 
         b.Add("mr.layers", SignalGroup.MrShape,
             layers.Count >= 4 ? "Связное изменение многих слоёв в одном MR" : "MR затрагивает мало слоёв",
-            SignalBuilder.Map(layers.Count, 1.5, 6), 1, 0.7,
+            SignalBuilder.Map(layers.Count, 1.5, 6), 1, 0.4,
             $"{layers.Count} слоёв: {string.Join(", ", layers.Select(FileClassifier.LayerTitle))}", [], layers.Count);
 
         if (prodLines >= 50)
@@ -153,7 +153,7 @@ internal sealed partial class MrSignals(AnalysisContext ctx, SignalBuilder b)
                     1, 1, 0.7, $"+{testLines} строк тестов к +{prodLines} строкам кода", [], 1);
                 b.Add("mr.testRatio", SignalGroup.MrShape,
                     ratio >= 0.5 ? "Большой объём тестов относительно кода" : "Тестов немного относительно кода",
-                    SignalBuilder.Map(ratio, 0.1, 0.9), 1, 0.5, $"соотношение тесты/код = {ratio:0.00}", [], ratio);
+                    SignalBuilder.Map(ratio, 0.1, 0.9), 1, 0.3, $"соотношение тесты/код = {ratio:0.00}", [], ratio);
             }
             else
             {
@@ -166,7 +166,7 @@ internal sealed partial class MrSignals(AnalysisContext ctx, SignalBuilder b)
         if (docs.Count > 0)
         {
             b.Add("mr.docs", SignalGroup.MrShape, "Markdown-документация как побочный продукт (новые/расширенные .md)",
-                1, 1, 1.0, string.Join(", ", docs.Select(d => $"{d.Path} (+{d.AddedLines})").Take(4)), [], docs.Count);
+                1, 1, 0.6, string.Join(", ", docs.Select(d => $"{d.Path} (+{d.AddedLines})").Take(4)), [], docs.Count);
         }
 
         var cs = ctx.AnalyzedCs.ToList();
@@ -175,7 +175,7 @@ internal sealed partial class MrSignals(AnalysisContext ctx, SignalBuilder b)
             double newShare = cs.Count(f => f.IsNew) / (double)cs.Count;
             b.Add("mr.newFiles", SignalGroup.MrShape,
                 newShare >= 0.5 ? "Код в основном в новых файлах — написан целиком" : "В основном правки существующих файлов",
-                SignalBuilder.Map(newShare, 0.15, 0.85), SignalBuilder.Rel(cs.Count, 4), 0.3,
+                SignalBuilder.Map(newShare, 0.15, 0.85), SignalBuilder.Rel(cs.Count, 4), 0.5,
                 $"{cs.Count(f => f.IsNew)} новых из {cs.Count} C#-файлов", [], newShare);
         }
 
@@ -189,7 +189,7 @@ internal sealed partial class MrSignals(AnalysisContext ctx, SignalBuilder b)
             double score = Math.Min(1, 0.3 + (0.2 * pairs) + (extras ? 0.4 : 0));
             b.Add("mr.fullArchitecture", SignalGroup.MrShape,
                 "«Полная» архитектура: новый интерфейс + реализация + регистрация в DI" + (extras ? " + options/валидатор" : ""),
-                score, 1, 0.5, $"{pairs} пар интерфейс/реализация", [], pairs);
+                score, 1, 0.3, $"{pairs} пар интерфейс/реализация", [], pairs);
         }
 
         // Единообразие: признаки «ИИ-стиля» одинаково выражены во всех файлах (человек пишет неровно).
@@ -247,13 +247,13 @@ internal sealed partial class MrSignals(AnalysisContext ctx, SignalBuilder b)
         if (mean > 0.2 && sd < 0.3)
         {
             b.Add("mr.uniformity", SignalGroup.MrShape, "ИИ-признаки одинаково выражены во всех файлах MR (ровный стиль)",
-                Math.Min(1, mean * 1.5), SignalBuilder.Rel(perFile.Count, 3), 0.6,
+                Math.Min(1, mean * 1.5), SignalBuilder.Rel(perFile.Count, 3), 0.3,
                 $"{perFile.Count} файлов, средняя оценка {mean:0.00}, разброс {sd:0.00}", [], sd);
         }
         else if (sd >= 0.45)
         {
             b.Add("mr.uniformity", SignalGroup.MrShape, "Стиль сильно различается между файлами MR (неровно, как у человека)",
-                -0.6, SignalBuilder.Rel(perFile.Count, 3), 0.6, $"{perFile.Count} файлов, разброс оценок {sd:0.00}", [], sd);
+                -0.6, SignalBuilder.Rel(perFile.Count, 3), 0.3, $"{perFile.Count} файлов, разброс оценок {sd:0.00}", [], sd);
         }
     }
 

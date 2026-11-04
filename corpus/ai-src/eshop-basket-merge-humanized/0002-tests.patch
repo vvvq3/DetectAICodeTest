@@ -1,0 +1,79 @@
+From d19a8c2647b90fa9a7d94f8f52c1878c0f526e92 Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Tue, 29 Sep 2020 17:31:00 +0000
+Subject: [PATCH 2/2] tests
+
+---
+ .../Application/BasketMergeServiceTest.cs     | 60 +++++++++++++++++++
+ 1 file changed, 60 insertions(+)
+ create mode 100644 src/Services/Basket/Basket.UnitTests/Application/BasketMergeServiceTest.cs
+
+diff --git a/src/Services/Basket/Basket.UnitTests/Application/BasketMergeServiceTest.cs b/src/Services/Basket/Basket.UnitTests/Application/BasketMergeServiceTest.cs
+new file mode 100644
+index 00000000..cf0c22fa
+--- /dev/null
++++ b/src/Services/Basket/Basket.UnitTests/Application/BasketMergeServiceTest.cs
+@@ -0,0 +1,60 @@
++using Microsoft.eShopOnContainers.Services.Basket.API;
++using Microsoft.eShopOnContainers.Services.Basket.API.Model;
++using Microsoft.eShopOnContainers.Services.Basket.API.Services;
++using Microsoft.Extensions.Logging.Abstractions;
++using Microsoft.Extensions.Options;
++using Moq;
++using System.Collections.Generic;
++using System.Threading.Tasks;
++using Xunit;
++
++namespace UnitTest.Basket.Application
++{
++    public class BasketMergeServiceTest
++    {
++        private readonly Mock<IBasketRepository> _repo = new Mock<IBasketRepository>();
++        private readonly BasketMergeService _service;
++
++        public BasketMergeServiceTest()
++        {
++            var settings = Options.Create(new BasketSettings { MaxItems = 3, MaxQuantityPerItem = 5 });
++            _repo.Setup(r => r.UpdateBasketAsync(It.IsAny<CustomerBasket>())).ReturnsAsync((CustomerBasket b) => b);
++            _service = new BasketMergeService(_repo.Object, settings, NullLogger<BasketMergeService>.Instance);
++        }
++
++        [Fact]
++        public async Task Merge_sums_quantities_up_to_limit()
++        {
++            _repo.Setup(r => r.GetBasketAsync("anon")).ReturnsAsync(new CustomerBasket("anon") { Items = new List<BasketItem> { new BasketItem { ProductId = 1, Quantity = 4 } } });
++            _repo.Setup(r => r.GetBasketAsync("user")).ReturnsAsync(new CustomerBasket("user") { Items = new List<BasketItem> { new BasketItem { ProductId = 1, Quantity = 3 } } });
++
++            var result = await _service.MergeAsync("anon", "user");
++
++            Assert.Single(result.Items);
++            Assert.Equal(5, result.Items[0].Quantity);
++            _repo.Verify(r => r.DeleteBasketAsync("anon"), Times.Once);
++        }
++
++        [Fact]
++        public async Task Merge_without_anonymous_basket_returns_user_basket()
++        {
++            _repo.Setup(r => r.GetBasketAsync("user")).ReturnsAsync(new CustomerBasket("user"));
++
++            var result = await _service.MergeAsync("anon", "user");
++
++            Assert.Equal("user", result.BuyerId);
++            _repo.Verify(r => r.UpdateBasketAsync(It.IsAny<CustomerBasket>()), Times.Never);
++        }
++
++        [Fact]
++        public void Validate_fails_on_zero_quantity()
++        {
++            var basket = new CustomerBasket("user") { Items = new List<BasketItem> { new BasketItem { ProductId = 1, Quantity = 0 } } };
++
++            var ok = _service.Validate(basket, out var error);
++
++            Assert.False(ok);
++            Assert.NotNull(error);
++        }
++    }
++}
+-- 
+2.43.0
+

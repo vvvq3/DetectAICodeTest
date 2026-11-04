@@ -94,6 +94,6 @@ public class AnalyzerTests
         var (groups, logit) = Scorer.Combine(signals, new ModelParameters());
 
         Assert.Equal(GroupInfo.Cap(SignalGroup.Naming), groups.Single().Capped);
-        Assert.Equal(GroupInfo.Cap(SignalGroup.Naming), logit);
+        Assert.Equal(GroupInfo.Cap(SignalGroup.Naming) + new ModelParameters().Bias, logit, 6);
     }
 }

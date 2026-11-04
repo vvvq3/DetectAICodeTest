@@ -1,0 +1,226 @@
+From 47d4164ba811ad1ea221f0aa0a4a127ca4865dd7 Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Tue, 29 Sep 2020 09:30:00 +0000
+Subject: [PATCH 1/2] Add RefundOrderCommand to Ordering.API
+
+- Add RefundOrderCommand with idempotent handler
+- Validate order number, amount and reason
+- Expose PUT api/v1/orders/refund
+---
+ .../Commands/RefundOrderCommand.cs            | 47 ++++++++++++
+ .../Commands/RefundOrderCommandHandler.cs     | 74 +++++++++++++++++++
+ .../RefundOrderCommandValidator.cs            | 20 +++++
+ .../Controllers/OrdersController.cs           | 31 +++++++-
+ 4 files changed, 171 insertions(+), 1 deletion(-)
+ create mode 100644 src/Services/Ordering/Ordering.API/Application/Commands/RefundOrderCommand.cs
+ create mode 100644 src/Services/Ordering/Ordering.API/Application/Commands/RefundOrderCommandHandler.cs
+ create mode 100644 src/Services/Ordering/Ordering.API/Application/Validations/RefundOrderCommandValidator.cs
+
+diff --git a/src/Services/Ordering/Ordering.API/Application/Commands/RefundOrderCommand.cs b/src/Services/Ordering/Ordering.API/Application/Commands/RefundOrderCommand.cs
+new file mode 100644
+index 00000000..8957c485
+--- /dev/null
++++ b/src/Services/Ordering/Ordering.API/Application/Commands/RefundOrderCommand.cs
+@@ -0,0 +1,47 @@
++using MediatR;
++using System.Runtime.Serialization;
++
++namespace Ordering.API.Application.Commands
++{
++    /// <summary>
++    /// Command to refund a paid or shipped order.
++    /// </summary>
++    public class RefundOrderCommand : IRequest<RefundOrderResult>
++    {
++        [DataMember]
++        public int OrderNumber { get; private set; }
++
++        [DataMember]
++        public decimal Amount { get; private set; }
++
++        [DataMember]
++        public string Reason { get; private set; }
++
++        public RefundOrderCommand()
++        {
++        }
++
++        public RefundOrderCommand(int orderNumber, decimal amount, string reason)
++        {
++            OrderNumber = orderNumber;
++            Amount = amount;
++            Reason = reason;
++        }
++    }
++
++    /// <summary>
++    /// Result of processing a <see cref="RefundOrderCommand"/>.
++    /// </summary>
++    public class RefundOrderResult
++    {
++        public bool Succeeded { get; set; }
++
++        public string Error { get; set; }
++
++        public decimal RefundedAmount { get; set; }
++
++        public static RefundOrderResult Success(decimal amount) => new RefundOrderResult { Succeeded = true, RefundedAmount = amount };
++
++        public static RefundOrderResult Failure(string error) => new RefundOrderResult { Succeeded = false, Error = error };
++    }
++}
+diff --git a/src/Services/Ordering/Ordering.API/Application/Commands/RefundOrderCommandHandler.cs b/src/Services/Ordering/Ordering.API/Application/Commands/RefundOrderCommandHandler.cs
+new file mode 100644
+index 00000000..0f643b4f
+--- /dev/null
++++ b/src/Services/Ordering/Ordering.API/Application/Commands/RefundOrderCommandHandler.cs
+@@ -0,0 +1,74 @@
++using MediatR;
++using Microsoft.eShopOnContainers.Services.Ordering.Domain.AggregatesModel.OrderAggregate;
++using Microsoft.eShopOnContainers.Services.Ordering.Infrastructure.Idempotency;
++using Microsoft.Extensions.Logging;
++using System;
++using System.Linq;
++using System.Threading;
++using System.Threading.Tasks;
++
++namespace Ordering.API.Application.Commands
++{
++    public class RefundOrderCommandHandler : IRequestHandler<RefundOrderCommand, RefundOrderResult>
++    {
++        private readonly IOrderRepository _orderRepository;
++        private readonly ILogger<RefundOrderCommandHandler> _logger;
++
++        public RefundOrderCommandHandler(IOrderRepository orderRepository, ILogger<RefundOrderCommandHandler> logger)
++        {
++            _orderRepository = orderRepository ?? throw new ArgumentNullException(nameof(orderRepository));
++            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
++        }
++
++        public async Task<RefundOrderResult> Handle(RefundOrderCommand command, CancellationToken cancellationToken)
++        {
++            var order = await _orderRepository.GetAsync(command.OrderNumber);
++            if (order is null)
++            {
++                _logger.LogWarning("Refund requested for unknown order {OrderNumber}", command.OrderNumber);
++                return RefundOrderResult.Failure($"Order {command.OrderNumber} was not found.");
++            }
++
++            var status = order.OrderStatus;
++            if (status != OrderStatus.Paid && status != OrderStatus.Shipped)
++            {
++                return RefundOrderResult.Failure($"Order {command.OrderNumber} cannot be refunded in status '{status.Name}'.");
++            }
++
++            var orderTotal = order.GetTotal();
++            if (command.Amount > orderTotal)
++            {
++                return RefundOrderResult.Failure($"Refund amount {command.Amount} exceeds the order total {orderTotal}.");
++            }
++
++            order.SetCancelledStatus();
++
++            await _orderRepository.UnitOfWork.SaveEntitiesAsync(cancellationToken);
++
++            _logger.LogInformation(
++                "Refunded {Amount} for order {OrderNumber}. Reason: {Reason}",
++                command.Amount,
++                command.OrderNumber,
++                command.Reason);
++
++            return RefundOrderResult.Success(command.Amount);
++        }
++    }
++
++    // Use for Idempotency in Command process
++    public class RefundOrderIdentifiedCommandHandler : IdentifiedCommandHandler<RefundOrderCommand, RefundOrderResult>
++    {
++        public RefundOrderIdentifiedCommandHandler(
++            IMediator mediator,
++            IRequestManager requestManager,
++            ILogger<IdentifiedCommandHandler<RefundOrderCommand, RefundOrderResult>> logger)
++            : base(mediator, requestManager, logger)
++        {
++        }
++
++        protected override RefundOrderResult CreateResultForDuplicateRequest()
++        {
++            return RefundOrderResult.Failure("Duplicate refund request.");
++        }
++    }
++}
+diff --git a/src/Services/Ordering/Ordering.API/Application/Validations/RefundOrderCommandValidator.cs b/src/Services/Ordering/Ordering.API/Application/Validations/RefundOrderCommandValidator.cs
+new file mode 100644
+index 00000000..613cc06d
+--- /dev/null
++++ b/src/Services/Ordering/Ordering.API/Application/Validations/RefundOrderCommandValidator.cs
+@@ -0,0 +1,20 @@
++using FluentValidation;
++using Microsoft.Extensions.Logging;
++using Ordering.API.Application.Commands;
++
++namespace Ordering.API.Application.Validations
++{
++    public class RefundOrderCommandValidator : AbstractValidator<RefundOrderCommand>
++    {
++        public RefundOrderCommandValidator(ILogger<RefundOrderCommandValidator> logger)
++        {
++            RuleFor(command => command.OrderNumber).GreaterThan(0).WithMessage("Order number must be positive.");
++            RuleFor(command => command.Amount).GreaterThan(0).WithMessage("Refund amount must be greater than zero.");
++            RuleFor(command => command.Reason)
++                .NotEmpty().WithMessage("A refund reason is required.")
++                .MaximumLength(500);
++
++            logger.LogTrace("----- INSTANCE CREATED - {ClassName}", GetType().Name);
++        }
++    }
++}
+diff --git a/src/Services/Ordering/Ordering.API/Controllers/OrdersController.cs b/src/Services/Ordering/Ordering.API/Controllers/OrdersController.cs
+index 7a592bfb..e7a2bb7d 100644
+--- a/src/Services/Ordering/Ordering.API/Controllers/OrdersController.cs
++++ b/src/Services/Ordering/Ordering.API/Controllers/OrdersController.cs
+@@ -1,4 +1,4 @@
+-﻿using MediatR;
++using MediatR;
+ using Microsoft.AspNetCore.Authorization;
+ using Microsoft.AspNetCore.Mvc;
+ using Microsoft.eShopOnContainers.BuildingBlocks.EventBus.Extensions;
+@@ -67,6 +67,35 @@ namespace Microsoft.eShopOnContainers.Services.Ordering.API.Controllers
+             return Ok();
+         }
+ 
++        [Route("refund")]
++        [HttpPut]
++        [ProducesResponseType(typeof(RefundOrderResult), (int)HttpStatusCode.OK)]
++        [ProducesResponseType((int)HttpStatusCode.BadRequest)]
++        public async Task<IActionResult> RefundOrderAsync([FromBody] RefundOrderCommand command, [FromHeader(Name = "x-requestid")] string requestId)
++        {
++            if (!Guid.TryParse(requestId, out var guid) || guid == Guid.Empty)
++            {
++                return BadRequest("A valid x-requestid header is required.");
++            }
++
++            var identifiedCommand = new IdentifiedCommand<RefundOrderCommand, RefundOrderResult>(command, guid);
++
++            _logger.LogInformation(
++                "----- Sending command: {CommandName} - {IdProperty}: {CommandId} ({@Command})",
++                identifiedCommand.GetGenericTypeName(),
++                nameof(identifiedCommand.Command.OrderNumber),
++                identifiedCommand.Command.OrderNumber,
++                identifiedCommand);
++
++            var result = await _mediator.Send(identifiedCommand);
++            if (!result.Succeeded)
++            {
++                return BadRequest(result.Error);
++            }
++
++            return Ok(result);
++        }
++
+         [Route("ship")]
+         [HttpPut]
+         [ProducesResponseType((int)HttpStatusCode.OK)]
+-- 
+2.43.0
+

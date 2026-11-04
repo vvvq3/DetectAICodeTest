@@ -1,0 +1,339 @@
+From c3f093216a8801ed6353629259a3bf82baf3e555 Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Wed, 30 Sep 2020 13:00:00 +0000
+Subject: [PATCH 1/2] feat(notifications): add Notifications.API microservice
+
+- Minimal API endpoints for listing, creating and marking notifications as read
+- NotificationService with paging and configurable page size limit
+- Thread-safe in-memory store as the initial persistence implementation
+---
+ .../Endpoints/NotificationEndpoints.cs        | 35 ++++++++
+ .../Notifications.API/Models/Notification.cs  | 34 ++++++++
+ .../Notifications.API.csproj                  |  7 ++
+ .../Options/NotificationOptions.cs            | 19 +++++
+ .../Notifications.API/Program.cs              | 24 ++++++
+ .../Services/INotificationStore.cs            | 12 +++
+ .../Services/InMemoryNotificationStore.cs     | 48 +++++++++++
+ .../Services/NotificationService.cs           | 82 +++++++++++++++++++
+ 8 files changed, 261 insertions(+)
+ create mode 100644 src/Services/Notifications/Notifications.API/Endpoints/NotificationEndpoints.cs
+ create mode 100644 src/Services/Notifications/Notifications.API/Models/Notification.cs
+ create mode 100644 src/Services/Notifications/Notifications.API/Notifications.API.csproj
+ create mode 100644 src/Services/Notifications/Notifications.API/Options/NotificationOptions.cs
+ create mode 100644 src/Services/Notifications/Notifications.API/Program.cs
+ create mode 100644 src/Services/Notifications/Notifications.API/Services/INotificationStore.cs
+ create mode 100644 src/Services/Notifications/Notifications.API/Services/InMemoryNotificationStore.cs
+ create mode 100644 src/Services/Notifications/Notifications.API/Services/NotificationService.cs
+
+diff --git a/src/Services/Notifications/Notifications.API/Endpoints/NotificationEndpoints.cs b/src/Services/Notifications/Notifications.API/Endpoints/NotificationEndpoints.cs
+new file mode 100644
+index 00000000..34935053
+--- /dev/null
++++ b/src/Services/Notifications/Notifications.API/Endpoints/NotificationEndpoints.cs
+@@ -0,0 +1,35 @@
++using Notifications.API.Models;
++using Notifications.API.Services;
++
++namespace Notifications.API.Endpoints;
++
++public static class NotificationEndpoints
++{
++    public static IEndpointRouteBuilder MapNotificationEndpoints(this IEndpointRouteBuilder app)
++    {
++        var group = app.MapGroup("/api/v1/notifications").WithTags("Notifications");
++
++        group.MapGet("/{buyerId}", async (string buyerId, int? pageIndex, int? pageSize, INotificationService service, CancellationToken cancellationToken) =>
++        {
++            var page = await service.GetPageAsync(buyerId, pageIndex ?? 0, pageSize ?? 20, cancellationToken);
++            return TypedResults.Ok(page);
++        })
++        .WithName("GetNotifications");
++
++        group.MapPost("/", async (CreateNotificationRequest request, INotificationService service, CancellationToken cancellationToken) =>
++        {
++            var notification = await service.CreateAsync(request, cancellationToken);
++            return TypedResults.Created($"/api/v1/notifications/{notification.BuyerId}", notification);
++        })
++        .WithName("CreateNotification");
++
++        group.MapPut("/{buyerId}/{notificationId:guid}/read", async Task<IResult> (string buyerId, Guid notificationId, INotificationService service, CancellationToken cancellationToken) =>
++        {
++            var updated = await service.MarkAsReadAsync(buyerId, notificationId, cancellationToken);
++            return updated ? TypedResults.NoContent() : TypedResults.NotFound();
++        })
++        .WithName("MarkNotificationAsRead");
++
++        return app;
++    }
++}
+diff --git a/src/Services/Notifications/Notifications.API/Models/Notification.cs b/src/Services/Notifications/Notifications.API/Models/Notification.cs
+new file mode 100644
+index 00000000..288e6e15
+--- /dev/null
++++ b/src/Services/Notifications/Notifications.API/Models/Notification.cs
+@@ -0,0 +1,34 @@
++namespace Notifications.API.Models;
++
++/// <summary>
++/// Represents a notification delivered to a buyer.
++/// </summary>
++public sealed record Notification
++{
++    public required Guid Id { get; init; }
++
++    public required string BuyerId { get; init; }
++
++    public required string Title { get; init; }
++
++    public string Message { get; init; } = string.Empty;
++
++    public NotificationType Type { get; init; } = NotificationType.Info;
++
++    public required DateTimeOffset CreatedAt { get; init; }
++
++    public DateTimeOffset? ReadAt { get; init; }
++
++    public bool IsRead => ReadAt is not null;
++}
++
++public enum NotificationType
++{
++    Info,
++    OrderStatusChanged,
++    PriceDrop,
++}
++
++public sealed record CreateNotificationRequest(string BuyerId, string Title, string? Message, NotificationType Type = NotificationType.Info);
++
++public sealed record NotificationPage(IReadOnlyList<Notification> Items, int TotalCount, int UnreadCount);
+diff --git a/src/Services/Notifications/Notifications.API/Notifications.API.csproj b/src/Services/Notifications/Notifications.API/Notifications.API.csproj
+new file mode 100644
+index 00000000..24ec0e89
+--- /dev/null
++++ b/src/Services/Notifications/Notifications.API/Notifications.API.csproj
+@@ -0,0 +1,7 @@
++<Project Sdk="Microsoft.NET.Sdk.Web">
++  <PropertyGroup>
++    <TargetFramework>net8.0</TargetFramework>
++    <Nullable>enable</Nullable>
++    <ImplicitUsings>enable</ImplicitUsings>
++  </PropertyGroup>
++</Project>
+diff --git a/src/Services/Notifications/Notifications.API/Options/NotificationOptions.cs b/src/Services/Notifications/Notifications.API/Options/NotificationOptions.cs
+new file mode 100644
+index 00000000..e6560c36
+--- /dev/null
++++ b/src/Services/Notifications/Notifications.API/Options/NotificationOptions.cs
+@@ -0,0 +1,19 @@
++namespace Notifications.API.Options;
++
++/// <summary>
++/// Configuration options for the notifications service.
++/// </summary>
++public sealed class NotificationOptions
++{
++    public const string SectionName = "Notifications";
++
++    /// <summary>
++    /// Gets or sets the maximum number of notifications returned in a single page.
++    /// </summary>
++    public int MaxPageSize { get; set; } = 50;
++
++    /// <summary>
++    /// Gets or sets how long read notifications are retained before cleanup.
++    /// </summary>
++    public TimeSpan RetentionPeriod { get; set; } = TimeSpan.FromDays(30);
++}
+diff --git a/src/Services/Notifications/Notifications.API/Program.cs b/src/Services/Notifications/Notifications.API/Program.cs
+new file mode 100644
+index 00000000..1c0bb124
+--- /dev/null
++++ b/src/Services/Notifications/Notifications.API/Program.cs
+@@ -0,0 +1,24 @@
++using Notifications.API.Endpoints;
++using Notifications.API.Options;
++using Notifications.API.Services;
++
++var builder = WebApplication.CreateBuilder(args);
++
++builder.Services.Configure<NotificationOptions>(builder.Configuration.GetSection(NotificationOptions.SectionName));
++builder.Services.AddSingleton<INotificationStore, InMemoryNotificationStore>();
++builder.Services.AddScoped<INotificationService, NotificationService>();
++builder.Services.AddSingleton(TimeProvider.System);
++builder.Services.AddEndpointsApiExplorer();
++builder.Services.AddSwaggerGen();
++
++var app = builder.Build();
++
++if (app.Environment.IsDevelopment())
++{
++    app.UseSwagger();
++    app.UseSwaggerUI();
++}
++
++app.MapNotificationEndpoints();
++
++app.Run();
+diff --git a/src/Services/Notifications/Notifications.API/Services/INotificationStore.cs b/src/Services/Notifications/Notifications.API/Services/INotificationStore.cs
+new file mode 100644
+index 00000000..c5322018
+--- /dev/null
++++ b/src/Services/Notifications/Notifications.API/Services/INotificationStore.cs
+@@ -0,0 +1,12 @@
++using Notifications.API.Models;
++
++namespace Notifications.API.Services;
++
++public interface INotificationStore
++{
++    Task AddAsync(Notification notification, CancellationToken cancellationToken = default);
++
++    Task<IReadOnlyList<Notification>> GetForBuyerAsync(string buyerId, CancellationToken cancellationToken = default);
++
++    Task<bool> UpdateAsync(Notification notification, CancellationToken cancellationToken = default);
++}
+diff --git a/src/Services/Notifications/Notifications.API/Services/InMemoryNotificationStore.cs b/src/Services/Notifications/Notifications.API/Services/InMemoryNotificationStore.cs
+new file mode 100644
+index 00000000..fe038cd7
+--- /dev/null
++++ b/src/Services/Notifications/Notifications.API/Services/InMemoryNotificationStore.cs
+@@ -0,0 +1,48 @@
++using System.Collections.Concurrent;
++using Notifications.API.Models;
++
++namespace Notifications.API.Services;
++
++/// <summary>
++/// Thread-safe in-memory implementation of <see cref="INotificationStore"/>.
++/// </summary>
++public sealed class InMemoryNotificationStore : INotificationStore
++{
++    private readonly ConcurrentDictionary<Guid, Notification> _notifications = new();
++
++    public Task AddAsync(Notification notification, CancellationToken cancellationToken = default)
++    {
++        ArgumentNullException.ThrowIfNull(notification);
++
++        if (!_notifications.TryAdd(notification.Id, notification))
++        {
++            throw new InvalidOperationException($"Notification '{notification.Id}' already exists.");
++        }
++
++        return Task.CompletedTask;
++    }
++
++    public Task<IReadOnlyList<Notification>> GetForBuyerAsync(string buyerId, CancellationToken cancellationToken = default)
++    {
++        ArgumentException.ThrowIfNullOrWhiteSpace(buyerId);
++
++        IReadOnlyList<Notification> result = _notifications.Values
++            .Where(n => n.BuyerId == buyerId)
++            .OrderByDescending(n => n.CreatedAt)
++            .ToList();
++
++        return Task.FromResult(result);
++    }
++
++    public Task<bool> UpdateAsync(Notification notification, CancellationToken cancellationToken = default)
++    {
++        ArgumentNullException.ThrowIfNull(notification);
++
++        if (!_notifications.TryGetValue(notification.Id, out var existing))
++        {
++            return Task.FromResult(false);
++        }
++
++        return Task.FromResult(_notifications.TryUpdate(notification.Id, notification, existing));
++    }
++}
+diff --git a/src/Services/Notifications/Notifications.API/Services/NotificationService.cs b/src/Services/Notifications/Notifications.API/Services/NotificationService.cs
+new file mode 100644
+index 00000000..83ba68d3
+--- /dev/null
++++ b/src/Services/Notifications/Notifications.API/Services/NotificationService.cs
+@@ -0,0 +1,82 @@
++using Microsoft.Extensions.Options;
++using Notifications.API.Models;
++using Notifications.API.Options;
++
++namespace Notifications.API.Services;
++
++public interface INotificationService
++{
++    Task<Notification> CreateAsync(CreateNotificationRequest request, CancellationToken cancellationToken = default);
++
++    Task<NotificationPage> GetPageAsync(string buyerId, int pageIndex, int pageSize, CancellationToken cancellationToken = default);
++
++    Task<bool> MarkAsReadAsync(string buyerId, Guid notificationId, CancellationToken cancellationToken = default);
++}
++
++public sealed class NotificationService(
++    INotificationStore store,
++    IOptions<NotificationOptions> options,
++    TimeProvider timeProvider,
++    ILogger<NotificationService> logger) : INotificationService
++{
++    private readonly NotificationOptions _options = options.Value;
++
++    public async Task<Notification> CreateAsync(CreateNotificationRequest request, CancellationToken cancellationToken = default)
++    {
++        ArgumentNullException.ThrowIfNull(request);
++        ArgumentException.ThrowIfNullOrWhiteSpace(request.BuyerId);
++        ArgumentException.ThrowIfNullOrWhiteSpace(request.Title);
++
++        var notification = new Notification
++        {
++            Id = Guid.NewGuid(),
++            BuyerId = request.BuyerId,
++            Title = request.Title.Trim(),
++            Message = request.Message?.Trim() ?? string.Empty,
++            Type = request.Type,
++            CreatedAt = timeProvider.GetUtcNow(),
++        };
++
++        await store.AddAsync(notification, cancellationToken);
++
++        logger.LogInformation("Created {NotificationType} notification {NotificationId} for buyer {BuyerId}",
++            notification.Type, notification.Id, notification.BuyerId);
++
++        return notification;
++    }
++
++    public async Task<NotificationPage> GetPageAsync(string buyerId, int pageIndex, int pageSize, CancellationToken cancellationToken = default)
++    {
++        ArgumentOutOfRangeException.ThrowIfNegative(pageIndex);
++        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(pageSize);
++
++        var effectivePageSize = Math.Min(pageSize, _options.MaxPageSize);
++        var all = await store.GetForBuyerAsync(buyerId, cancellationToken);
++
++        var items = all
++            .Skip(pageIndex * effectivePageSize)
++            .Take(effectivePageSize)
++            .ToList();
++
++        return new NotificationPage(items, all.Count, all.Count(n => !n.IsRead));
++    }
++
++    public async Task<bool> MarkAsReadAsync(string buyerId, Guid notificationId, CancellationToken cancellationToken = default)
++    {
++        var notifications = await store.GetForBuyerAsync(buyerId, cancellationToken);
++        var notification = notifications.FirstOrDefault(n => n.Id == notificationId);
++
++        if (notification is null)
++        {
++            logger.LogWarning("Notification {NotificationId} not found for buyer {BuyerId}", notificationId, buyerId);
++            return false;
++        }
++
++        if (notification.IsRead)
++        {
++            return true;
++        }
++
++        return await store.UpdateAsync(notification with { ReadAt = timeProvider.GetUtcNow() }, cancellationToken);
++    }
++}
+-- 
+2.43.0
+

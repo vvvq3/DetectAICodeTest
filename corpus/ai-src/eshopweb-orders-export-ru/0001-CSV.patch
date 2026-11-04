@@ -1,0 +1,164 @@
+From fe79a8cfc28473461d8cc311a0aa7ead1cfb0cef Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Mon, 30 Nov 2020 15:10:00 +0000
+Subject: [PATCH 1/2] =?UTF-8?q?=D0=94=D0=BE=D0=B1=D0=B0=D0=B2=D0=BB=D0=B5?=
+ =?UTF-8?q?=D0=BD=20=D1=8D=D0=BA=D1=81=D0=BF=D0=BE=D1=80=D1=82=20=D0=B7?=
+ =?UTF-8?q?=D0=B0=D0=BA=D0=B0=D0=B7=D0=BE=D0=B2=20=D0=BF=D0=BE=D0=BA=D1=83?=
+ =?UTF-8?q?=D0=BF=D0=B0=D1=82=D0=B5=D0=BB=D1=8F=20=D0=B2=20CSV?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ .../OrderExport/IOrderExportService.cs        | 19 +++++
+ .../OrderExport/OrderExportController.cs      | 29 +++++++
+ .../OrderExport/OrderExportService.cs         | 75 +++++++++++++++++++
+ 3 files changed, 123 insertions(+)
+ create mode 100644 src/Web/Features/OrderExport/IOrderExportService.cs
+ create mode 100644 src/Web/Features/OrderExport/OrderExportController.cs
+ create mode 100644 src/Web/Features/OrderExport/OrderExportService.cs
+
+diff --git a/src/Web/Features/OrderExport/IOrderExportService.cs b/src/Web/Features/OrderExport/IOrderExportService.cs
+new file mode 100644
+index 0000000..8c64e3e
+--- /dev/null
++++ b/src/Web/Features/OrderExport/IOrderExportService.cs
+@@ -0,0 +1,19 @@
++using System.Threading;
++using System.Threading.Tasks;
++
++namespace Microsoft.eShopWeb.Web.Features.OrderExport
++{
++    /// <summary>
++    /// Сервис выгрузки заказов покупателя.
++    /// </summary>
++    public interface IOrderExportService
++    {
++        /// <summary>
++        /// Формирует CSV-файл со всеми заказами покупателя.
++        /// </summary>
++        /// <param name="buyerId">Идентификатор покупателя.</param>
++        /// <param name="cancellationToken">Токен отмены.</param>
++        /// <returns>Содержимое CSV-файла в кодировке UTF-8.</returns>
++        Task<byte[]> ExportToCsvAsync(string buyerId, CancellationToken cancellationToken = default);
++    }
++}
+diff --git a/src/Web/Features/OrderExport/OrderExportController.cs b/src/Web/Features/OrderExport/OrderExportController.cs
+new file mode 100644
+index 0000000..9229215
+--- /dev/null
++++ b/src/Web/Features/OrderExport/OrderExportController.cs
+@@ -0,0 +1,29 @@
++using Microsoft.AspNetCore.Authorization;
++using Microsoft.AspNetCore.Mvc;
++using System;
++using System.Threading;
++using System.Threading.Tasks;
++
++namespace Microsoft.eShopWeb.Web.Features.OrderExport
++{
++    [Authorize]
++    [Route("[controller]/[action]")]
++    public class OrderExportController : Controller
++    {
++        private readonly IOrderExportService _exportService;
++
++        public OrderExportController(IOrderExportService exportService)
++        {
++            _exportService = exportService;
++        }
++
++        [HttpGet]
++        public async Task<IActionResult> Csv(CancellationToken cancellationToken)
++        {
++            var content = await _exportService.ExportToCsvAsync(User.Identity.Name, cancellationToken);
++            var fileName = $"orders-{DateTime.UtcNow:yyyyMMdd}.csv";
++
++            return File(content, "text/csv", fileName);
++        }
++    }
++}
+diff --git a/src/Web/Features/OrderExport/OrderExportService.cs b/src/Web/Features/OrderExport/OrderExportService.cs
+new file mode 100644
+index 0000000..95532aa
+--- /dev/null
++++ b/src/Web/Features/OrderExport/OrderExportService.cs
+@@ -0,0 +1,75 @@
++using Ardalis.GuardClauses;
++using Microsoft.eShopWeb.ApplicationCore.Entities.OrderAggregate;
++using Microsoft.eShopWeb.ApplicationCore.Interfaces;
++using Microsoft.eShopWeb.ApplicationCore.Specifications;
++using Microsoft.Extensions.Logging;
++using System.Globalization;
++using System.Linq;
++using System.Text;
++using System.Threading;
++using System.Threading.Tasks;
++
++namespace Microsoft.eShopWeb.Web.Features.OrderExport
++{
++    public class OrderExportService : IOrderExportService
++    {
++        private const char Separator = ';';
++
++        private readonly IOrderRepository _orderRepository;
++        private readonly ILogger<OrderExportService> _logger;
++
++        public OrderExportService(IOrderRepository orderRepository, ILogger<OrderExportService> logger)
++        {
++            _orderRepository = orderRepository;
++            _logger = logger;
++        }
++
++        public async Task<byte[]> ExportToCsvAsync(string buyerId, CancellationToken cancellationToken = default)
++        {
++            Guard.Against.NullOrEmpty(buyerId, nameof(buyerId));
++
++            // Загружаем заказы вместе с позициями, чтобы не делать запрос на каждый заказ
++            var specification = new CustomerOrdersWithItemsSpecification(buyerId);
++            var orders = await _orderRepository.ListAsync(specification, cancellationToken);
++
++            var builder = new StringBuilder();
++            builder.AppendLine(string.Join(Separator, "Номер заказа", "Дата", "Товар", "Количество", "Цена", "Сумма"));
++
++            // Каждая позиция заказа выгружается отдельной строкой
++            foreach (var order in orders.OrderByDescending(o => o.OrderDate))
++            {
++                foreach (var item in order.OrderItems)
++                {
++                    builder.AppendLine(string.Join(Separator,
++                        order.Id.ToString(CultureInfo.InvariantCulture),
++                        order.OrderDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
++                        Escape(item.ItemOrdered.ProductName),
++                        item.Units.ToString(CultureInfo.InvariantCulture),
++                        item.UnitPrice.ToString("0.00", CultureInfo.InvariantCulture),
++                        (item.UnitPrice * item.Units).ToString("0.00", CultureInfo.InvariantCulture)));
++                }
++            }
++
++            _logger.LogInformation("Выгружено {OrderCount} заказов покупателя {BuyerId}", orders.Count, buyerId);
++
++            // Добавляем BOM, чтобы Excel корректно открывал кириллицу
++            return Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(builder.ToString())).ToArray();
++        }
++
++        private static string Escape(string value)
++        {
++            if (string.IsNullOrEmpty(value))
++            {
++                return string.Empty;
++            }
++
++            // Экранируем значение, если в нём есть разделитель, кавычки или перевод строки
++            if (value.IndexOfAny(new[] { Separator, '"', '\n', '\r' }) >= 0)
++            {
++                return "\"" + value.Replace("\"", "\"\"") + "\"";
++            }
++
++            return value;
++        }
++    }
++}
+-- 
+2.43.0
+

@@ -1,0 +1,72 @@
+From f5f229f6b2429b8ecfa227db59de8af184befe02 Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Tue, 29 Sep 2020 09:38:00 +0000
+Subject: [PATCH 2/2] Add RefundOrderCommandHandler tests
+
+---
+ .../RefundOrderCommandHandlerTest.cs          | 53 +++++++++++++++++++
+ 1 file changed, 53 insertions(+)
+ create mode 100644 src/Services/Ordering/Ordering.UnitTests/Application/RefundOrderCommandHandlerTest.cs
+
+diff --git a/src/Services/Ordering/Ordering.UnitTests/Application/RefundOrderCommandHandlerTest.cs b/src/Services/Ordering/Ordering.UnitTests/Application/RefundOrderCommandHandlerTest.cs
+new file mode 100644
+index 00000000..d5897625
+--- /dev/null
++++ b/src/Services/Ordering/Ordering.UnitTests/Application/RefundOrderCommandHandlerTest.cs
+@@ -0,0 +1,53 @@
++using Microsoft.eShopOnContainers.Services.Ordering.Domain.AggregatesModel.OrderAggregate;
++using Microsoft.Extensions.Logging;
++using Moq;
++using Ordering.API.Application.Commands;
++using System.Threading;
++using System.Threading.Tasks;
++using Xunit;
++
++namespace UnitTest.Ordering.Application
++{
++    public class RefundOrderCommandHandlerTest
++    {
++        private readonly Mock<IOrderRepository> _orderRepositoryMock;
++        private readonly Mock<ILogger<RefundOrderCommandHandler>> _loggerMock;
++
++        public RefundOrderCommandHandlerTest()
++        {
++            _orderRepositoryMock = new Mock<IOrderRepository>();
++            _loggerMock = new Mock<ILogger<RefundOrderCommandHandler>>();
++        }
++
++        [Fact]
++        public async Task Handle_returns_failure_when_order_does_not_exist()
++        {
++            // Arrange
++            _orderRepositoryMock.Setup(r => r.GetAsync(It.IsAny<int>())).ReturnsAsync((Order)null);
++            var handler = new RefundOrderCommandHandler(_orderRepositoryMock.Object, _loggerMock.Object);
++
++            // Act
++            var result = await handler.Handle(new RefundOrderCommand(42, 10m, "Damaged"), CancellationToken.None);
++
++            // Assert
++            Assert.False(result.Succeeded);
++            Assert.Contains("42", result.Error);
++        }
++
++        [Fact]
++        public async Task Handle_returns_failure_when_order_is_not_paid()
++        {
++            // Arrange
++            var order = new Order("1", "fakeName", new Address("street", "city", "state", "country", "zipcode"), 1, "1234", "123", "name", System.DateTime.Now.AddYears(1));
++            _orderRepositoryMock.Setup(r => r.GetAsync(It.IsAny<int>())).ReturnsAsync(order);
++            var handler = new RefundOrderCommandHandler(_orderRepositoryMock.Object, _loggerMock.Object);
++
++            // Act
++            var result = await handler.Handle(new RefundOrderCommand(1, 10m, "Damaged"), CancellationToken.None);
++
++            // Assert
++            Assert.False(result.Succeeded);
++            _orderRepositoryMock.Verify(r => r.UnitOfWork.SaveEntitiesAsync(It.IsAny<CancellationToken>()), Times.Never);
++        }
++    }
++}
+-- 
+2.43.0
+

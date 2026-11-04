@@ -123,6 +123,7 @@ public static class K
     public const string TicketRefs = "cmt.ticket";
     public const string CommentedOutCode = "cmt.commentedCode";
     public const string CyrillicComments = "cmt.cyrillic";
+    public const string CyrillicPolishedComments = "cmt.cyrillicPolished";
     public const string LatinComments = "cmt.latin";
     public const string SentenceComments = "cmt.sentence";
     public const string LowercaseComments = "cmt.lowercase";

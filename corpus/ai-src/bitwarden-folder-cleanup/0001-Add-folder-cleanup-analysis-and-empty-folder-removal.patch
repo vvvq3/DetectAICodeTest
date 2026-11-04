@@ -1,0 +1,263 @@
+From 8c7ba029bfee8710f519f28289d634a258906e3e Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Mon, 30 Nov 2020 10:00:00 +0000
+Subject: [PATCH 1/2] Add folder cleanup analysis and empty folder removal
+
+- Add IFolderCleanupService to find empty and duplicate folders
+- Add GET/POST folders/cleanup endpoints
+- Log analysis results with structured logging
+---
+ src/Api/Controllers/FoldersController.cs      |  23 +++-
+ .../Folders/FolderCleanupResponseModel.cs     |  26 +++++
+ src/Core/Models/Data/FolderCleanupSummary.cs  |  12 +++
+ src/Core/Services/IFolderCleanupService.cs    |  29 +++++
+ .../Implementations/FolderCleanupService.cs   | 102 ++++++++++++++++++
+ 5 files changed, 190 insertions(+), 2 deletions(-)
+ create mode 100644 src/Core/Models/Api/Response/Folders/FolderCleanupResponseModel.cs
+ create mode 100644 src/Core/Models/Data/FolderCleanupSummary.cs
+ create mode 100644 src/Core/Services/IFolderCleanupService.cs
+ create mode 100644 src/Core/Services/Implementations/FolderCleanupService.cs
+
+diff --git a/src/Api/Controllers/FoldersController.cs b/src/Api/Controllers/FoldersController.cs
+index a2c53e6d8..af2f0d3af 100644
+--- a/src/Api/Controllers/FoldersController.cs
++++ b/src/Api/Controllers/FoldersController.cs
+@@ -1,5 +1,6 @@
+-﻿using System;
++using System;
+ using System.Linq;
++using System.Threading;
+ using System.Threading.Tasks;
+ using Microsoft.AspNetCore.Mvc;
+ using Bit.Core.Repositories;
+@@ -17,15 +18,33 @@ namespace Bit.Api.Controllers
+         private readonly IFolderRepository _folderRepository;
+         private readonly ICipherService _cipherService;
+         private readonly IUserService _userService;
++        private readonly IFolderCleanupService _folderCleanupService;
+ 
+         public FoldersController(
+             IFolderRepository folderRepository,
+             ICipherService cipherService,
+-            IUserService userService)
++            IUserService userService,
++            IFolderCleanupService folderCleanupService)
+         {
+             _folderRepository = folderRepository;
+             _cipherService = cipherService;
+             _userService = userService;
++            _folderCleanupService = folderCleanupService;
++        }
++
++        [HttpGet("cleanup")]
++        public async Task<FolderCleanupResponseModel> GetCleanupSummary(CancellationToken cancellationToken)
++        {
++            var userId = _userService.GetProperUserId(User).Value;
++            var summary = await _folderCleanupService.AnalyzeAsync(userId, cancellationToken);
++            return new FolderCleanupResponseModel(summary);
++        }
++
++        [HttpPost("cleanup")]
++        public async Task<int> DeleteEmptyFolders(CancellationToken cancellationToken)
++        {
++            var userId = _userService.GetProperUserId(User).Value;
++            return await _folderCleanupService.DeleteEmptyFoldersAsync(userId, cancellationToken);
+         }
+ 
+         [HttpGet("{id}")]
+diff --git a/src/Core/Models/Api/Response/Folders/FolderCleanupResponseModel.cs b/src/Core/Models/Api/Response/Folders/FolderCleanupResponseModel.cs
+new file mode 100644
+index 000000000..2ca77030e
+--- /dev/null
++++ b/src/Core/Models/Api/Response/Folders/FolderCleanupResponseModel.cs
+@@ -0,0 +1,26 @@
++using System;
++using System.Collections.Generic;
++using Bit.Core.Models.Data;
++
++namespace Bit.Core.Models.Api
++{
++    public class FolderCleanupResponseModel : ResponseModel
++    {
++        public FolderCleanupResponseModel(FolderCleanupSummary summary)
++            : base("folderCleanup")
++        {
++            if (summary == null)
++            {
++                throw new ArgumentNullException(nameof(summary));
++            }
++
++            TotalFolders = summary.TotalFolders;
++            EmptyFolderIds = summary.EmptyFolderIds;
++            DuplicateFolderGroups = summary.DuplicateFolderGroups;
++        }
++
++        public int TotalFolders { get; set; }
++        public IEnumerable<Guid> EmptyFolderIds { get; set; }
++        public IEnumerable<IEnumerable<Guid>> DuplicateFolderGroups { get; set; }
++    }
++}
+diff --git a/src/Core/Models/Data/FolderCleanupSummary.cs b/src/Core/Models/Data/FolderCleanupSummary.cs
+new file mode 100644
+index 000000000..1c8d5f746
+--- /dev/null
++++ b/src/Core/Models/Data/FolderCleanupSummary.cs
+@@ -0,0 +1,12 @@
++using System;
++using System.Collections.Generic;
++
++namespace Bit.Core.Models.Data
++{
++    public class FolderCleanupSummary
++    {
++        public int TotalFolders { get; set; }
++        public IReadOnlyList<Guid> EmptyFolderIds { get; set; } = Array.Empty<Guid>();
++        public IReadOnlyList<IReadOnlyList<Guid>> DuplicateFolderGroups { get; set; } = Array.Empty<IReadOnlyList<Guid>>();
++    }
++}
+diff --git a/src/Core/Services/IFolderCleanupService.cs b/src/Core/Services/IFolderCleanupService.cs
+new file mode 100644
+index 000000000..3686e4fbc
+--- /dev/null
++++ b/src/Core/Services/IFolderCleanupService.cs
+@@ -0,0 +1,29 @@
++using System;
++using System.Threading;
++using System.Threading.Tasks;
++using Bit.Core.Models.Data;
++
++namespace Bit.Core.Services
++{
++    /// <summary>
++    /// Provides operations for detecting and removing empty or duplicate folders.
++    /// </summary>
++    public interface IFolderCleanupService
++    {
++        /// <summary>
++        /// Analyzes the folders of the specified user without modifying them.
++        /// </summary>
++        /// <param name="userId">The identifier of the user.</param>
++        /// <param name="cancellationToken">A token to cancel the operation.</param>
++        /// <returns>A summary of empty and duplicate folders.</returns>
++        Task<FolderCleanupSummary> AnalyzeAsync(Guid userId, CancellationToken cancellationToken = default);
++
++        /// <summary>
++        /// Deletes all empty folders of the specified user.
++        /// </summary>
++        /// <param name="userId">The identifier of the user.</param>
++        /// <param name="cancellationToken">A token to cancel the operation.</param>
++        /// <returns>The number of deleted folders.</returns>
++        Task<int> DeleteEmptyFoldersAsync(Guid userId, CancellationToken cancellationToken = default);
++    }
++}
+diff --git a/src/Core/Services/Implementations/FolderCleanupService.cs b/src/Core/Services/Implementations/FolderCleanupService.cs
+new file mode 100644
+index 000000000..8f358e78d
+--- /dev/null
++++ b/src/Core/Services/Implementations/FolderCleanupService.cs
+@@ -0,0 +1,102 @@
++using System;
++using System.Collections.Generic;
++using System.Linq;
++using System.Threading;
++using System.Threading.Tasks;
++using Bit.Core.Models.Data;
++using Bit.Core.Repositories;
++using Microsoft.Extensions.Logging;
++
++namespace Bit.Core.Services
++{
++    public class FolderCleanupService : IFolderCleanupService
++    {
++        private readonly IFolderRepository _folderRepository;
++        private readonly ICipherRepository _cipherRepository;
++        private readonly ILogger<FolderCleanupService> _logger;
++
++        public FolderCleanupService(
++            IFolderRepository folderRepository,
++            ICipherRepository cipherRepository,
++            ILogger<FolderCleanupService> logger)
++        {
++            _folderRepository = folderRepository ?? throw new ArgumentNullException(nameof(folderRepository));
++            _cipherRepository = cipherRepository ?? throw new ArgumentNullException(nameof(cipherRepository));
++            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
++        }
++
++        public async Task<FolderCleanupSummary> AnalyzeAsync(Guid userId, CancellationToken cancellationToken = default)
++        {
++            if (userId == Guid.Empty)
++            {
++                throw new ArgumentException("User id must not be empty.", nameof(userId));
++            }
++
++            var folders = await _folderRepository.GetManyByUserIdAsync(userId);
++            cancellationToken.ThrowIfCancellationRequested();
++
++            var ciphers = await _cipherRepository.GetManyByUserIdAsync(userId, withOrganizations: false);
++            var usedFolderIds = new HashSet<Guid>(ciphers
++                .Where(c => c.Folders != null)
++                .SelectMany(c => ExtractFolderIds(c.Folders, userId)));
++
++            var emptyFolderIds = folders
++                .Where(f => !usedFolderIds.Contains(f.Id))
++                .Select(f => f.Id)
++                .ToList();
++
++            // Folder names are encrypted client-side, so duplicates can only be detected by identical cipher strings.
++            var duplicateGroups = folders
++                .GroupBy(f => f.Name, StringComparer.Ordinal)
++                .Where(g => g.Count() > 1)
++                .Select(g => (IReadOnlyList<Guid>)g.Select(f => f.Id).ToList())
++                .ToList();
++
++            _logger.LogInformation(
++                "Folder cleanup analysis for user {UserId}: {TotalFolders} folders, {EmptyFolders} empty, {DuplicateGroups} duplicate groups",
++                userId,
++                folders.Count,
++                emptyFolderIds.Count,
++                duplicateGroups.Count);
++
++            return new FolderCleanupSummary
++            {
++                TotalFolders = folders.Count,
++                EmptyFolderIds = emptyFolderIds,
++                DuplicateFolderGroups = duplicateGroups
++            };
++        }
++
++        public async Task<int> DeleteEmptyFoldersAsync(Guid userId, CancellationToken cancellationToken = default)
++        {
++            var summary = await AnalyzeAsync(userId, cancellationToken);
++            var deleted = 0;
++
++            foreach (var folderId in summary.EmptyFolderIds)
++            {
++                cancellationToken.ThrowIfCancellationRequested();
++
++                var folder = await _folderRepository.GetByIdAsync(folderId, userId);
++                if (folder is null)
++                {
++                    continue;
++                }
++
++                await _folderRepository.DeleteAsync(folder);
++                deleted++;
++            }
++
++            _logger.LogInformation("Deleted {DeletedCount} empty folders for user {UserId}", deleted, userId);
++            return deleted;
++        }
++
++        private static IEnumerable<Guid> ExtractFolderIds(string foldersJson, Guid userId)
++        {
++            var folders = CoreHelpers.LoadClassFromJsonData<Dictionary<Guid, Guid>>(foldersJson);
++            if (folders != null && folders.TryGetValue(userId, out var folderId))
++            {
++                yield return folderId;
++            }
++        }
++    }
++}
+-- 
+2.43.0
+

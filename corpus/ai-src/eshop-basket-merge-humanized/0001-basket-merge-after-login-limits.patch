@@ -1,0 +1,177 @@
+From 27cb939e5905fd43d68239c7a6ec01adf6097ad8 Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Tue, 29 Sep 2020 17:20:00 +0000
+Subject: [PATCH 1/2] basket merge after login + limits
+
+---
+ .../Basket/Basket.API/BasketSettings.cs       |  6 +-
+ .../Controllers/BasketController.cs           | 15 +++-
+ .../Basket.API/Services/BasketMergeService.cs | 89 +++++++++++++++++++
+ 3 files changed, 108 insertions(+), 2 deletions(-)
+ create mode 100644 src/Services/Basket/Basket.API/Services/BasketMergeService.cs
+
+diff --git a/src/Services/Basket/Basket.API/BasketSettings.cs b/src/Services/Basket/Basket.API/BasketSettings.cs
+index 064d615e..3ef09c22 100644
+--- a/src/Services/Basket/Basket.API/BasketSettings.cs
++++ b/src/Services/Basket/Basket.API/BasketSettings.cs
+@@ -1,7 +1,11 @@
+-﻿namespace Microsoft.eShopOnContainers.Services.Basket.API
++namespace Microsoft.eShopOnContainers.Services.Basket.API
+ {
+     public class BasketSettings
+     {
+         public string ConnectionString { get; set; }
++
++        public int MaxItems { get; set; } = 50;
++
++        public int MaxQuantityPerItem { get; set; } = 99;
+     }
+ }
+diff --git a/src/Services/Basket/Basket.API/Controllers/BasketController.cs b/src/Services/Basket/Basket.API/Controllers/BasketController.cs
+index 9864e21e..97bca39e 100644
+--- a/src/Services/Basket/Basket.API/Controllers/BasketController.cs
++++ b/src/Services/Basket/Basket.API/Controllers/BasketController.cs
+@@ -1,10 +1,11 @@
+-﻿using Basket.API.IntegrationEvents.Events;
++using Basket.API.IntegrationEvents.Events;
+ using Basket.API.Model;
+ using Microsoft.AspNetCore.Authorization;
+ using Microsoft.AspNetCore.Mvc;
+ using Microsoft.eShopOnContainers.BuildingBlocks.EventBus.Abstractions;
+ using Microsoft.eShopOnContainers.Services.Basket.API.Model;
+ using Microsoft.eShopOnContainers.Services.Basket.API.Services;
++using Microsoft.eShopOnContainers.Services.Basket.API.Services;
+ using Microsoft.Extensions.Logging;
+ using System;
+ using System.Linq;
+@@ -23,6 +24,7 @@ namespace Microsoft.eShopOnContainers.Services.Basket.API.Controllers
+         private readonly IIdentityService _identityService;
+         private readonly IEventBus _eventBus;
+         private readonly ILogger<BasketController> _logger;
++        private readonly IBasketMergeService _mergeService;
+ 
+         public BasketController(
+             ILogger<BasketController> logger,
+@@ -31,6 +33,7 @@ namespace Microsoft.eShopOnContainers.Services.Basket.API.Controllers
+             IEventBus eventBus)
+         {
+             _logger = logger;
++            _mergeService = mergeService;
+             _repository = repository;
+             _identityService = identityService;
+             _eventBus = eventBus;
+@@ -44,6 +47,16 @@ namespace Microsoft.eShopOnContainers.Services.Basket.API.Controllers
+ 
+             return Ok(basket ?? new CustomerBasket(id));
+         }
++        [Route("merge/{anonymousId}")]
++        [HttpPost]
++        [ProducesResponseType(typeof(CustomerBasket), (int)HttpStatusCode.OK)]
++        public async Task<ActionResult<CustomerBasket>> MergeBasketAsync(string anonymousId)
++        {
++            var userId = _identityService.GetUserIdentity();
++            var basket = await _mergeService.MergeAsync(anonymousId, userId);
++            return Ok(basket);
++        }
++
+ 
+         [HttpPost]
+         [ProducesResponseType(typeof(CustomerBasket), (int)HttpStatusCode.OK)]
+diff --git a/src/Services/Basket/Basket.API/Services/BasketMergeService.cs b/src/Services/Basket/Basket.API/Services/BasketMergeService.cs
+new file mode 100644
+index 00000000..c6490929
+--- /dev/null
++++ b/src/Services/Basket/Basket.API/Services/BasketMergeService.cs
+@@ -0,0 +1,89 @@
++using Microsoft.eShopOnContainers.Services.Basket.API.Model;
++using Microsoft.Extensions.Logging;
++using Microsoft.Extensions.Options;
++using System;
++using System.Linq;
++using System.Threading.Tasks;
++
++namespace Microsoft.eShopOnContainers.Services.Basket.API.Services
++{
++    public class BasketMergeService : IBasketMergeService
++    {
++        private readonly IBasketRepository _repository;
++        private readonly BasketSettings _settings;
++        private readonly ILogger<BasketMergeService> _logger;
++
++        public BasketMergeService(IBasketRepository repository, IOptions<BasketSettings> settings, ILogger<BasketMergeService> logger)
++        {
++            _repository = repository;
++            _settings = settings.Value;
++            _logger = logger;
++        }
++
++        public async Task<CustomerBasket> MergeAsync(string anonymousId, string buyerId)
++        {
++            if (string.IsNullOrEmpty(anonymousId) || string.IsNullOrEmpty(buyerId))
++                throw new ArgumentException("anonymousId and buyerId are required");
++
++            var anonymous = await _repository.GetBasketAsync(anonymousId);
++            var target = await _repository.GetBasketAsync(buyerId) ?? new CustomerBasket(buyerId);
++
++            if (anonymous == null || anonymous.Items.Count == 0)
++                return target;
++
++            foreach (var item in anonymous.Items)
++            {
++                var existing = target.Items.FirstOrDefault(i => i.ProductId == item.ProductId);
++                if (existing == null)
++                {
++                    item.Quantity = Math.Min(item.Quantity, _settings.MaxQuantityPerItem);
++                    target.Items.Add(item);
++                    continue;
++                }
++
++                existing.Quantity = Math.Min(existing.Quantity + item.Quantity, _settings.MaxQuantityPerItem);
++                existing.UnitPrice = item.UnitPrice;
++            }
++
++            if (target.Items.Count > _settings.MaxItems)
++                target.Items = target.Items.Take(_settings.MaxItems).ToList();
++
++            var updated = await _repository.UpdateBasketAsync(target);
++            await _repository.DeleteBasketAsync(anonymousId);
++
++            _logger.LogInformation("Merged basket {AnonymousId} into {BuyerId}, {ItemCount} items", anonymousId, buyerId, updated.Items.Count);
++            return updated;
++        }
++
++        public bool Validate(CustomerBasket basket, out string error)
++        {
++            error = null;
++            if (basket.Items.Count > _settings.MaxItems)
++            {
++                error = $"Basket can contain at most {_settings.MaxItems} different products";
++                return false;
++            }
++
++            var tooMany = basket.Items.FirstOrDefault(i => i.Quantity > _settings.MaxQuantityPerItem);
++            if (tooMany != null)
++            {
++                error = $"Quantity of {tooMany.ProductName} can not exceed {_settings.MaxQuantityPerItem}";
++                return false;
++            }
++
++            if (basket.Items.Any(i => i.Quantity <= 0))
++            {
++                error = "Quantity must be positive";
++                return false;
++            }
++
++            return true;
++        }
++    }
++
++    public interface IBasketMergeService
++    {
++        Task<CustomerBasket> MergeAsync(string anonymousId, string buyerId);
++        bool Validate(CustomerBasket basket, out string error);
++    }
++}
+-- 
+2.43.0
+

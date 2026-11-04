@@ -382,9 +382,15 @@ public static partial class CSharpFeatureExtractor
             }
 
             var words = WordRegex().Matches(body).Select(m => m.Value).ToList();
-            if (words.Count is >= 1 and <= 9 && NarrativeVerbs.Contains(words[0]) && !body.Contains("TODO", StringComparison.OrdinalIgnoreCase))
+            if (words.Count is >= 1 and <= 12 && (NarrativeVerbs.Contains(words[0]) || RussianNarrativeRegex().IsMatch(words[0])) &&
+                !body.Contains("TODO", StringComparison.OrdinalIgnoreCase))
             {
                 ctx.Hit(K.NarrativeComments, line);
+            }
+
+            if (CyrillicRegex().IsMatch(body) && char.IsUpper(firstLetter) && !SlangRegex().IsMatch(body))
+            {
+                ctx.S.Add(K.CyrillicPolishedComments);
             }
 
             // «Пересказывающий» комментарий: слова комментария почти все встречаются в идентификаторах следующей строки кода.
@@ -466,6 +472,14 @@ public static partial class CSharpFeatureExtractor
 
     [GeneratedRegex(@"[А-Яа-яЁё]")]
     private static partial Regex CyrillicRegex();
+
+    /// <summary>Русский глагол 1-го лица мн. числа в начале комментария: «Получаем…», «Проверяем…», «Создаём…».</summary>
+    [GeneratedRegex(@"^[А-ЯЁа-яё][а-яё]{2,}(ем|ём|им|ам|ям)$")]
+    private static partial Regex RussianNarrativeRegex();
+
+    /// <summary>Разговорные/сленговые маркеры в русских комментариях — признак «ручного» стиля.</summary>
+    [GeneratedRegex(@"(костыл|дерга|дёрга|хз|пока так|временно|потом|переделать|кривов|херн|фигн|почему-то|зачем-то|!!|\?\?|\)\)|\bвроде\b|\bщас\b|\bнадо\b)", RegexOptions.IgnoreCase)]
+    private static partial Regex SlangRegex();
 
     [GeneratedRegex(@"[A-Za-z]{3,}")]
     private static partial Regex LatinRegex();

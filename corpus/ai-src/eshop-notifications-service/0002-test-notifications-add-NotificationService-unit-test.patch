@@ -1,0 +1,108 @@
+From d6ae5eedbbaf763555e76b63dd969453f1c86d7e Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Wed, 30 Sep 2020 13:06:00 +0000
+Subject: [PATCH 2/2] test(notifications): add NotificationService unit tests
+
+---
+ .../NotificationServiceTests.cs               | 89 +++++++++++++++++++
+ 1 file changed, 89 insertions(+)
+ create mode 100644 src/Services/Notifications/Notifications.UnitTests/NotificationServiceTests.cs
+
+diff --git a/src/Services/Notifications/Notifications.UnitTests/NotificationServiceTests.cs b/src/Services/Notifications/Notifications.UnitTests/NotificationServiceTests.cs
+new file mode 100644
+index 00000000..7ee1f7b9
+--- /dev/null
++++ b/src/Services/Notifications/Notifications.UnitTests/NotificationServiceTests.cs
+@@ -0,0 +1,89 @@
++using Microsoft.Extensions.Logging.Abstractions;
++using Microsoft.Extensions.Time.Testing;
++using Notifications.API.Models;
++using Notifications.API.Options;
++using Notifications.API.Services;
++
++namespace Notifications.UnitTests;
++
++public sealed class NotificationServiceTests
++{
++    private readonly InMemoryNotificationStore _store = new();
++    private readonly FakeTimeProvider _timeProvider = new(new DateTimeOffset(2025, 3, 1, 10, 0, 0, TimeSpan.Zero));
++    private readonly NotificationService _sut;
++
++    public NotificationServiceTests()
++    {
++        _sut = new NotificationService(
++            _store,
++            Microsoft.Extensions.Options.Options.Create(new NotificationOptions { MaxPageSize = 2 }),
++            _timeProvider,
++            NullLogger<NotificationService>.Instance);
++    }
++
++    [Fact]
++    public async Task CreateAsync_ValidRequest_StoresTrimmedNotification()
++    {
++        // Arrange
++        var request = new CreateNotificationRequest("buyer-1", "  Order shipped  ", " Your order is on its way ");
++
++        // Act
++        var notification = await _sut.CreateAsync(request);
++
++        // Assert
++        Assert.Equal("Order shipped", notification.Title);
++        Assert.Equal("Your order is on its way", notification.Message);
++        Assert.False(notification.IsRead);
++    }
++
++    [Fact]
++    public async Task GetPageAsync_PageSizeAboveLimit_IsCappedByOptions()
++    {
++        // Arrange
++        for (var i = 0; i < 5; i++)
++        {
++            await _sut.CreateAsync(new CreateNotificationRequest("buyer-1", $"Title {i}", null));
++        }
++
++        // Act
++        var page = await _sut.GetPageAsync("buyer-1", pageIndex: 0, pageSize: 100);
++
++        // Assert
++        Assert.Equal(2, page.Items.Count);
++        Assert.Equal(5, page.TotalCount);
++        Assert.Equal(5, page.UnreadCount);
++    }
++
++    [Fact]
++    public async Task MarkAsReadAsync_ExistingNotification_SetsReadAt()
++    {
++        // Arrange
++        var notification = await _sut.CreateAsync(new CreateNotificationRequest("buyer-1", "Price drop", null, NotificationType.PriceDrop));
++
++        // Act
++        var result = await _sut.MarkAsReadAsync("buyer-1", notification.Id);
++
++        // Assert
++        Assert.True(result);
++        var page = await _sut.GetPageAsync("buyer-1", 0, 10);
++        Assert.Equal(0, page.UnreadCount);
++    }
++
++    [Fact]
++    public async Task MarkAsReadAsync_UnknownNotification_ReturnsFalse()
++    {
++        // Act
++        var result = await _sut.MarkAsReadAsync("buyer-1", Guid.NewGuid());
++
++        // Assert
++        Assert.False(result);
++    }
++
++    [Theory]
++    [InlineData(-1, 10)]
++    [InlineData(0, 0)]
++    public async Task GetPageAsync_InvalidPaging_ThrowsArgumentOutOfRangeException(int pageIndex, int pageSize)
++    {
++        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => _sut.GetPageAsync("buyer-1", pageIndex, pageSize));
++    }
++}
+-- 
+2.43.0
+
