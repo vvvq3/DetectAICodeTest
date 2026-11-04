@@ -21,6 +21,12 @@ export GITLAB_TOKEN=glpat-xxxxxxxxxxxxxxxx      # токен с правом rea
 ./run.sh web
 ```
 
+Несколько MR сразу: файл со ссылками, по одной в строке. Вывод — сводная таблица, плюс HTML-отчёт по каждому MR.
+
+```bash
+./run.sh batch mrs.txt --html reports/
+```
+
 ### Токен GitLab
 GitLab → аватар → **Edit profile → Access Tokens** → *Add new token*, scope **`read_api`** (достаточно; `read_repository` не нужен). Токен передаётся через переменную `GITLAB_TOKEN` или параметр `--token`.
 
@@ -89,18 +95,18 @@ GitLab API ─► MR, коммиты, диффы, файлы до/после, с
 | Прямые следы | `Co-Authored-By: Claude`, «Generated with Claude Code», ссылка `claude.ai/code/session_…`, `CLAUDE.md`/`.claude/` в MR или репозитории, ветка `claude/…`, описание `## Summary` + `## Test plan` |
 | XML-документация | доля публичных членов с XML-doc, полнота `<param>`/`<returns>`, шаблонные фразы («Gets or sets…», «A token to cancel…»), `<inheritdoc />`, `<exception cref>` |
 | Комментарии | пошаговые «повествования» (`// Validate…`, `// Получаем…`), пересказ следующей строки, нумерованные шаги, язык (небрежный русский — человек; английский при русском проекте — ИИ), регистр |
-| Именование | длина имён, короткие имена, сокращения (`ct`, `cfg`, `res`…), «агентские» имена (`result`, `existing…`, `normalized…`), `cancellationToken` полностью, лямбды `x =>` |
+| Именование | длина имён, короткие имена, сокращения (`ct`, `cfg`, `res`…), «агентские» имена (`result`, `existing…`, `normalized…`), `cancellationToken` полностью, лямбды `x =>`, **транслит/кириллица** в идентификаторах (`zakaz`, `kolvo`), венгерская нотация (`strName`, `m_field`) |
 | Современный синтаксис и API | `is null`, file-scoped namespace, `[]`, `new()`, switch-выражения, `record`, `required`, primary ctor, `IsNullOrWhiteSpace`, `string.Empty`, `= string.Empty` у свойств, `IReadOnlyList`, `UtcNow` против `Now`, `StringComparison`, `nameof` |
 | Защитный код | guard-клаузы в публичных методах, `ThrowIfNull`, `Guard.Against`, `?? throw new ArgumentNullException` |
 | Async | `CancellationToken` в async-методах, передача токена дальше, `= default`, суффикс `Async`, `ConfigureAwait(false)`; анти-паттерны `.Result`, `.Wait()`, `async void` |
 | Логирование | шаблоны `{OrderId}` против `$"…"`/конкатенации, плотность логов |
 | Исключения | сообщения-предложения с точкой, `'{value}'` в кавычках, конкретные типы против `new Exception`, `catch (Exception e)`, `throw ex;`, пустой `catch {}` |
-| Структура | `sealed`, `readonly`, порядок членов, явные модификаторы доступа, длинные/вложенные/запутанные методы, публичные поля |
+| Структура и идиомы агента | `sealed`, `readonly`, порядок членов, явные модификаторы доступа, длинные/вложенные/запутанные методы, публичные поля, эмодзи в строках, `const string SectionName`, `[ProducesResponseType]` на каждом действии, `AsNoTracking()`, константы против «магических чисел» |
 | Ручные привычки | TODO/FIXME, ссылки на тикеты, закомментированный код, `#region`, `Console.WriteLine`, `string.Format`, склейка через `+`, LINQ query-синтаксис, `Thread.Sleep`, опечатки |
-| Форматирование | пробелы в конце строк, `if(`, `x=y`, `){`, двойные пустые строки, K&R-скобки, табы, длинные строки |
+| Форматирование | пробелы в конце строк, `if(`, `x=y`, `){`, `//комментарий` без пробела, двойные пустые строки, K&R-скобки, табы, длинные строки |
 | Тесты | `// Arrange / Act / Assert`, имена `Method_Scenario_Expected`, `[Theory]`+`[InlineData]`, `test@example.com` |
 | Форма MR | число затронутых слоёв, тесты в том же MR и их доля, новые `.md`, доля новых файлов, «полная архитектура» (интерфейс + реализация + DI + options), единообразие стиля по файлам |
-| Коммиты и процесс | стиль сообщений (Conventional Commits, тело-список), коммиты-доделки «fix/правки», **скорость** (строк в час между коммитами одного автора), описание MR |
+| Коммиты и процесс | стиль сообщений (Conventional Commits, тело-список), коммиты-доделки «fix/правки», **скорость** (строк в час между коммитами одного автора, по дате авторства — устойчиво к rebase), **«готовность с первого раза»** (новый файл создан одним коммитом), **реакция на ревью** (скорость и ширина исправлений после замечаний), описание MR, упоминание ИИ-инструментов, эмодзи в коммитах |
 | Отличие от стиля проекта | те же признаки на существующем коде проекта (старые версии файлов + соседние файлы): MR «аккуратнее» проекта → ИИ; конвенции проекта (XML-doc по StyleCop и т.п.) ослабляют соответствующие признаки |
 
 Подробности и обоснование — в [docs/RESEARCH.md](docs/RESEARCH.md), исходный код признаков — в [`src/AiDetect.Core/Features`](src/AiDetect.Core/Features) и [`src/AiDetect.Core/Signals`](src/AiDetect.Core/Signals).
