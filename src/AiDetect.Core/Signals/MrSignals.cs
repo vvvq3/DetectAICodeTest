@@ -416,6 +416,9 @@ internal sealed partial class MrSignals(AnalysisContext ctx, SignalBuilder b)
     [GeneratedRegex(@"^#{1,4}\s+\S", RegexOptions.Multiline)]
     private static partial Regex HeadingRegex();
 
+    [GeneratedRegex(@"^#{1,4}\s+(.+?)\s*$", RegexOptions.Multiline)]
+    private static partial Regex HeadingTextRegex();
+
     [GeneratedRegex(@"^\s*[-*]\s+\[[ xX]\]", RegexOptions.Multiline)]
     private static partial Regex CheckboxRegex();
 
@@ -429,7 +432,9 @@ internal sealed partial class MrSignals(AnalysisContext ctx, SignalBuilder b)
 
         double s = 0;
         var notes = new List<string>();
-        int headings = HeadingRegex().Matches(d).Count;
+        var templateHeadings = ctx.Conventions.MrTemplateHeadings;
+        int headings = HeadingTextRegex().Matches(d)
+            .Count(m => !templateHeadings.Contains(Analysis.ProjectConventions.Normalize(m.Groups[1].Value)));
         int bullets = BulletRegex().Matches(d).Count;
         if (headings >= 2)
         {

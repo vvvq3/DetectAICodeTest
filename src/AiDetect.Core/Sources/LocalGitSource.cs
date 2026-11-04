@@ -83,6 +83,16 @@ public sealed class LocalGitSource(string repoPath, string baseRef, string headR
             {
                 data.Repository.AgentFilesAtHead.Add(name);
             }
+
+            if (Analysis.ProjectConventions.IsRootConfigFile(name) || name.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase))
+            {
+                AddConfig(data, head, name);
+            }
+        }
+
+        foreach (var name in Run(["ls-tree", "--name-only", head, ".gitlab/merge_request_templates/"]).Output.Split('\n', StringSplitOptions.RemoveEmptyEntries).Take(5))
+        {
+            AddConfig(data, head, name);
         }
 
         data.Repository.GitIgnore = Show(head, ".gitignore");
@@ -152,6 +162,11 @@ public sealed class LocalGitSource(string repoPath, string baseRef, string headR
             var listing = Git("ls-tree", "--name-only", baseSha, dir.Length == 0 ? "." : dir + "/");
             foreach (var path in listing.Split('\n', StringSplitOptions.RemoveEmptyEntries))
             {
+                if (path.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase))
+                {
+                    AddConfig(data, baseSha, path);
+                }
+
                 if (BaselineSelection.IsBaselineCandidate(path) && !changed.Contains(path) && !candidates.Contains(path))
                 {
                     candidates.Add(path);
@@ -176,6 +191,14 @@ public sealed class LocalGitSource(string repoPath, string baseRef, string headR
             {
                 data.Repository.BaselineFiles.Add(new SourceFile { Path = path, Content = content });
             }
+        }
+    }
+
+    private void AddConfig(MergeRequestData data, string rev, string path)
+    {
+        if (data.Repository.ConfigFiles.Count < 12 && data.Repository.ConfigFiles.All(f => f.Path != path) && Show(rev, path) is { } content)
+        {
+            data.Repository.ConfigFiles.Add(new SourceFile { Path = path, Content = content });
         }
     }
 

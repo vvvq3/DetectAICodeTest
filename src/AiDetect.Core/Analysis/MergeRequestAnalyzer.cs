@@ -45,6 +45,10 @@ public sealed class MergeRequestAnalyzer
         }
 
         var (confidence, note) = ConfidenceOf(added, signals, artifacts, ctx.Baseline is not null);
+        if (ctx.Conventions.Any)
+        {
+            warnings.Insert(0, "Учтены конвенции проекта (соответствующие признаки ослаблены): " + string.Join(", ", ctx.Conventions.Notes) + ".");
+        }
 
         return new AnalysisReport
         {
@@ -147,6 +151,7 @@ public sealed class MergeRequestAnalyzer
             Baseline = baseline,
             BaselineFiles = baselineFiles,
             Options = options,
+            Conventions = ProjectConventions.Detect(mr.Repository),
         };
     }
 

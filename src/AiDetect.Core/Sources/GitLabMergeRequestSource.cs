@@ -249,6 +249,8 @@ public sealed partial class GitLabMergeRequestSource : IMergeRequestSource, IDis
         {
             try
             {
+                var configPaths = new List<string>();
+                bool hasGitLabDir = false;
                 foreach (var e in await GetPagedAsync($"/projects/{_url.EncodedProject}/repository/tree?ref={Uri.EscapeDataString(head)}", ct, maxPages: 3))
                 {
                     var name = Str(e, "name");
@@ -256,9 +258,41 @@ public sealed partial class GitLabMergeRequestSource : IMergeRequestSource, IDis
                     {
                         data.Repository.AgentFilesAtHead.Add(name);
                     }
+
+                    if (Str(e, "type") == "blob" && (Analysis.ProjectConventions.IsRootConfigFile(name) || name.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase)))
+                    {
+                        configPaths.Add(name);
+                    }
+
+                    hasGitLabDir |= name == ".gitlab";
+                }
+
+                if (hasGitLabDir)
+                {
+                    try
+                    {
+                        foreach (var e in await GetPagedAsync($"/projects/{_url.EncodedProject}/repository/tree?ref={Uri.EscapeDataString(head)}&path=.gitlab/merge_request_templates", ct, maxPages: 1))
+                        {
+                            if (Str(e, "type") == "blob")
+                            {
+                                configPaths.Add(Str(e, "path"));
+                            }
+                        }
+                    }
+                    catch (SourceException)
+                    {
+                        // Шаблонов MR нет.
+                    }
                 }
 
                 data.Repository.GitIgnore = await GetRawFileAsync(".gitignore", head, ct);
+                foreach (var path in configPaths.Take(10))
+                {
+                    if (await GetRawFileAsync(path, head, ct) is { } content)
+                    {
+                        data.Repository.ConfigFiles.Add(new SourceFile { Path = path, Content = content });
+                    }
+                }
             }
             catch (SourceException)
             {
@@ -274,6 +308,7 @@ public sealed partial class GitLabMergeRequestSource : IMergeRequestSource, IDis
 
         var changed = data.Changes.Select(c => c.Path).ToHashSet(StringComparer.Ordinal);
         var candidates = new List<string>();
+        var projectFiles = new List<string>();
         foreach (var dir in BaselineSelection.CandidateDirectories(data))
         {
             if (candidates.Count >= _limits.MaxBaselineFiles * 3)
@@ -288,6 +323,11 @@ public sealed partial class GitLabMergeRequestSource : IMergeRequestSource, IDis
                 foreach (var e in await GetPagedAsync(query, ct, maxPages: 2))
                 {
                     var path = Str(e, "path");
+                    if (Str(e, "type") == "blob" && path.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase) && projectFiles.Count < 3 && !projectFiles.Contains(path))
+                    {
+                        projectFiles.Add(path);
+                    }
+
                     if (Str(e, "type") == "blob" && BaselineSelection.IsBaselineCandidate(path) && !changed.Contains(path) && !candidates.Contains(path))
                     {
                         candidates.Add(path);
@@ -297,6 +337,14 @@ public sealed partial class GitLabMergeRequestSource : IMergeRequestSource, IDis
             catch (SourceException)
             {
                 // Каталога могло не быть на base (новый модуль) — пробуем следующий.
+            }
+        }
+
+        foreach (var path in projectFiles)
+        {
+            if (data.Repository.ConfigFiles.All(f => f.Path != path) && await GetRawFileAsync(path, baseRef, ct) is { } content)
+            {
+                data.Repository.ConfigFiles.Add(new SourceFile { Path = path, Content = content });
             }
         }
 

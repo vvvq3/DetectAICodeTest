@@ -50,6 +50,8 @@ public sealed class AnalysisContext
 
     public required AnalyzerOptions Options { get; init; }
 
+    public ProjectConventions Conventions { get; init; } = ProjectConventions.Detect(new());
+
     public IEnumerable<FileAnalysis> AnalyzedCs => Files.Where(f => f.IsCSharp && !f.Excluded && !f.IsDeleted);
 
     public int AddedProdLines => AnalyzedCs.Where(f => !f.IsTest).Sum(f => f.AddedLines);
