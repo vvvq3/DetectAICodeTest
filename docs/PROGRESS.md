@@ -16,9 +16,9 @@
 - [x] CLI + `--web`
 - [x] run.sh + README (запуск на Mac)
 - [x] Модульные тесты
-- [~] Корпус и оценка (AUC), калибровка весов — идёт: human из публичных репо (scripts/build_corpus_from_git.py), ИИ-образцы в corpus/ai-src (scratchpad/mk_ai.sh)
-- [ ] Проверка GitLab-клиента на gitlab.com
-- [ ] Доп. критерии и улучшения
+- [x] Корпус (79 human из 12 репо + 14 ИИ) и оценка (docs/EVALUATION.md), калибровка весов → model/weights.json (lambda=8)
+- [x] Проверка GitLab-клиента на gitlab.com (публичный MR, 14 с, параллельная загрузка), веб-режим проверен
+- [~] Доп. критерии и улучшения: конвенции проекта (StyleCop/editorconfig/commitlint/шаблоны MR), явные модификаторы, вложенность, общие исключения, русские комментарии-повествования, опечатки
 
 ## Заметки для продолжения
 - Сборка: `export PATH=/root/.dotnet:$PATH; dotnet build src/AiDetect.Cli -c Release -o .build`

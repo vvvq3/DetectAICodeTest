@@ -1,0 +1,203 @@
+From 31d5746bf060ba38a00255c5098a38100914378c Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Sat, 28 Nov 2020 20:10:00 +0000
+Subject: [PATCH] Pin meeting comment
+
+---
+ .../PinMeetingCommentCommand.cs               | 18 ++++++
+ .../PinMeetingCommentCommandHandler.cs        | 56 +++++++++++++++++++
+ .../PinMeetingCommentCommandValidator.cs      | 13 +++++
+ .../MeetingCommentPinnedDomainEvent.cs        | 17 ++++++
+ .../Rules/CannotPinRemovedCommentRule.cs      | 18 ++++++
+ ...yMeetingGroupOrganizerCanPinCommentRule.cs | 22 ++++++++
+ 6 files changed, 144 insertions(+)
+ create mode 100644 src/Modules/Meetings/Application/MeetingComments/PinMeetingComment/PinMeetingCommentCommand.cs
+ create mode 100644 src/Modules/Meetings/Application/MeetingComments/PinMeetingComment/PinMeetingCommentCommandHandler.cs
+ create mode 100644 src/Modules/Meetings/Application/MeetingComments/PinMeetingComment/PinMeetingCommentCommandValidator.cs
+ create mode 100644 src/Modules/Meetings/Domain/MeetingComments/MeetingCommentPinnedDomainEvent.cs
+ create mode 100644 src/Modules/Meetings/Domain/MeetingComments/Rules/CannotPinRemovedCommentRule.cs
+ create mode 100644 src/Modules/Meetings/Domain/MeetingComments/Rules/OnlyMeetingGroupOrganizerCanPinCommentRule.cs
+
+diff --git a/src/Modules/Meetings/Application/MeetingComments/PinMeetingComment/PinMeetingCommentCommand.cs b/src/Modules/Meetings/Application/MeetingComments/PinMeetingComment/PinMeetingCommentCommand.cs
+new file mode 100644
+index 0000000..57339bb
+--- /dev/null
++++ b/src/Modules/Meetings/Application/MeetingComments/PinMeetingComment/PinMeetingCommentCommand.cs
+@@ -0,0 +1,18 @@
++using System;
++using CompanyName.MyMeetings.Modules.Meetings.Application.Contracts;
++
++namespace CompanyName.MyMeetings.Modules.Meetings.Application.MeetingComments.PinMeetingComment
++{
++    public class PinMeetingCommentCommand : CommandBase
++    {
++        public PinMeetingCommentCommand(Guid meetingCommentId, bool isPinned)
++        {
++            MeetingCommentId = meetingCommentId;
++            IsPinned = isPinned;
++        }
++
++        public Guid MeetingCommentId { get; }
++
++        public bool IsPinned { get; }
++    }
++}
+diff --git a/src/Modules/Meetings/Application/MeetingComments/PinMeetingComment/PinMeetingCommentCommandHandler.cs b/src/Modules/Meetings/Application/MeetingComments/PinMeetingComment/PinMeetingCommentCommandHandler.cs
+new file mode 100644
+index 0000000..01ab6d0
+--- /dev/null
++++ b/src/Modules/Meetings/Application/MeetingComments/PinMeetingComment/PinMeetingCommentCommandHandler.cs
+@@ -0,0 +1,56 @@
++using System.Collections.Generic;
++using System.Threading;
++using System.Threading.Tasks;
++using CompanyName.MyMeetings.BuildingBlocks.Application;
++using CompanyName.MyMeetings.Modules.Meetings.Application.Configuration.Commands;
++using CompanyName.MyMeetings.Modules.Meetings.Domain.MeetingComments;
++using CompanyName.MyMeetings.Modules.Meetings.Domain.MeetingGroups;
++using CompanyName.MyMeetings.Modules.Meetings.Domain.Meetings;
++using CompanyName.MyMeetings.Modules.Meetings.Domain.Members;
++using MediatR;
++
++namespace CompanyName.MyMeetings.Modules.Meetings.Application.MeetingComments.PinMeetingComment
++{
++    internal class PinMeetingCommentCommandHandler : ICommandHandler<PinMeetingCommentCommand>
++    {
++        private readonly IMeetingCommentRepository _meetingCommentRepository;
++        private readonly IMeetingRepository _meetingRepository;
++        private readonly IMeetingGroupRepository _meetingGroupRepository;
++        private readonly IMemberContext _memberContext;
++
++        public PinMeetingCommentCommandHandler(
++            IMeetingCommentRepository meetingCommentRepository,
++            IMeetingRepository meetingRepository,
++            IMeetingGroupRepository meetingGroupRepository,
++            IMemberContext memberContext)
++        {
++            _meetingCommentRepository = meetingCommentRepository;
++            _meetingRepository = meetingRepository;
++            _meetingGroupRepository = meetingGroupRepository;
++            _memberContext = memberContext;
++        }
++
++        public async Task<Unit> Handle(PinMeetingCommentCommand command, CancellationToken cancellationToken)
++        {
++            var meetingComment = await _meetingCommentRepository.GetByIdAsync(new MeetingCommentId(command.MeetingCommentId));
++            if (meetingComment == null)
++            {
++                throw new InvalidCommandException(new List<string> { "Meeting comment for pinning must exist." });
++            }
++
++            var meeting = await _meetingRepository.GetByIdAsync(meetingComment.GetMeetingId());
++            var meetingGroup = await _meetingGroupRepository.GetByIdAsync(meeting.GetMeetingGroupId());
++
++            if (command.IsPinned)
++            {
++                meetingComment.Pin(_memberContext.MemberId, meetingGroup);
++            }
++            else
++            {
++                meetingComment.Unpin(_memberContext.MemberId, meetingGroup);
++            }
++
++            return Unit.Value;
++        }
++    }
++}
+diff --git a/src/Modules/Meetings/Application/MeetingComments/PinMeetingComment/PinMeetingCommentCommandValidator.cs b/src/Modules/Meetings/Application/MeetingComments/PinMeetingComment/PinMeetingCommentCommandValidator.cs
+new file mode 100644
+index 0000000..d65b360
+--- /dev/null
++++ b/src/Modules/Meetings/Application/MeetingComments/PinMeetingComment/PinMeetingCommentCommandValidator.cs
+@@ -0,0 +1,13 @@
++using System;
++using FluentValidation;
++
++namespace CompanyName.MyMeetings.Modules.Meetings.Application.MeetingComments.PinMeetingComment
++{
++    internal class PinMeetingCommentCommandValidator : AbstractValidator<PinMeetingCommentCommand>
++    {
++        public PinMeetingCommentCommandValidator()
++        {
++            RuleFor(x => x.MeetingCommentId).NotEqual(Guid.Empty).WithMessage("Id of meeting comment cannot be empty.");
++        }
++    }
++}
+diff --git a/src/Modules/Meetings/Domain/MeetingComments/MeetingCommentPinnedDomainEvent.cs b/src/Modules/Meetings/Domain/MeetingComments/MeetingCommentPinnedDomainEvent.cs
+new file mode 100644
+index 0000000..4321091
+--- /dev/null
++++ b/src/Modules/Meetings/Domain/MeetingComments/MeetingCommentPinnedDomainEvent.cs
+@@ -0,0 +1,17 @@
++using CompanyName.MyMeetings.BuildingBlocks.Domain;
++
++namespace CompanyName.MyMeetings.Modules.Meetings.Domain.MeetingComments.Events
++{
++    public class MeetingCommentPinnedDomainEvent : DomainEventBase
++    {
++        public MeetingCommentPinnedDomainEvent(MeetingCommentId meetingCommentId, bool isPinned)
++        {
++            MeetingCommentId = meetingCommentId;
++            IsPinned = isPinned;
++        }
++
++        public MeetingCommentId MeetingCommentId { get; }
++
++        public bool IsPinned { get; }
++    }
++}
+diff --git a/src/Modules/Meetings/Domain/MeetingComments/Rules/CannotPinRemovedCommentRule.cs b/src/Modules/Meetings/Domain/MeetingComments/Rules/CannotPinRemovedCommentRule.cs
+new file mode 100644
+index 0000000..45741c8
+--- /dev/null
++++ b/src/Modules/Meetings/Domain/MeetingComments/Rules/CannotPinRemovedCommentRule.cs
+@@ -0,0 +1,18 @@
++using CompanyName.MyMeetings.BuildingBlocks.Domain;
++
++namespace CompanyName.MyMeetings.Modules.Meetings.Domain.MeetingComments.Rules
++{
++    public class CannotPinRemovedCommentRule : IBusinessRule
++    {
++        private readonly bool _isRemoved;
++
++        public CannotPinRemovedCommentRule(bool isRemoved)
++        {
++            _isRemoved = isRemoved;
++        }
++
++        public bool IsBroken() => _isRemoved;
++
++        public string Message => "Removed comment cannot be pinned.";
++    }
++}
+diff --git a/src/Modules/Meetings/Domain/MeetingComments/Rules/OnlyMeetingGroupOrganizerCanPinCommentRule.cs b/src/Modules/Meetings/Domain/MeetingComments/Rules/OnlyMeetingGroupOrganizerCanPinCommentRule.cs
+new file mode 100644
+index 0000000..a8a0a1d
+--- /dev/null
++++ b/src/Modules/Meetings/Domain/MeetingComments/Rules/OnlyMeetingGroupOrganizerCanPinCommentRule.cs
+@@ -0,0 +1,22 @@
++using CompanyName.MyMeetings.BuildingBlocks.Domain;
++using CompanyName.MyMeetings.Modules.Meetings.Domain.MeetingGroups;
++using CompanyName.MyMeetings.Modules.Meetings.Domain.Members;
++
++namespace CompanyName.MyMeetings.Modules.Meetings.Domain.MeetingComments.Rules
++{
++    public class OnlyMeetingGroupOrganizerCanPinCommentRule : IBusinessRule
++    {
++        private readonly MeetingGroup _meetingGroup;
++        private readonly MemberId _memberId;
++
++        public OnlyMeetingGroupOrganizerCanPinCommentRule(MeetingGroup meetingGroup, MemberId memberId)
++        {
++            _meetingGroup = meetingGroup;
++            _memberId = memberId;
++        }
++
++        public bool IsBroken() => !_meetingGroup.IsOrganizer(_memberId);
++
++        public string Message => "Only meeting group organizer can pin comments.";
++    }
++}
+-- 
+2.43.0
+

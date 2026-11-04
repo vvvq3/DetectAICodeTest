@@ -1,0 +1,69 @@
+From 3fe9d14bf1ec1e480acad39f9f451043bd38969a Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Mon, 30 Nov 2020 09:22:00 +0000
+Subject: [PATCH 2/2] Add integration tests for overdue todo items
+
+---
+ .../Queries/GetOverdueTodoItemsTests.cs       | 50 +++++++++++++++++++
+ 1 file changed, 50 insertions(+)
+ create mode 100644 tests/Application.IntegrationTests/TodoItems/Queries/GetOverdueTodoItemsTests.cs
+
+diff --git a/tests/Application.IntegrationTests/TodoItems/Queries/GetOverdueTodoItemsTests.cs b/tests/Application.IntegrationTests/TodoItems/Queries/GetOverdueTodoItemsTests.cs
+new file mode 100644
+index 0000000..6509c9e
+--- /dev/null
++++ b/tests/Application.IntegrationTests/TodoItems/Queries/GetOverdueTodoItemsTests.cs
+@@ -0,0 +1,50 @@
++using CleanArchitecture.Application.Common.Exceptions;
++using CleanArchitecture.Application.TodoItems.Commands.SetTodoItemDueDate;
++using CleanArchitecture.Application.TodoItems.Queries.GetOverdueTodoItems;
++using CleanArchitecture.Domain.Entities;
++using FluentAssertions;
++using NUnit.Framework;
++using System;
++using System.Threading.Tasks;
++
++namespace CleanArchitecture.Application.IntegrationTests.TodoItems.Queries
++{
++    using static Testing;
++
++    public class GetOverdueTodoItemsTests : TestBase
++    {
++        [Test]
++        public async Task ShouldReturnOnlyIncompleteItemsPastDueDate()
++        {
++            var listId = await AddAsync(new TodoList { Title = "Shopping" });
++
++            await AddAsync(new TodoItem { ListId = listId.Id, Title = "Overdue", Reminder = DateTime.UtcNow.AddDays(-1) });
++            await AddAsync(new TodoItem { ListId = listId.Id, Title = "Done", Done = true, Reminder = DateTime.UtcNow.AddDays(-1) });
++            await AddAsync(new TodoItem { ListId = listId.Id, Title = "Future", Reminder = DateTime.UtcNow.AddDays(1) });
++            await AddAsync(new TodoItem { ListId = listId.Id, Title = "No date" });
++
++            var result = await SendAsync(new GetOverdueTodoItemsQuery());
++
++            result.Should().ContainSingle()
++                .Which.Title.Should().Be("Overdue");
++        }
++
++        [Test]
++        public void ShouldRequireDueDateInFuture()
++        {
++            var command = new SetTodoItemDueDateCommand { Id = 1, DueDate = DateTime.UtcNow.AddDays(-1) };
++
++            FluentActions.Invoking(() => SendAsync(command))
++                .Should().Throw<ValidationException>();
++        }
++
++        [Test]
++        public void ShouldRequireValidTodoItemId()
++        {
++            var command = new SetTodoItemDueDateCommand { Id = 99, DueDate = DateTime.UtcNow.AddDays(1) };
++
++            FluentActions.Invoking(() => SendAsync(command))
++                .Should().Throw<NotFoundException>();
++        }
++    }
++}
+-- 
+2.43.0
+

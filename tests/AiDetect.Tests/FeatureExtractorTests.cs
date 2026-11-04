@@ -170,3 +170,15 @@ public class FeatureExtractorTests
         Assert.True(s[K.Typos] >= 2);
     }
 }
+
+public class CommentedCodeTests
+{
+    [Theory]
+    [InlineData("sleep = min(cap, random_between(base, previous * 3))", false)]
+    [InlineData("result = a + b", false)]
+    [InlineData("order.Total = sum;", true)]
+    [InlineData("return null;", true)]
+    [InlineData("foreach (var x in items) Console.WriteLine(x);", true)]
+    public void LooksLikeCode_DistinguishesFormulasFromCode(string body, bool expected) =>
+        Assert.Equal(expected, AiDetect.Core.Features.CSharpFeatureExtractor.LooksLikeCode(body));
+}

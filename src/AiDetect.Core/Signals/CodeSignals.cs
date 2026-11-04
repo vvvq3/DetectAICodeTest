@@ -170,7 +170,7 @@ internal sealed class CodeSignals(AnalysisContext ctx, SignalBuilder b)
             double shortShare = (double)shortNames.Count / names.Count;
             b.Add("name.short", SignalGroup.Naming,
                 shortShare >= 0.08 ? $"Короткие и сокращённые имена ({string.Join(", ", shortNames.Distinct().Take(6))})" : "Почти нет коротких имён (≤ 3 символов)",
-                SignalBuilder.Map(shortShare, 0.15, 0.01), SignalBuilder.Rel(names.Count, 15), 0.8,
+                Math.Min(0.4, SignalBuilder.Map(shortShare, 0.15, 0.01)), SignalBuilder.Rel(names.Count, 15), 0.7,
                 $"{shortNames.Count} из {names.Count} имён ≤ 3 символов", [], shortShare);
 
             var abbrev = names.Where(n => Abbreviations.Contains(n) && !ShortNameExceptions.Contains(n)).ToList();

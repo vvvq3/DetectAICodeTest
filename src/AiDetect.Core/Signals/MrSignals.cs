@@ -150,7 +150,7 @@ internal sealed partial class MrSignals(AnalysisContext ctx, SignalBuilder b)
             {
                 double ratio = (double)testLines / prodLines;
                 b.Add("mr.testsWithCode", SignalGroup.MrShape, "Тесты написаны в том же MR, что и код",
-                    1, 1, 0.7, $"+{testLines} строк тестов к +{prodLines} строкам кода", [], 1);
+                    1, 1, 0.5, $"+{testLines} строк тестов к +{prodLines} строкам кода", [], 1);
                 b.Add("mr.testRatio", SignalGroup.MrShape,
                     ratio >= 0.5 ? "Большой объём тестов относительно кода" : "Тестов немного относительно кода",
                     SignalBuilder.Map(ratio, 0.1, 0.9), 1, 0.3, $"соотношение тесты/код = {ratio:0.00}", [], ratio);
@@ -158,7 +158,7 @@ internal sealed partial class MrSignals(AnalysisContext ctx, SignalBuilder b)
             else
             {
                 b.Add("mr.testsWithCode", SignalGroup.MrShape, "В MR нет тестов к новому коду",
-                    -0.35, 1, 0.7, $"+{prodLines} строк кода, тестов +{testLines}", [], 0);
+                    -0.35, 1, 0.5, $"+{prodLines} строк кода, тестов +{testLines}", [], 0);
             }
         }
 
@@ -367,8 +367,8 @@ internal sealed partial class MrSignals(AnalysisContext ctx, SignalBuilder b)
     private void Speed()
     {
         var commits = _mr.Commits
-            .Where(c => c.Additions is not null && (c.CommittedDate ?? c.AuthoredDate) is not null && !c.Title.StartsWith("Merge ", StringComparison.Ordinal))
-            .OrderBy(c => c.CommittedDate ?? c.AuthoredDate)
+            .Where(c => c.Additions is not null && (c.AuthoredDate ?? c.CommittedDate) is not null && !c.Title.StartsWith("Merge ", StringComparison.Ordinal))
+            .OrderBy(c => c.AuthoredDate ?? c.CommittedDate)
             .ToList();
         if (commits.Count < 2)
         {
@@ -380,8 +380,9 @@ internal sealed partial class MrSignals(AnalysisContext ctx, SignalBuilder b)
         double bestGapMin = 0;
         for (int i = 1; i < commits.Count; i++)
         {
-            var prev = (commits[i - 1].CommittedDate ?? commits[i - 1].AuthoredDate)!.Value;
-            var cur = (commits[i].CommittedDate ?? commits[i].AuthoredDate)!.Value;
+            // Дата авторства сохраняется при rebase/cherry-pick, дата коммита — нет.
+            var prev = (commits[i - 1].AuthoredDate ?? commits[i - 1].CommittedDate)!.Value;
+            var cur = (commits[i].AuthoredDate ?? commits[i].CommittedDate)!.Value;
             double gapH = (cur - prev).TotalHours;
             int add = commits[i].Additions!.Value;
             bool sameAuthor = string.Equals(commits[i].AuthorEmail, commits[i - 1].AuthorEmail, StringComparison.OrdinalIgnoreCase) ||

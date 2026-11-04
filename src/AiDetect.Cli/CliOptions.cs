@@ -27,6 +27,8 @@ public sealed class CliOptions
     public string? Description { get; private set; }
     public string? Branch { get; private set; }
     public int Port { get; private set; } = 5057;
+    public double Lambda { get; private set; } = 4.0;
+    public bool Balanced { get; private set; }
     public bool OpenBrowser { get; private set; } = true;
 
     public static CliOptions Parse(string[] args)
@@ -107,6 +109,12 @@ public sealed class CliOptions
                     break;
                 case "--port":
                     o.Port = int.Parse(Next());
+                    break;
+                case "--lambda":
+                    o.Lambda = double.Parse(Next(), System.Globalization.CultureInfo.InvariantCulture);
+                    break;
+                case "--balanced":
+                    o.Balanced = true;
                     break;
                 case "--no-browser":
                     o.OpenBrowser = false;

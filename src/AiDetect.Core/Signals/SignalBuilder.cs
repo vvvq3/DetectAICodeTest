@@ -93,14 +93,18 @@ internal sealed class SignalBuilder(AnalysisContext ctx, ModelParameters paramet
             return;
         }
 
+        double baseWeight = parameters.WeightFor(id, defaultWeight);
+        double conventionFactor = ConventionFactor(id);
         Results.Add(new SignalResult
         {
+            BaseWeight = baseWeight,
+            ConventionFactor = conventionFactor,
             Id = id,
             Group = group,
             Title = title,
             Evidence = Math.Clamp(evidence, -1, 1),
             Reliability = Math.Clamp(reliability, 0, 1),
-            Weight = parameters.WeightFor(id, defaultWeight) * ConventionFactor(id),
+            Weight = baseWeight * conventionFactor,
             Detail = detail,
             Examples = examples,
             RawValue = raw,

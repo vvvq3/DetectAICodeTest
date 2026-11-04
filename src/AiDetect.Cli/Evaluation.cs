@@ -65,10 +65,10 @@ public static class Evaluation
         var prior = Calibrator.DefaultWeights(scored);
 
         PrintMetrics("До калибровки (экспертные веса)", scored.Select(s => (s.Item.Label, s.Probability)).ToList());
-        var cv = Calibrator.CrossValidate(samples, prior, start);
-        PrintMetrics("После калибровки, 5-кратная перекрёстная проверка", cv);
+        var cv = Calibrator.CrossValidate(samples, prior, start, lambda: o.Lambda, balanced: o.Balanced);
+        PrintMetrics($"После калибровки (lambda={o.Lambda}, {(o.Balanced ? "с балансировкой классов" : "консервативно, без балансировки")}), 5-кратная перекрёстная проверка", cv);
 
-        var fitted = Calibrator.Fit(samples, prior, start);
+        var fitted = Calibrator.Fit(samples, prior, start, o.Lambda, balanced: o.Balanced);
         var outPath = o.OutPath ?? "weights.json";
         fitted.Save(outPath);
         Console.WriteLine($"Веса сохранены в {Path.GetFullPath(outPath)}. Использование: --weights {outPath} (или положите weights.json рядом с программой).");

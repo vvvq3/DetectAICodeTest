@@ -496,7 +496,7 @@ public static partial class CSharpFeatureExtractor
     [GeneratedRegex(@"[A-Z]?[a-z0-9]+|[A-Z]+(?![a-z])")]
     private static partial Regex CamelPartRegex();
 
-    [GeneratedRegex(@"^(var |await |return |using |if\s*\(|foreach\s*\(|for\s*\(|while\s*\(|public |private |protected |internal |_[a-z]\w*\.|this\.|new [A-Z]|[A-Za-z_][\w\.]*\s*=\s*[^=].*;?$|[A-Za-z_][\w\.]*\(.*\)\s*;?$)")]
+    [GeneratedRegex(@"^((var|await|return|using|public|private|protected|internal|throw) .*[;{)]$|(if|foreach|for|while|switch)\s*\(.*\)\s*\S*.*$|_[a-z]\w*\..*;$|this\..*;$|[A-Za-z_][\w\.\[\]]*\s*[+\-*/]?=\s*[^=].*;$|[A-Za-z_][\w\.<>]*\(.*\)\s*;$)")]
     private static partial Regex CodeLikeRegex();
 
     // ------------------------------------------------------------------ синтаксический обход

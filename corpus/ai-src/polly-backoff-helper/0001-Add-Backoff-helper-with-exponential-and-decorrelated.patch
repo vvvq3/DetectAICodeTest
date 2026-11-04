@@ -1,0 +1,177 @@
+From 57ce203c2848b1b657f4539ed8a514115788e632 Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Sun, 29 Nov 2020 18:00:00 +0000
+Subject: [PATCH] Add Backoff helper with exponential and decorrelated jitter
+ strategies
+
+- Backoff.Exponential with optional max delay
+- Backoff.DecorrelatedJitter with optional seed for repeatable sequences
+- Specs covering bounds, argument validation and repeatability
+---
+ src/Polly.Specs/Retry/BackoffSpecs.cs | 64 +++++++++++++++++++++
+ src/Polly/Retry/Backoff.cs            | 82 +++++++++++++++++++++++++++
+ 2 files changed, 146 insertions(+)
+ create mode 100644 src/Polly.Specs/Retry/BackoffSpecs.cs
+ create mode 100644 src/Polly/Retry/Backoff.cs
+
+diff --git a/src/Polly.Specs/Retry/BackoffSpecs.cs b/src/Polly.Specs/Retry/BackoffSpecs.cs
+new file mode 100644
+index 00000000..c4e16589
+--- /dev/null
++++ b/src/Polly.Specs/Retry/BackoffSpecs.cs
+@@ -0,0 +1,64 @@
++using System;
++using System.Linq;
++using FluentAssertions;
++using Polly.Retry;
++using Xunit;
++
++namespace Polly.Specs.Retry
++{
++    public class BackoffSpecs
++    {
++        [Fact]
++        public void Exponential_should_double_delay_for_each_retry()
++        {
++            var delays = Backoff.Exponential(TimeSpan.FromMilliseconds(100), 4).ToList();
++
++            delays.Should().Equal(
++                TimeSpan.FromMilliseconds(100),
++                TimeSpan.FromMilliseconds(200),
++                TimeSpan.FromMilliseconds(400),
++                TimeSpan.FromMilliseconds(800));
++        }
++
++        [Fact]
++        public void Exponential_should_respect_max_delay()
++        {
++            var delays = Backoff.Exponential(TimeSpan.FromSeconds(1), 5, maxDelay: TimeSpan.FromSeconds(3)).ToList();
++
++            delays.Should().OnlyContain(d => d <= TimeSpan.FromSeconds(3));
++            delays.Last().Should().Be(TimeSpan.FromSeconds(3));
++        }
++
++        [Theory]
++        [InlineData(-1, 3, 2.0)]
++        [InlineData(100, -1, 2.0)]
++        [InlineData(100, 3, 0.5)]
++        public void Exponential_should_throw_for_invalid_arguments(int initialMs, int retryCount, double factor)
++        {
++            Action action = () => Backoff.Exponential(TimeSpan.FromMilliseconds(initialMs), retryCount, factor);
++
++            action.Should().Throw<ArgumentOutOfRangeException>();
++        }
++
++        [Fact]
++        public void DecorrelatedJitter_should_stay_within_bounds()
++        {
++            var initial = TimeSpan.FromMilliseconds(50);
++            var max = TimeSpan.FromSeconds(2);
++
++            var delays = Backoff.DecorrelatedJitter(initial, max, 100, seed: 42).ToList();
++
++            delays.Should().HaveCount(100);
++            delays.Should().OnlyContain(d => d >= initial && d <= max);
++        }
++
++        [Fact]
++        public void DecorrelatedJitter_with_same_seed_should_be_repeatable()
++        {
++            var first = Backoff.DecorrelatedJitter(TimeSpan.FromMilliseconds(10), TimeSpan.FromSeconds(1), 10, seed: 7).ToList();
++            var second = Backoff.DecorrelatedJitter(TimeSpan.FromMilliseconds(10), TimeSpan.FromSeconds(1), 10, seed: 7).ToList();
++
++            first.Should().Equal(second);
++        }
++    }
++}
+diff --git a/src/Polly/Retry/Backoff.cs b/src/Polly/Retry/Backoff.cs
+new file mode 100644
+index 00000000..d725debc
+--- /dev/null
++++ b/src/Polly/Retry/Backoff.cs
+@@ -0,0 +1,82 @@
++using System;
++using System.Collections.Generic;
++using System.Threading;
++
++namespace Polly.Retry
++{
++    /// <summary>
++    /// Provides helper methods for generating sleep durations for use with retry policies.
++    /// </summary>
++    public static class Backoff
++    {
++        private static readonly ThreadLocal<Random> s_random = new ThreadLocal<Random>(() => new Random(Interlocked.Increment(ref s_seed)));
++        private static int s_seed = Environment.TickCount;
++
++        /// <summary>
++        /// Generates sleep durations that grow exponentially with each retry.
++        /// </summary>
++        /// <param name="initialDelay">The delay before the first retry.</param>
++        /// <param name="retryCount">The maximum number of retries.</param>
++        /// <param name="factor">The multiplier applied to the delay on each subsequent retry. Must be at least 1.</param>
++        /// <param name="maxDelay">An optional upper bound for any single delay.</param>
++        /// <returns>The sequence of sleep durations.</returns>
++        /// <exception cref="ArgumentOutOfRangeException">Thrown when an argument is outside its allowed range.</exception>
++        public static IEnumerable<TimeSpan> Exponential(TimeSpan initialDelay, int retryCount, double factor = 2.0, TimeSpan? maxDelay = null)
++        {
++            if (initialDelay < TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(initialDelay), initialDelay, "Initial delay must be non-negative.");
++            if (retryCount < 0) throw new ArgumentOutOfRangeException(nameof(retryCount), retryCount, "Retry count must be non-negative.");
++            if (factor < 1.0) throw new ArgumentOutOfRangeException(nameof(factor), factor, "Factor must be greater than or equal to 1.");
++
++            return ExponentialIterator(initialDelay, retryCount, factor, maxDelay);
++        }
++
++        /// <summary>
++        /// Generates sleep durations using the "decorrelated jitter" strategy, which spreads out retries
++        /// from many concurrent callers to avoid synchronized retry storms.
++        /// </summary>
++        /// <param name="initialDelay">The base delay.</param>
++        /// <param name="maxDelay">The maximum delay for any single retry.</param>
++        /// <param name="retryCount">The maximum number of retries.</param>
++        /// <param name="seed">An optional seed for the random number generator, to make the sequence repeatable in tests.</param>
++        /// <returns>The sequence of sleep durations.</returns>
++        /// <exception cref="ArgumentOutOfRangeException">Thrown when an argument is outside its allowed range.</exception>
++        public static IEnumerable<TimeSpan> DecorrelatedJitter(TimeSpan initialDelay, TimeSpan maxDelay, int retryCount, int? seed = null)
++        {
++            if (initialDelay <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(initialDelay), initialDelay, "Initial delay must be positive.");
++            if (maxDelay < initialDelay) throw new ArgumentOutOfRangeException(nameof(maxDelay), maxDelay, "Max delay must be greater than or equal to the initial delay.");
++            if (retryCount < 0) throw new ArgumentOutOfRangeException(nameof(retryCount), retryCount, "Retry count must be non-negative.");
++
++            var random = seed.HasValue ? new Random(seed.Value) : s_random.Value;
++            return DecorrelatedJitterIterator(initialDelay, maxDelay, retryCount, random);
++        }
++
++        private static IEnumerable<TimeSpan> ExponentialIterator(TimeSpan initialDelay, int retryCount, double factor, TimeSpan? maxDelay)
++        {
++            double currentMs = initialDelay.TotalMilliseconds;
++            for (int attempt = 0; attempt < retryCount; attempt++)
++            {
++                var delay = TimeSpan.FromMilliseconds(currentMs);
++                yield return maxDelay.HasValue && delay > maxDelay.Value ? maxDelay.Value : delay;
++
++                currentMs *= factor;
++            }
++        }
++
++        private static IEnumerable<TimeSpan> DecorrelatedJitterIterator(TimeSpan initialDelay, TimeSpan maxDelay, int retryCount, Random random)
++        {
++            double baseMs = initialDelay.TotalMilliseconds;
++            double maxMs = maxDelay.TotalMilliseconds;
++            double previousMs = baseMs;
++
++            for (int attempt = 0; attempt < retryCount; attempt++)
++            {
++                // sleep = min(cap, random_between(base, previous * 3))
++                double upperMs = Math.Min(maxMs, previousMs * 3);
++                double nextMs = baseMs + (random.NextDouble() * (upperMs - baseMs));
++
++                previousMs = nextMs;
++                yield return TimeSpan.FromMilliseconds(nextMs);
++            }
++        }
++    }
++}
+-- 
+2.43.0
+

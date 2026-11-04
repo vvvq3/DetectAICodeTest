@@ -1,0 +1,271 @@
+From 65d93461df5b1d1d7a0acc05014883212318de16 Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Mon, 30 Nov 2020 12:00:00 +0000
+Subject: [PATCH] Add product view statistics service
+
+- Add ProductViewRecord entity aggregated per product, store and day
+- Add IProductViewStatisticsService with view registration and most viewed products
+- Cache most viewed product identifiers
+---
+ .../Domain/Catalog/ProductViewRecord.cs       |  30 ++++
+ .../Catalog/IProductViewStatisticsService.cs  |  36 +++++
+ .../Catalog/NopCatalogDefaults.cs             |  20 ++-
+ .../Catalog/ProductViewStatisticsService.cs   | 130 ++++++++++++++++++
+ 4 files changed, 215 insertions(+), 1 deletion(-)
+ create mode 100644 src/Libraries/Nop.Core/Domain/Catalog/ProductViewRecord.cs
+ create mode 100644 src/Libraries/Nop.Services/Catalog/IProductViewStatisticsService.cs
+ create mode 100644 src/Libraries/Nop.Services/Catalog/ProductViewStatisticsService.cs
+
+diff --git a/src/Libraries/Nop.Core/Domain/Catalog/ProductViewRecord.cs b/src/Libraries/Nop.Core/Domain/Catalog/ProductViewRecord.cs
+new file mode 100644
+index 0000000000..5bd986b4a5
+--- /dev/null
++++ b/src/Libraries/Nop.Core/Domain/Catalog/ProductViewRecord.cs
+@@ -0,0 +1,30 @@
++using System;
++
++namespace Nop.Core.Domain.Catalog
++{
++    /// <summary>
++    /// Represents a product view record
++    /// </summary>
++    public partial class ProductViewRecord : BaseEntity
++    {
++        /// <summary>
++        /// Gets or sets the product identifier
++        /// </summary>
++        public int ProductId { get; set; }
++
++        /// <summary>
++        /// Gets or sets the store identifier
++        /// </summary>
++        public int StoreId { get; set; }
++
++        /// <summary>
++        /// Gets or sets the date (UTC) the views were aggregated for
++        /// </summary>
++        public DateTime DateUtc { get; set; }
++
++        /// <summary>
++        /// Gets or sets the number of views for the day
++        /// </summary>
++        public int ViewCount { get; set; }
++    }
++}
+diff --git a/src/Libraries/Nop.Services/Catalog/IProductViewStatisticsService.cs b/src/Libraries/Nop.Services/Catalog/IProductViewStatisticsService.cs
+new file mode 100644
+index 0000000000..2d18386eb3
+--- /dev/null
++++ b/src/Libraries/Nop.Services/Catalog/IProductViewStatisticsService.cs
+@@ -0,0 +1,36 @@
++using System;
++using System.Collections.Generic;
++using Nop.Core.Domain.Catalog;
++
++namespace Nop.Services.Catalog
++{
++    /// <summary>
++    /// Product view statistics service interface
++    /// </summary>
++    public partial interface IProductViewStatisticsService
++    {
++        /// <summary>
++        /// Registers a single view of the specified product in the current store.
++        /// </summary>
++        /// <param name="product">Product</param>
++        void RegisterView(Product product);
++
++        /// <summary>
++        /// Gets the total number of views of a product for the specified period.
++        /// </summary>
++        /// <param name="productId">Product identifier</param>
++        /// <param name="fromUtc">Start date (UTC); null to include all records</param>
++        /// <param name="toUtc">End date (UTC); null to include all records</param>
++        /// <returns>Number of views</returns>
++        int GetViewCount(int productId, DateTime? fromUtc = null, DateTime? toUtc = null);
++
++        /// <summary>
++        /// Gets the most viewed product identifiers for the specified period.
++        /// </summary>
++        /// <param name="storeId">Store identifier; 0 to load all records</param>
++        /// <param name="days">Number of days to look back</param>
++        /// <param name="count">Number of products to return</param>
++        /// <returns>Product identifiers ordered by views descending</returns>
++        IList<int> GetMostViewedProductIds(int storeId, int days, int count);
++    }
++}
+diff --git a/src/Libraries/Nop.Services/Catalog/NopCatalogDefaults.cs b/src/Libraries/Nop.Services/Catalog/NopCatalogDefaults.cs
+index 1626a6e30b..7ebb4e82cb 100644
+--- a/src/Libraries/Nop.Services/Catalog/NopCatalogDefaults.cs
++++ b/src/Libraries/Nop.Services/Catalog/NopCatalogDefaults.cs
+@@ -1,4 +1,4 @@
+-﻿using Nop.Core.Caching;
++using Nop.Core.Caching;
+ using Nop.Core.Domain.Catalog;
+ 
+ namespace Nop.Services.Catalog
+@@ -376,6 +376,24 @@ namespace Nop.Services.Catalog
+ 
+         #endregion
+ 
++        #endregion
++        #region Product view statistics
++
++        /// <summary>
++        /// Gets a key for caching the most viewed product identifiers
++        /// </summary>
++        /// <remarks>
++        /// {0} : store ID
++        /// {1} : number of days
++        /// {2} : number of products
++        /// </remarks>
++        public static CacheKey MostViewedProductIdsCacheKey => new CacheKey("Nop.productview.mostviewed.{0}-{1}-{2}", ProductViewPrefixCacheKey);
++
++        /// <summary>
++        /// Gets a key pattern to clear cache
++        /// </summary>
++        public static string ProductViewPrefixCacheKey => "Nop.productview.";
++
+         #endregion
+     }
+ }
+\ No newline at end of file
+diff --git a/src/Libraries/Nop.Services/Catalog/ProductViewStatisticsService.cs b/src/Libraries/Nop.Services/Catalog/ProductViewStatisticsService.cs
+new file mode 100644
+index 0000000000..f1d6248ebb
+--- /dev/null
++++ b/src/Libraries/Nop.Services/Catalog/ProductViewStatisticsService.cs
+@@ -0,0 +1,130 @@
++using System;
++using System.Collections.Generic;
++using System.Linq;
++using Nop.Core;
++using Nop.Core.Caching;
++using Nop.Core.Domain.Catalog;
++using Nop.Data;
++
++namespace Nop.Services.Catalog
++{
++    /// <summary>
++    /// Product view statistics service
++    /// </summary>
++    public partial class ProductViewStatisticsService : IProductViewStatisticsService
++    {
++        #region Fields
++
++        private readonly IRepository<ProductViewRecord> _productViewRecordRepository;
++        private readonly IStaticCacheManager _staticCacheManager;
++        private readonly IStoreContext _storeContext;
++
++        #endregion
++
++        #region Ctor
++
++        public ProductViewStatisticsService(IRepository<ProductViewRecord> productViewRecordRepository,
++            IStaticCacheManager staticCacheManager,
++            IStoreContext storeContext)
++        {
++            _productViewRecordRepository = productViewRecordRepository;
++            _staticCacheManager = staticCacheManager;
++            _storeContext = storeContext;
++        }
++
++        #endregion
++
++        #region Methods
++
++        /// <summary>
++        /// Registers a single view of the specified product in the current store.
++        /// </summary>
++        /// <param name="product">Product</param>
++        public virtual void RegisterView(Product product)
++        {
++            if (product == null)
++                throw new ArgumentNullException(nameof(product));
++
++            var storeId = _storeContext.CurrentStore.Id;
++            var today = DateTime.UtcNow.Date;
++
++            // Views are aggregated per product, store and day to keep the table small
++            var record = _productViewRecordRepository.Table
++                .FirstOrDefault(r => r.ProductId == product.Id && r.StoreId == storeId && r.DateUtc == today);
++
++            if (record == null)
++            {
++                _productViewRecordRepository.Insert(new ProductViewRecord
++                {
++                    ProductId = product.Id,
++                    StoreId = storeId,
++                    DateUtc = today,
++                    ViewCount = 1
++                });
++            }
++            else
++            {
++                record.ViewCount++;
++                _productViewRecordRepository.Update(record);
++            }
++        }
++
++        /// <summary>
++        /// Gets the total number of views of a product for the specified period.
++        /// </summary>
++        /// <param name="productId">Product identifier</param>
++        /// <param name="fromUtc">Start date (UTC); null to include all records</param>
++        /// <param name="toUtc">End date (UTC); null to include all records</param>
++        /// <returns>Number of views</returns>
++        public virtual int GetViewCount(int productId, DateTime? fromUtc = null, DateTime? toUtc = null)
++        {
++            var query = _productViewRecordRepository.Table.Where(r => r.ProductId == productId);
++
++            if (fromUtc.HasValue)
++                query = query.Where(r => r.DateUtc >= fromUtc.Value.Date);
++
++            if (toUtc.HasValue)
++                query = query.Where(r => r.DateUtc <= toUtc.Value.Date);
++
++            return query.Sum(r => (int?)r.ViewCount) ?? 0;
++        }
++
++        /// <summary>
++        /// Gets the most viewed product identifiers for the specified period.
++        /// </summary>
++        /// <param name="storeId">Store identifier; 0 to load all records</param>
++        /// <param name="days">Number of days to look back</param>
++        /// <param name="count">Number of products to return</param>
++        /// <returns>Product identifiers ordered by views descending</returns>
++        public virtual IList<int> GetMostViewedProductIds(int storeId, int days, int count)
++        {
++            if (days <= 0)
++                throw new ArgumentOutOfRangeException(nameof(days), "Number of days must be positive.");
++
++            if (count <= 0)
++                return new List<int>();
++
++            var cacheKey = _staticCacheManager.PrepareKeyForDefaultCache(NopCatalogDefaults.MostViewedProductIdsCacheKey, storeId, days, count);
++
++            return _staticCacheManager.Get(cacheKey, () =>
++            {
++                var fromDate = DateTime.UtcNow.Date.AddDays(-days);
++
++                var query = _productViewRecordRepository.Table.Where(r => r.DateUtc >= fromDate);
++                if (storeId > 0)
++                    query = query.Where(r => r.StoreId == storeId);
++
++                return query
++                    .GroupBy(r => r.ProductId)
++                    .Select(g => new { ProductId = g.Key, Views = g.Sum(r => r.ViewCount) })
++                    .OrderByDescending(x => x.Views)
++                    .ThenBy(x => x.ProductId)
++                    .Take(count)
++                    .Select(x => x.ProductId)
++                    .ToList();
++            });
++        }
++
++        #endregion
++    }
++}
+-- 
+2.43.0
+

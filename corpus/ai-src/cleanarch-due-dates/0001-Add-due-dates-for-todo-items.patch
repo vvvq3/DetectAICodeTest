@@ -1,0 +1,149 @@
+From 35436f0e1703aa3a48b4de9829ac3e2c264d5e95 Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Mon, 30 Nov 2020 09:15:00 +0000
+Subject: [PATCH 1/2] Add due dates for todo items
+
+- Add SetTodoItemDueDateCommand with validation that the date is in the future
+- Add GetOverdueTodoItemsQuery returning incomplete items past their due date
+---
+ .../SetTodoItemDueDateCommand.cs              | 43 ++++++++++++++++
+ .../SetTodoItemDueDateCommandValidator.cs     | 18 +++++++
+ .../GetOverdueTodoItemsQuery.cs               | 51 +++++++++++++++++++
+ 3 files changed, 112 insertions(+)
+ create mode 100644 src/Application/TodoItems/Commands/SetTodoItemDueDate/SetTodoItemDueDateCommand.cs
+ create mode 100644 src/Application/TodoItems/Commands/SetTodoItemDueDate/SetTodoItemDueDateCommandValidator.cs
+ create mode 100644 src/Application/TodoItems/Queries/GetOverdueTodoItems/GetOverdueTodoItemsQuery.cs
+
+diff --git a/src/Application/TodoItems/Commands/SetTodoItemDueDate/SetTodoItemDueDateCommand.cs b/src/Application/TodoItems/Commands/SetTodoItemDueDate/SetTodoItemDueDateCommand.cs
+new file mode 100644
+index 0000000..bde669b
+--- /dev/null
++++ b/src/Application/TodoItems/Commands/SetTodoItemDueDate/SetTodoItemDueDateCommand.cs
+@@ -0,0 +1,43 @@
++using CleanArchitecture.Application.Common.Exceptions;
++using CleanArchitecture.Application.Common.Interfaces;
++using CleanArchitecture.Domain.Entities;
++using MediatR;
++using System;
++using System.Threading;
++using System.Threading.Tasks;
++
++namespace CleanArchitecture.Application.TodoItems.Commands.SetTodoItemDueDate
++{
++    public class SetTodoItemDueDateCommand : IRequest
++    {
++        public int Id { get; set; }
++
++        public DateTime? DueDate { get; set; }
++    }
++
++    public class SetTodoItemDueDateCommandHandler : IRequestHandler<SetTodoItemDueDateCommand>
++    {
++        private readonly IApplicationDbContext _context;
++
++        public SetTodoItemDueDateCommandHandler(IApplicationDbContext context)
++        {
++            _context = context;
++        }
++
++        public async Task<Unit> Handle(SetTodoItemDueDateCommand request, CancellationToken cancellationToken)
++        {
++            var entity = await _context.TodoItems.FindAsync(new object[] { request.Id }, cancellationToken);
++
++            if (entity is null)
++            {
++                throw new NotFoundException(nameof(TodoItem), request.Id);
++            }
++
++            entity.Reminder = request.DueDate?.ToUniversalTime();
++
++            await _context.SaveChangesAsync(cancellationToken);
++
++            return Unit.Value;
++        }
++    }
++}
+diff --git a/src/Application/TodoItems/Commands/SetTodoItemDueDate/SetTodoItemDueDateCommandValidator.cs b/src/Application/TodoItems/Commands/SetTodoItemDueDate/SetTodoItemDueDateCommandValidator.cs
+new file mode 100644
+index 0000000..21417b2
+--- /dev/null
++++ b/src/Application/TodoItems/Commands/SetTodoItemDueDate/SetTodoItemDueDateCommandValidator.cs
+@@ -0,0 +1,18 @@
++using CleanArchitecture.Application.Common.Interfaces;
++using FluentValidation;
++
++namespace CleanArchitecture.Application.TodoItems.Commands.SetTodoItemDueDate
++{
++    public class SetTodoItemDueDateCommandValidator : AbstractValidator<SetTodoItemDueDateCommand>
++    {
++        public SetTodoItemDueDateCommandValidator(IDateTime dateTime)
++        {
++            RuleFor(v => v.Id)
++                .GreaterThan(0);
++
++            RuleFor(v => v.DueDate)
++                .Must(dueDate => dueDate is null || dueDate.Value.ToUniversalTime() > dateTime.Now.ToUniversalTime())
++                .WithMessage("Due date must be in the future.");
++        }
++    }
++}
+diff --git a/src/Application/TodoItems/Queries/GetOverdueTodoItems/GetOverdueTodoItemsQuery.cs b/src/Application/TodoItems/Queries/GetOverdueTodoItems/GetOverdueTodoItemsQuery.cs
+new file mode 100644
+index 0000000..a3ff226
+--- /dev/null
++++ b/src/Application/TodoItems/Queries/GetOverdueTodoItems/GetOverdueTodoItemsQuery.cs
+@@ -0,0 +1,51 @@
++using AutoMapper;
++using AutoMapper.QueryableExtensions;
++using CleanArchitecture.Application.Common.Interfaces;
++using CleanArchitecture.Application.TodoLists.Queries.GetTodos;
++using MediatR;
++using Microsoft.EntityFrameworkCore;
++using System.Collections.Generic;
++using System.Linq;
++using System.Threading;
++using System.Threading.Tasks;
++
++namespace CleanArchitecture.Application.TodoItems.Queries.GetOverdueTodoItems
++{
++    public class GetOverdueTodoItemsQuery : IRequest<IReadOnlyList<TodoItemDto>>
++    {
++        public int? ListId { get; set; }
++    }
++
++    public class GetOverdueTodoItemsQueryHandler : IRequestHandler<GetOverdueTodoItemsQuery, IReadOnlyList<TodoItemDto>>
++    {
++        private readonly IApplicationDbContext _context;
++        private readonly IMapper _mapper;
++        private readonly IDateTime _dateTime;
++
++        public GetOverdueTodoItemsQueryHandler(IApplicationDbContext context, IMapper mapper, IDateTime dateTime)
++        {
++            _context = context;
++            _mapper = mapper;
++            _dateTime = dateTime;
++        }
++
++        public async Task<IReadOnlyList<TodoItemDto>> Handle(GetOverdueTodoItemsQuery request, CancellationToken cancellationToken)
++        {
++            var now = _dateTime.Now.ToUniversalTime();
++
++            var query = _context.TodoItems
++                .AsNoTracking()
++                .Where(x => !x.Done && x.Reminder != null && x.Reminder < now);
++
++            if (request.ListId.HasValue)
++            {
++                query = query.Where(x => x.ListId == request.ListId.Value);
++            }
++
++            return await query
++                .OrderBy(x => x.Reminder)
++                .ProjectTo<TodoItemDto>(_mapper.ConfigurationProvider)
++                .ToListAsync(cancellationToken);
++        }
++    }
++}
+-- 
+2.43.0
+

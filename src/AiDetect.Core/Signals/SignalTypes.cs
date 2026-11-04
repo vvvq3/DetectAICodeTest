@@ -89,8 +89,14 @@ public sealed class SignalResult
     /// <summary>Надёжность 0..1 — зависит от числа наблюдений.</summary>
     public double Reliability { get; init; }
 
-    /// <summary>Вес признака в логитах.</summary>
+    /// <summary>Вес признака в логитах (с учётом поправки на конвенции проекта).</summary>
     public double Weight { get; init; }
+
+    /// <summary>Вес модели до поправки на конвенции проекта.</summary>
+    public double BaseWeight { get; init; }
+
+    /// <summary>Множитель за конвенции проекта (1 — нет поправки).</summary>
+    public double ConventionFactor { get; init; } = 1;
 
     /// <summary>Пояснение с цифрами: «11 из 12 async-методов…».</summary>
     public string Detail { get; init; } = "";

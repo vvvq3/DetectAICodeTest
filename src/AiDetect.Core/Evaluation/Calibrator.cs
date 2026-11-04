@@ -14,15 +14,17 @@ public static class Calibrator
 
     public static List<Sample> BuildSamples(List<ScoredItem> scored) =>
         scored.Select(s => new Sample(
-            s.Signals.Where(x => x.Group != SignalGroup.Artifacts).GroupBy(x => x.Id).ToDictionary(g => g.Key, g => g.Sum(x => x.Evidence * x.Reliability)),
+            s.Signals.Where(x => x.Group != SignalGroup.Artifacts).GroupBy(x => x.Id)
+                .ToDictionary(g => g.Key, g => g.Sum(x => x.Evidence * x.Reliability * x.ConventionFactor)),
             0,
             s.Item.Label)).ToList();
 
     public static Dictionary<string, double> DefaultWeights(List<ScoredItem> scored) =>
         scored.SelectMany(s => s.Signals).Where(x => x.Group != SignalGroup.Artifacts)
-            .GroupBy(x => x.Id).ToDictionary(g => g.Key, g => g.First().Weight);
+            .GroupBy(x => x.Id).ToDictionary(g => g.Key, g => g.First().BaseWeight);
 
-    public static ModelParameters Fit(List<Sample> samples, Dictionary<string, double> prior, ModelParameters start, double lambda = 2.0, int iterations = 4000, double lr = 0.05)
+    public static ModelParameters Fit(List<Sample> samples, Dictionary<string, double> prior, ModelParameters start, double lambda = 2.0, int iterations = 4000, double lr = 0.05,
+        bool balanced = true)
     {
         var ids = prior.Keys.OrderBy(k => k, StringComparer.Ordinal).ToList();
         var w = ids.ToDictionary(id => id, id => prior[id]);
@@ -33,6 +35,12 @@ public static class Calibrator
         {
             return start;
         }
+
+        // Балансировка классов: итог не зависит от доли ИИ-примеров в корпусе (априорно 50/50).
+        int pos = samples.Count(x => x.Label == 1);
+        int neg = n - pos;
+        double wPos = balanced && pos > 0 ? n / (2.0 * pos) : 1;
+        double wNeg = balanced && neg > 0 ? n / (2.0 * neg) : 1;
 
         for (int it = 0; it < iterations; it++)
         {
@@ -50,7 +58,7 @@ public static class Calibrator
                 }
 
                 double p = 1 / (1 + Math.Exp(-z / t));
-                double err = (p - s.Label) / t;
+                double err = (p - s.Label) / t * (s.Label == 1 ? wPos : wNeg);
                 gb += err;
                 foreach (var (id, x) in s.X)
                 {
@@ -90,7 +98,8 @@ public static class Calibrator
     }
 
     /// <summary>k-кратная перекрёстная проверка калибровки: честная оценка AUC на отложенных MR.</summary>
-    public static List<(int Label, double P)> CrossValidate(List<Sample> samples, Dictionary<string, double> prior, ModelParameters start, int folds = 5, double lambda = 2.0)
+    public static List<(int Label, double P)> CrossValidate(List<Sample> samples, Dictionary<string, double> prior, ModelParameters start, int folds = 5, double lambda = 2.0,
+        bool balanced = true)
     {
         var result = new List<(int, double)>();
         var indexed = samples.Select((s, i) => (s, i)).ToList();
@@ -98,7 +107,7 @@ public static class Calibrator
         {
             var train = indexed.Where(x => x.i % folds != f).Select(x => x.s).ToList();
             var test = indexed.Where(x => x.i % folds == f).Select(x => x.s).ToList();
-            var p = Fit(train, prior, start, lambda);
+            var p = Fit(train, prior, start, lambda, balanced: balanced);
             foreach (var s in test)
             {
                 double z = p.Bias + s.X.Sum(kv => p.WeightFor(kv.Key, prior.GetValueOrDefault(kv.Key)) * kv.Value);
