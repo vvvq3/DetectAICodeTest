@@ -1,0 +1,62 @@
+From ab95fe66efefe15ae164ed466f83a82cb3f153d9 Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Mon, 30 Nov 2020 13:27:00 +0000
+Subject: [PATCH 2/2] Add tests for basket quantity limits
+
+---
+ .../BasketTests/BasketAddItemLimits.cs        | 43 +++++++++++++++++++
+ 1 file changed, 43 insertions(+)
+ create mode 100644 tests/UnitTests/ApplicationCore/Entities/BasketTests/BasketAddItemLimits.cs
+
+diff --git a/tests/UnitTests/ApplicationCore/Entities/BasketTests/BasketAddItemLimits.cs b/tests/UnitTests/ApplicationCore/Entities/BasketTests/BasketAddItemLimits.cs
+new file mode 100644
+index 0000000..4c6b24f
+--- /dev/null
++++ b/tests/UnitTests/ApplicationCore/Entities/BasketTests/BasketAddItemLimits.cs
+@@ -0,0 +1,43 @@
++using Microsoft.eShopWeb.ApplicationCore.Entities.BasketAggregate;
++using System.Linq;
++using Xunit;
++
++namespace Microsoft.eShopWeb.UnitTests.ApplicationCore.Entities.BasketTests
++{
++    public class BasketAddItemLimits
++    {
++        private readonly int _testCatalogItemId = 123;
++        private readonly decimal _testUnitPrice = 1.23m;
++
++        [Fact]
++        public void AddItem_QuantityAboveLimit_IsCappedAtMaximum()
++        {
++            var basket = new Basket("buyer");
++
++            basket.AddItem(_testCatalogItemId, _testUnitPrice, Basket.MaxQuantityPerItem + 10);
++
++            Assert.Equal(Basket.MaxQuantityPerItem, basket.Items.Single().Quantity);
++        }
++
++        [Fact]
++        public void AddItem_ExistingItemNearLimit_DoesNotExceedMaximum()
++        {
++            var basket = new Basket("buyer");
++            basket.AddItem(_testCatalogItemId, _testUnitPrice, Basket.MaxQuantityPerItem - 1);
++
++            basket.AddItem(_testCatalogItemId, _testUnitPrice, 5);
++
++            Assert.Equal(Basket.MaxQuantityPerItem, basket.Items.Single().Quantity);
++        }
++
++        [Fact]
++        public void TotalItems_ReturnsSumOfQuantities()
++        {
++            var basket = new Basket("buyer");
++            basket.AddItem(1, _testUnitPrice, 2);
++            basket.AddItem(2, _testUnitPrice, 3);
++
++            Assert.Equal(5, basket.TotalItems);
++        }
++    }
++}
+-- 
+2.43.0
+

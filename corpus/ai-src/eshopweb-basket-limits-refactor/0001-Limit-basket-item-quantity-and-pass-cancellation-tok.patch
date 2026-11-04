@@ -1,0 +1,248 @@
+From 604513105ee814ef7f2ee709cfcc1a333c84635b Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Mon, 30 Nov 2020 13:20:00 +0000
+Subject: [PATCH 1/2] Limit basket item quantity and pass cancellation tokens
+ through BasketService
+
+- Cap quantity per catalog item at Basket.MaxQuantityPerItem
+- Validate quantities in AddItemToBasket and BasketItem.SetQuantity
+- Propagate CancellationToken to repository calls
+- Use structured logging when updating quantities
+- Extract GetBasketWithItemsAsync helper
+---
+ .../Entities/BasketAggregate/Basket.cs        | 38 ++++++----
+ .../Entities/BasketAggregate/BasketItem.cs    |  4 +-
+ .../Interfaces/IBasketService.cs              | 11 +--
+ src/ApplicationCore/Services/BasketService.cs | 69 ++++++++++++-------
+ 4 files changed, 77 insertions(+), 45 deletions(-)
+
+diff --git a/src/ApplicationCore/Entities/BasketAggregate/Basket.cs b/src/ApplicationCore/Entities/BasketAggregate/Basket.cs
+index 94c803e..86c40f0 100644
+--- a/src/ApplicationCore/Entities/BasketAggregate/Basket.cs
++++ b/src/ApplicationCore/Entities/BasketAggregate/Basket.cs
+@@ -1,4 +1,5 @@
+-﻿using Microsoft.eShopWeb.ApplicationCore.Interfaces;
++using Microsoft.eShopWeb.ApplicationCore.Interfaces;
++using System;
+ using System.Collections.Generic;
+ using System.Linq;
+ 
+@@ -6,34 +7,43 @@ namespace Microsoft.eShopWeb.ApplicationCore.Entities.BasketAggregate
+ {
+     public class Basket : BaseEntity, IAggregateRoot
+     {
++        /// <summary>
++        /// The maximum quantity of a single catalog item that can be added to a basket.
++        /// </summary>
++        public const int MaxQuantityPerItem = 99;
++
+         public string BuyerId { get; private set; }
+         private readonly List<BasketItem> _items = new List<BasketItem>();
+         public IReadOnlyCollection<BasketItem> Items => _items.AsReadOnly();
+ 
+-        public Basket(string buyerId)
+-        {
+-            BuyerId = buyerId;
++        public int TotalItems => _items.Sum(i => i.Quantity);
++
++        public Basket(string buyerId)
++        {
++            BuyerId = buyerId;
+         }
+ 
+         public void AddItem(int catalogItemId, decimal unitPrice, int quantity = 1)
+         {
+-            if (!Items.Any(i => i.CatalogItemId == catalogItemId))
++            var existingItem = _items.FirstOrDefault(i => i.CatalogItemId == catalogItemId);
++            if (existingItem is null)
+             {
+-                _items.Add(new BasketItem(catalogItemId, quantity, unitPrice));
++                _items.Add(new BasketItem(catalogItemId, Math.Min(quantity, MaxQuantityPerItem), unitPrice));
+                 return;
+             }
+-            var existingItem = Items.FirstOrDefault(i => i.CatalogItemId == catalogItemId);
+-            existingItem.AddQuantity(quantity);
++
++            var allowedQuantity = Math.Max(0, MaxQuantityPerItem - existingItem.Quantity);
++            existingItem.AddQuantity(Math.Min(quantity, allowedQuantity));
+         }
+ 
+-        public void RemoveEmptyItems()
+-        {
+-            _items.RemoveAll(i => i.Quantity == 0);
++        public void RemoveEmptyItems()
++        {
++            _items.RemoveAll(i => i.Quantity == 0);
+         }
+ 
+-        public void SetNewBuyerId(string buyerId)
+-        {
+-            BuyerId = buyerId;
++        public void SetNewBuyerId(string buyerId)
++        {
++            BuyerId = buyerId;
+         }
+     }
+ }
+diff --git a/src/ApplicationCore/Entities/BasketAggregate/BasketItem.cs b/src/ApplicationCore/Entities/BasketAggregate/BasketItem.cs
+index 18f6203..09c599e 100644
+--- a/src/ApplicationCore/Entities/BasketAggregate/BasketItem.cs
++++ b/src/ApplicationCore/Entities/BasketAggregate/BasketItem.cs
+@@ -1,4 +1,4 @@
+-﻿using Ardalis.GuardClauses;
++using Ardalis.GuardClauses;
+ using System;
+ 
+ namespace Microsoft.eShopWeb.ApplicationCore.Entities.BasketAggregate
+@@ -27,6 +27,8 @@ namespace Microsoft.eShopWeb.ApplicationCore.Entities.BasketAggregate
+ 
+         public void SetQuantity(int quantity)
+         {
++            Guard.Against.OutOfRange(quantity, nameof(quantity), 0, Basket.MaxQuantityPerItem);
++
+             Guard.Against.OutOfRange(quantity, nameof(quantity), 0, int.MaxValue);
+ 
+             Quantity = quantity;
+diff --git a/src/ApplicationCore/Interfaces/IBasketService.cs b/src/ApplicationCore/Interfaces/IBasketService.cs
+index 38412be..f40b984 100644
+--- a/src/ApplicationCore/Interfaces/IBasketService.cs
++++ b/src/ApplicationCore/Interfaces/IBasketService.cs
+@@ -1,13 +1,14 @@
+-﻿using System.Collections.Generic;
++using System.Collections.Generic;
++using System.Threading;
+ using System.Threading.Tasks;
+ 
+ namespace Microsoft.eShopWeb.ApplicationCore.Interfaces
+ {
+     public interface IBasketService
+     {
+-        Task TransferBasketAsync(string anonymousId, string userName);
+-        Task AddItemToBasket(int basketId, int catalogItemId, decimal price, int quantity = 1);
+-        Task SetQuantities(int basketId, Dictionary<string, int> quantities);
+-        Task DeleteBasketAsync(int basketId);
++        Task TransferBasketAsync(string anonymousId, string userName, CancellationToken cancellationToken = default);
++        Task AddItemToBasket(int basketId, int catalogItemId, decimal price, int quantity = 1, CancellationToken cancellationToken = default);
++        Task SetQuantities(int basketId, Dictionary<string, int> quantities, CancellationToken cancellationToken = default);
++        Task DeleteBasketAsync(int basketId, CancellationToken cancellationToken = default);
+     }
+ }
+diff --git a/src/ApplicationCore/Services/BasketService.cs b/src/ApplicationCore/Services/BasketService.cs
+index 84bc01e..076690f 100644
+--- a/src/ApplicationCore/Services/BasketService.cs
++++ b/src/ApplicationCore/Services/BasketService.cs
+@@ -1,4 +1,5 @@
+-﻿using Microsoft.eShopWeb.ApplicationCore.Interfaces;
++using Microsoft.eShopWeb.ApplicationCore.Interfaces;
++using System.Threading;
+ using System.Threading.Tasks;
+ using System.Collections.Generic;
+ using Microsoft.eShopWeb.ApplicationCore.Specifications;
+@@ -19,62 +20,80 @@ namespace Microsoft.eShopWeb.ApplicationCore.Services
+             _logger = logger;
+         }
+ 
+-        public async Task AddItemToBasket(int basketId, int catalogItemId, decimal price, int quantity = 1)
++        public async Task AddItemToBasket(int basketId, int catalogItemId, decimal price, int quantity = 1, CancellationToken cancellationToken = default)
+         {
+-            var basketSpec = new BasketWithItemsSpecification(basketId);
+-            var basket = await _basketRepository.FirstOrDefaultAsync(basketSpec);
+-            Guard.Against.NullBasket(basketId, basket);
++            Guard.Against.OutOfRange(quantity, nameof(quantity), 1, Basket.MaxQuantityPerItem);
++
++            var basket = await GetBasketWithItemsAsync(basketId, cancellationToken);
+ 
+             basket.AddItem(catalogItemId, price, quantity);
+ 
+-            await _basketRepository.UpdateAsync(basket);
++            await _basketRepository.UpdateAsync(basket, cancellationToken);
+         }
+ 
+-        public async Task DeleteBasketAsync(int basketId)
++        public async Task DeleteBasketAsync(int basketId, CancellationToken cancellationToken = default)
+         {
+-            var basket = await _basketRepository.GetByIdAsync(basketId);
+-            await _basketRepository.DeleteAsync(basket);
++            var basket = await _basketRepository.GetByIdAsync(basketId, cancellationToken);
++            if (basket is null)
++            {
++                return;
++            }
++
++            await _basketRepository.DeleteAsync(basket, cancellationToken);
+         }
+ 
+-        public async Task SetQuantities(int basketId, Dictionary<string, int> quantities)
++        public async Task SetQuantities(int basketId, Dictionary<string, int> quantities, CancellationToken cancellationToken = default)
+         {
+             Guard.Against.Null(quantities, nameof(quantities));
+-            var basketSpec = new BasketWithItemsSpecification(basketId);
+-            var basket = await _basketRepository.FirstOrDefaultAsync(basketSpec);
+-            Guard.Against.NullBasket(basketId, basket);
++
++            var basket = await GetBasketWithItemsAsync(basketId, cancellationToken);
+ 
+             foreach (var item in basket.Items)
+             {
+                 if (quantities.TryGetValue(item.Id.ToString(), out var quantity))
+                 {
+-                    if (_logger != null) _logger.LogInformation($"Updating quantity of item ID:{item.Id} to {quantity}.");
++                    _logger?.LogInformation("Updating quantity of basket item {BasketItemId} to {Quantity}", item.Id, quantity);
+                     item.SetQuantity(quantity);
+                 }
+             }
++
+             basket.RemoveEmptyItems();
+-            await _basketRepository.UpdateAsync(basket);
++            await _basketRepository.UpdateAsync(basket, cancellationToken);
+         }
+ 
+-        public async Task TransferBasketAsync(string anonymousId, string userName)
++        public async Task TransferBasketAsync(string anonymousId, string userName, CancellationToken cancellationToken = default)
+         {
+             Guard.Against.NullOrEmpty(anonymousId, nameof(anonymousId));
+             Guard.Against.NullOrEmpty(userName, nameof(userName));
+-            var anonymousBasketSpec = new BasketWithItemsSpecification(anonymousId);
+-            var anonymousBasket = await _basketRepository.FirstOrDefaultAsync(anonymousBasketSpec);
+-            if (anonymousBasket == null) return;
+-            var userBasketSpec = new BasketWithItemsSpecification(userName);
+-            var userBasket = await _basketRepository.FirstOrDefaultAsync(userBasketSpec);
+-            if (userBasket == null)
++
++            var anonymousBasket = await _basketRepository.FirstOrDefaultAsync(new BasketWithItemsSpecification(anonymousId), cancellationToken);
++            if (anonymousBasket is null)
++            {
++                return;
++            }
++
++            var userBasket = await _basketRepository.FirstOrDefaultAsync(new BasketWithItemsSpecification(userName), cancellationToken);
++            if (userBasket is null)
+             {
+                 userBasket = new Basket(userName);
+-                await _basketRepository.AddAsync(userBasket);
++                await _basketRepository.AddAsync(userBasket, cancellationToken);
+             }
++
+             foreach (var item in anonymousBasket.Items)
+             {
+                 userBasket.AddItem(item.CatalogItemId, item.UnitPrice, item.Quantity);
+             }
+-            await _basketRepository.UpdateAsync(userBasket);
+-            await _basketRepository.DeleteAsync(anonymousBasket);
++
++            await _basketRepository.UpdateAsync(userBasket, cancellationToken);
++            await _basketRepository.DeleteAsync(anonymousBasket, cancellationToken);
++        }
++
++        private async Task<Basket> GetBasketWithItemsAsync(int basketId, CancellationToken cancellationToken)
++        {
++            var basket = await _basketRepository.FirstOrDefaultAsync(new BasketWithItemsSpecification(basketId), cancellationToken);
++            Guard.Against.NullBasket(basketId, basket);
++
++            return basket;
+         }
+     }
+ }
+-- 
+2.43.0
+

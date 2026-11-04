@@ -1,0 +1,181 @@
+From 7959443932769269cee9a91773feb9543f3457da Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Mon, 30 Nov 2020 16:00:00 +0000
+Subject: [PATCH] Add service to clean up images of deleted apps
+
+---
+ .../Apps/AppImageCleanupService.cs            | 78 +++++++++++++++++++
+ .../Apps/AppImageCleanupServiceTests.cs       | 76 ++++++++++++++++++
+ 2 files changed, 154 insertions(+)
+ create mode 100644 backend/src/Squidex.Domain.Apps.Entities/Apps/AppImageCleanupService.cs
+ create mode 100644 backend/tests/Squidex.Domain.Apps.Entities.Tests/Apps/AppImageCleanupServiceTests.cs
+
+diff --git a/backend/src/Squidex.Domain.Apps.Entities/Apps/AppImageCleanupService.cs b/backend/src/Squidex.Domain.Apps.Entities/Apps/AppImageCleanupService.cs
+new file mode 100644
+index 000000000..8eaa2ccab
+--- /dev/null
++++ b/backend/src/Squidex.Domain.Apps.Entities/Apps/AppImageCleanupService.cs
+@@ -0,0 +1,78 @@
++// ==========================================================================
++//  Squidex Headless CMS
++// ==========================================================================
++//  Copyright (c) Squidex UG (haftungsbeschraenkt)
++//  All rights reserved. Licensed under the MIT license.
++// ==========================================================================
++
++using System;
++using System.Collections.Generic;
++using System.Linq;
++using System.Threading;
++using System.Threading.Tasks;
++using Microsoft.Extensions.Logging;
++using Squidex.Infrastructure;
++
++namespace Squidex.Domain.Apps.Entities.Apps
++{
++    /// <summary>
++    /// Removes stored app images that no longer belong to an existing app.
++    /// </summary>
++    public sealed class AppImageCleanupService
++    {
++        private readonly IAppImageStore appImageStore;
++        private readonly IAppProvider appProvider;
++        private readonly ILogger<AppImageCleanupService> logger;
++
++        public AppImageCleanupService(IAppImageStore appImageStore, IAppProvider appProvider, ILogger<AppImageCleanupService> logger)
++        {
++            Guard.NotNull(appImageStore, nameof(appImageStore));
++            Guard.NotNull(appProvider, nameof(appProvider));
++            Guard.NotNull(logger, nameof(logger));
++
++            this.appImageStore = appImageStore;
++            this.appProvider = appProvider;
++            this.logger = logger;
++        }
++
++        /// <summary>
++        /// Deletes the images of all apps from <paramref name="candidateAppIds"/> that do not exist anymore.
++        /// </summary>
++        /// <param name="candidateAppIds">The app ids that have stored images.</param>
++        /// <param name="ct">The cancellation token.</param>
++        /// <returns>The number of deleted images.</returns>
++        public async Task<int> CleanupAsync(IEnumerable<DomainId> candidateAppIds, CancellationToken ct = default)
++        {
++            Guard.NotNull(candidateAppIds, nameof(candidateAppIds));
++
++            var deleted = 0;
++
++            foreach (var appId in candidateAppIds.Distinct())
++            {
++                ct.ThrowIfCancellationRequested();
++
++                var app = await appProvider.GetAppAsync(appId, true);
++
++                if (app != null && !app.IsArchived)
++                {
++                    continue;
++                }
++
++                try
++                {
++                    await appImageStore.DeleteAsync(appId, ct);
++
++                    deleted++;
++                }
++                catch (Exception ex)
++                {
++                    logger.LogWarning(ex, "Failed to delete image of app {AppId}.", appId);
++                }
++            }
++
++            logger.LogInformation("Deleted {Count} orphaned app images.", deleted);
++
++            return deleted;
++        }
++    }
++}
+diff --git a/backend/tests/Squidex.Domain.Apps.Entities.Tests/Apps/AppImageCleanupServiceTests.cs b/backend/tests/Squidex.Domain.Apps.Entities.Tests/Apps/AppImageCleanupServiceTests.cs
+new file mode 100644
+index 000000000..0d4f7b051
+--- /dev/null
++++ b/backend/tests/Squidex.Domain.Apps.Entities.Tests/Apps/AppImageCleanupServiceTests.cs
+@@ -0,0 +1,76 @@
++// ==========================================================================
++//  Squidex Headless CMS
++// ==========================================================================
++//  Copyright (c) Squidex UG (haftungsbeschraenkt)
++//  All rights reserved. Licensed under the MIT license.
++// ==========================================================================
++
++using System;
++using System.Threading;
++using System.Threading.Tasks;
++using FakeItEasy;
++using Microsoft.Extensions.Logging.Abstractions;
++using Squidex.Infrastructure;
++using Xunit;
++
++namespace Squidex.Domain.Apps.Entities.Apps
++{
++    public class AppImageCleanupServiceTests
++    {
++        private readonly IAppImageStore appImageStore = A.Fake<IAppImageStore>();
++        private readonly IAppProvider appProvider = A.Fake<IAppProvider>();
++        private readonly AppImageCleanupService sut;
++
++        public AppImageCleanupServiceTests()
++        {
++            sut = new AppImageCleanupService(appImageStore, appProvider, NullLogger<AppImageCleanupService>.Instance);
++        }
++
++        [Fact]
++        public async Task Should_delete_image_of_deleted_app()
++        {
++            var appId = DomainId.NewGuid();
++
++            A.CallTo(() => appProvider.GetAppAsync(appId, true))
++                .Returns(Task.FromResult<IAppEntity?>(null));
++
++            var deleted = await sut.CleanupAsync(new[] { appId });
++
++            Assert.Equal(1, deleted);
++
++            A.CallTo(() => appImageStore.DeleteAsync(appId, A<CancellationToken>._))
++                .MustHaveHappened();
++        }
++
++        [Fact]
++        public async Task Should_not_delete_image_of_existing_app()
++        {
++            var appId = DomainId.NewGuid();
++            var app = A.Fake<IAppEntity>();
++
++            A.CallTo(() => appProvider.GetAppAsync(appId, true))
++                .Returns(app);
++
++            var deleted = await sut.CleanupAsync(new[] { appId });
++
++            Assert.Equal(0, deleted);
++
++            A.CallTo(() => appImageStore.DeleteAsync(A<DomainId>._, A<CancellationToken>._))
++                .MustNotHaveHappened();
++        }
++
++        [Fact]
++        public async Task Should_continue_if_deletion_fails()
++        {
++            var appId1 = DomainId.NewGuid();
++            var appId2 = DomainId.NewGuid();
++
++            A.CallTo(() => appImageStore.DeleteAsync(appId1, A<CancellationToken>._))
++                .Throws(new InvalidOperationException());
++
++            var deleted = await sut.CleanupAsync(new[] { appId1, appId2 });
++
++            Assert.Equal(1, deleted);
++        }
++    }
++}
+-- 
+2.43.0
+
