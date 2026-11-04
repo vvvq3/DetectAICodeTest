@@ -132,9 +132,10 @@ public sealed partial class GitLabMergeRequestSource : IMergeRequestSource, IDis
         {
             items = await GetPagedAsync($"{mrPath}/diffs", ct);
         }
-        catch (SourceException ex) when (ex.Message.Contains("404", StringComparison.Ordinal))
+        catch (SourceException ex) when (!ex.Message.Contains("401", StringComparison.Ordinal) && !ex.Message.Contains("403", StringComparison.Ordinal))
         {
-            // Старые версии GitLab (< 15.7): /changes.
+            // Старые версии GitLab (< 15.7) не знают /diffs — используем /changes.
+            _log?.Invoke("Эндпоинт /diffs недоступен, использую /changes (старая версия GitLab)…");
             using var doc = await GetJsonAsync($"{mrPath}/changes?access_raw_diffs=true", ct);
             items = doc.RootElement.GetProperty("changes").EnumerateArray().Select(e => e.Clone()).ToList();
         }
