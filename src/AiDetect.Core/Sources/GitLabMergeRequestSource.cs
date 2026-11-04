@@ -387,7 +387,7 @@ public sealed partial class GitLabMergeRequestSource : IMergeRequestSource, IDis
             return null;
         }
 
-        return System.Text.Encoding.UTF8.GetString(bytes).TrimStart('﻿');
+        return TextDecoding.Decode(bytes);
     }
 
     private async Task<JsonDocument> GetJsonAsync(string relative, CancellationToken ct)

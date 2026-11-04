@@ -41,6 +41,7 @@ internal sealed class CodeSignals(AnalysisContext ctx, SignalBuilder b)
         Logging();
         Exceptions();
         Structure();
+        AgentIdioms();
         HumanHabits();
         Formatting();
         Tests();
@@ -497,6 +498,55 @@ internal sealed class CodeSignals(AnalysisContext ctx, SignalBuilder b)
         }
     }
 
+    // ------------------------------------------------------------------ характерные для агента идиомы
+
+    private void AgentIdioms()
+    {
+        double lines = _a[K.CodeLines];
+        if (_a[K.EmojiInStrings] >= 1)
+        {
+            b.Add("idiom.emoji", SignalGroup.Structure, "Эмодзи в строках кода (✅, 🚀 в выводе/логах)",
+                1, SignalBuilder.Rel(_a[K.EmojiInStrings], 1), 0.6, $"{_a[K.EmojiInStrings]:0} строк", _a.GetExamples(K.EmojiInStrings), _a[K.EmojiInStrings]);
+        }
+
+        if (_a[K.OptionsSectionName] >= 1 && (_base is null || _base[K.OptionsSectionName] == 0))
+        {
+            b.Add("idiom.sectionName", SignalGroup.Structure, "Options-класс с константой SectionName (типовой шаблон агента)",
+                1, 1, 0.4, $"{_a[K.OptionsSectionName]:0} раз", _a.GetExamples(K.OptionsSectionName), _a[K.OptionsSectionName]);
+        }
+
+        if (_a[K.ControllerActions] >= 2)
+        {
+            double perAction = _a[K.ProducesResponseType] / _a[K.ControllerActions];
+            double? basePer = _base is not null && _base[K.ControllerActions] >= 3 ? _base[K.ProducesResponseType] / _base[K.ControllerActions] : null;
+            double e = SignalBuilder.Map(perAction, 0.2, 2.0);
+            b.Add("idiom.producesResponseType", SignalGroup.Structure,
+                e >= 0 ? "Каждое действие контроллера размечено [ProducesResponseType]" : "Действия контроллеров без [ProducesResponseType]",
+                SignalBuilder.AdjustForBaseline(e, basePer is { } bp ? SignalBuilder.Map(bp, 0.2, 2.0) : null, 0.7), SignalBuilder.Rel(_a[K.ControllerActions], 3), 0.3,
+                $"{_a[K.ProducesResponseType]:0} атрибутов на {_a[K.ControllerActions]:0} действий" + (basePer is { } bp2 ? $" (в проекте {bp2:0.0} на действие)" : ""),
+                _a.GetExamples(K.ProducesResponseType), perAction);
+        }
+
+        if (_a[K.AsNoTracking] >= 1 && (_base is null || _base[K.AsNoTracking] == 0))
+        {
+            b.Add("idiom.asNoTracking", SignalGroup.Structure, "AsNoTracking() в запросах на чтение (в остальном коде проекта не используется)",
+                0.8, SignalBuilder.Rel(_a[K.AsNoTracking], 1), 0.3, $"{_a[K.AsNoTracking]:0} раз", [], _a[K.AsNoTracking]);
+        }
+
+        if (lines >= 80)
+        {
+            double magic = _a[K.MagicNumbers] * 100 / lines;
+            double consts = _a[K.ConstDeclarations] * 100 / lines;
+            if (_a[K.MagicNumbers] + _a[K.ConstDeclarations] >= 3)
+            {
+                double e = SignalBuilder.Map(magic - consts, 2.0, -0.5);
+                b.Add("idiom.constants", SignalGroup.Structure,
+                    e >= 0 ? "Числа вынесены в именованные константы" : "«Магические числа» прямо в коде",
+                    e, SignalBuilder.Rel(lines, 100), 0.1, $"{_a[K.MagicNumbers]:0} литералов в выражениях, {_a[K.ConstDeclarations]:0} констант", [], magic - consts);
+            }
+        }
+    }
+
     // ------------------------------------------------------------------ ручные привычки
 
     private void HumanHabits()
@@ -546,7 +596,7 @@ internal sealed class CodeSignals(AnalysisContext ctx, SignalBuilder b)
             return;
         }
 
-        string[] keys = [K.TrailingWhitespace, K.KeywordNoSpace, K.BraceSameLineNoSpace, K.DoubleBlankLines, K.CommaNoSpace, K.OperatorNoSpace, K.LongLines];
+        string[] keys = [K.TrailingWhitespace, K.KeywordNoSpace, K.BraceSameLineNoSpace, K.DoubleBlankLines, K.CommaNoSpace, K.OperatorNoSpace, K.LongLines, K.CommentNoSpace];
         double total = keys.Sum(k => _a[k]);
         double per100 = total * 100 / lines;
         double? basePer100 = null;

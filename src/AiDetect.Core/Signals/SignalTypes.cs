@@ -40,7 +40,7 @@ public static class GroupInfo
         SignalGroup.HumanHabits => "Ручные привычки",
         SignalGroup.Formatting => "Форматирование",
         SignalGroup.Tests => "Тесты",
-        SignalGroup.MrShape => "Форма МР",
+        SignalGroup.MrShape => "Форма MR",
         SignalGroup.Process => "Коммиты и процесс",
         SignalGroup.ProjectShift => "Отличие от стиля проекта",
         _ => g.ToString(),

@@ -62,10 +62,30 @@ public static class HtmlReportWriter
             sb.Append("<div class=\"muted\">Без учёта прямых следов (только код и процесс): ").Append((int)Math.Round(r.ProbabilityWithoutArtifacts * 100)).Append("%</div>");
         }
 
-        sb.Append("</div></div></div>");
+        sb.Append("</div></div>");
+        if (!string.IsNullOrEmpty(r.Summary))
+        {
+            sb.Append("<div style=\"margin-top:12px\">").Append(E(r.Summary)).Append("</div>");
+        }
+
+        sb.Append("</div>");
 
         AppendSignals(sb, "Главные признаки ИИ", r.TopAiSignals(10), "c-ai");
         AppendSignals(sb, "Признаки человека", r.TopHumanSignals(8), "c-human");
+
+        if (r.FileScores.Count >= 2)
+        {
+            sb.Append("<h2>Файлы (оценка только по коду)</h2><div class=\"card\"><table>");
+            foreach (var f in r.FileScores.Take(15))
+            {
+                int fp = (int)Math.Round(f.Probability * 100);
+                string fc = fp >= 65 ? "c-ai" : fp > 35 ? "" : "c-human";
+                sb.Append("<tr><td class=\"num ").Append(fc).Append("\">").Append(fp).Append("%</td><td><code>").Append(E(f.Path)).Append("</code> <span class=\"muted\">+")
+                    .Append(f.AddedLines).Append("</span><div class=\"muted\">").Append(E(string.Join("; ", f.TopSignals))).Append("</div></td></tr>");
+            }
+
+            sb.Append("</table></div>");
+        }
 
         sb.Append("<h2>Вклад групп сигналов</h2><div class=\"card\"><table>");
         double max = Math.Max(1, r.Groups.Select(g => Math.Abs(g.Capped)).DefaultIfEmpty(1).Max());

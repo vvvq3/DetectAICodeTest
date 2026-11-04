@@ -337,6 +337,11 @@ public static partial class CSharpFeatureExtractor
 
             ctx.S.Add(K.LineComments);
 
+            if (trivia.IsKind(SyntaxKind.SingleLineCommentTrivia) && raw.Length > 2 && char.IsLetter(raw[2]))
+            {
+                ctx.Hit(K.CommentNoSpace, line);
+            }
+
             if (TodoRegex().IsMatch(body))
             {
                 ctx.Hit(K.TodoComments, line);
@@ -382,7 +387,8 @@ public static partial class CSharpFeatureExtractor
             }
 
             var words = WordRegex().Matches(body).Select(m => m.Value).ToList();
-            if (words.Count is >= 1 and <= 12 && (NarrativeVerbs.Contains(words[0]) || RussianNarrativeRegex().IsMatch(words[0])) &&
+            bool capitalized = firstLetter != default && char.IsUpper(firstLetter);
+            if (capitalized && words.Count is >= 1 and <= 12 && (NarrativeVerbs.Contains(words[0]) || RussianNarrativeRegex().IsMatch(words[0])) &&
                 !body.Contains("TODO", StringComparison.OrdinalIgnoreCase))
             {
                 ctx.Hit(K.NarrativeComments, line);
@@ -394,7 +400,7 @@ public static partial class CSharpFeatureExtractor
             }
 
             // «Пересказывающий» комментарий: слова комментария почти все встречаются в идентификаторах следующей строки кода.
-            var next = NextCodeLine(ctx, line);
+            var next = capitalized ? NextCodeLine(ctx, line) : null;
             if (next is not null)
             {
                 var content = words.Where(w => w.Length >= 3 && !CommentStopWords.Contains(w))

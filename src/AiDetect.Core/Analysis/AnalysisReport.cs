@@ -40,6 +40,12 @@ public sealed class AnalysisReport
     public int BaselineFiles { get; init; }
     public List<string> Warnings { get; init; } = [];
 
+    /// <summary>Краткое объяснение решения обычным языком.</summary>
+    public string Summary { get; init; } = "";
+
+    /// <summary>Оценка по отдельным файлам (только признаки кода), самые «ИИ-подобные» первыми.</summary>
+    public List<FileScore> FileScores { get; init; } = [];
+
     public IEnumerable<SignalResult> TopAiSignals(int n) =>
         Signals.Where(s => s.Contribution > 0.05).OrderByDescending(s => s.Contribution).Take(n);
 

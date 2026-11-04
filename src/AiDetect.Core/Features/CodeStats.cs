@@ -241,6 +241,7 @@ public static class K
 
     // Форматирование
     public const string TrailingWhitespace = "fmt.trailingWs";
+    public const string CommentNoSpace = "fmt.commentNoSpace";
     public const string KeywordNoSpace = "fmt.keywordNoSpace";
     public const string BraceSameLineNoSpace = "fmt.braceNoSpace";
     public const string CuddledElse = "fmt.cuddledElse";

@@ -46,6 +46,15 @@ public sealed class ConsoleReportWriter(bool color = true, bool verbose = false)
             sb.AppendLine($"  Без учёта прямых следов (только код и процесс): {(int)Math.Round(r.ProbabilityWithoutArtifacts * 100)}%");
         }
 
+        if (!string.IsNullOrEmpty(r.Summary))
+        {
+            sb.AppendLine();
+            foreach (var wrapped in Wrap(r.Summary, 76))
+            {
+                sb.AppendLine("  " + wrapped);
+            }
+        }
+
         sb.AppendLine();
         var ai = r.TopAiSignals(verbose ? 40 : 8).ToList();
         if (ai.Count > 0)
@@ -66,6 +75,20 @@ public sealed class ConsoleReportWriter(bool color = true, bool verbose = false)
             foreach (var s in human)
             {
                 AppendSignal(sb, s, "32");
+            }
+
+            sb.AppendLine();
+        }
+
+        if (r.FileScores.Count >= 2)
+        {
+            sb.AppendLine(C("1", "  Файлы (оценка только по коду, самые «ИИ-подобные» сверху):"));
+            foreach (var f in r.FileScores.Take(verbose ? 30 : 6))
+            {
+                int fp = (int)Math.Round(f.Probability * 100);
+                string col = fp >= 65 ? "31" : fp > 35 ? "33" : "32";
+                var why = f.TopSignals.Count > 0 ? C("2", "  " + Truncate(string.Join("; ", f.TopSignals), 70)) : "";
+                sb.AppendLine($"    {C(col, $"{fp,3}%")}  {Truncate(ShortPath(f.Path), 48),-48} +{f.AddedLines}{why}");
             }
 
             sb.AppendLine();
@@ -117,6 +140,31 @@ public sealed class ConsoleReportWriter(bool color = true, bool verbose = false)
     {
         int filled = (int)Math.Round(p * width);
         return C(colorCode, new string('█', filled)) + C("2", new string('░', width - filled));
+    }
+
+    private static IEnumerable<string> Wrap(string text, int width)
+    {
+        var line = new StringBuilder();
+        foreach (var word in text.Split(' '))
+        {
+            if (line.Length + word.Length + 1 > width && line.Length > 0)
+            {
+                yield return line.ToString();
+                line.Clear();
+            }
+
+            if (line.Length > 0)
+            {
+                line.Append(' ');
+            }
+
+            line.Append(word);
+        }
+
+        if (line.Length > 0)
+        {
+            yield return line.ToString();
+        }
     }
 
     internal static string ShortPath(string path)

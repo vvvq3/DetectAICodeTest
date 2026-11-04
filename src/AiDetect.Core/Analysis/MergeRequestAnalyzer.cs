@@ -50,8 +50,13 @@ public sealed class MergeRequestAnalyzer
             warnings.Insert(0, "Учтены конвенции проекта (соответствующие признаки ослаблены): " + string.Join(", ", ctx.Conventions.Notes) + ".");
         }
 
+        var fileScores = ScoreFiles(ctx, parameters);
+        var summary = Explain(p, groups, signals, artifacts);
+
         return new AnalysisReport
         {
+            Summary = summary,
+            FileScores = fileScores,
             Source = mr.Source,
             Title = mr.Title,
             Author = string.IsNullOrEmpty(mr.AuthorUsername) ? mr.AuthorName : $"{mr.AuthorName} (@{mr.AuthorUsername})",
@@ -76,6 +81,71 @@ public sealed class MergeRequestAnalyzer
             Warnings = warnings,
         };
     }
+
+    /// <summary>Оценка каждого файла с ≥ 25 добавленными строками только по признакам кода.</summary>
+    private static List<FileScore> ScoreFiles(AnalysisContext ctx, ModelParameters parameters)
+    {
+        var result = new List<FileScore>();
+        foreach (var f in ctx.AnalyzedCs.Where(f => f.Stats is not null && f.AddedLines >= 25))
+        {
+            var fileCtx = new AnalysisContext
+            {
+                Mr = ctx.Mr,
+                Files = [f],
+                Added = f.Stats!,
+                Baseline = ctx.Baseline,
+                BaselineFiles = ctx.BaselineFiles,
+                Options = ctx.Options,
+                Conventions = ctx.Conventions,
+            };
+            var builder = new SignalBuilder(fileCtx, parameters);
+            new CodeSignals(fileCtx, builder).Evaluate();
+            var (_, logit) = Scorer.Combine(builder.Results, parameters, includeArtifacts: false);
+            var top = builder.Results.Where(s => s.Contribution > 0.15).OrderByDescending(s => s.Contribution).Take(2).Select(s => s.Title).ToList();
+            result.Add(new FileScore(f.Path, f.AddedLines, Scorer.Probability(logit, parameters), top));
+        }
+
+        return result.OrderByDescending(r => r.Probability).ToList();
+    }
+
+    /// <summary>Короткое объяснение решения: какие группы сигналов перевесили.</summary>
+    private static string Explain(double p, List<GroupScore> groups, List<SignalResult> signals, bool artifacts)
+    {
+        var forAi = groups.Where(g => g.Capped > 0.3).OrderByDescending(g => g.Capped).Take(3).Select(g => LowerFirst(GroupInfo.Title(g.Group))).ToList();
+        var forHuman = groups.Where(g => g.Capped < -0.3).OrderBy(g => g.Capped).Take(3).Select(g => LowerFirst(GroupInfo.Title(g.Group))).ToList();
+        var resistant = groups.Where(g => GroupInfo.IsMimicryResistant(g.Group) && g.Capped > 0.3).Select(g => LowerFirst(GroupInfo.Title(g.Group))).ToList();
+        var parts = new List<string>();
+        if (artifacts)
+        {
+            parts.Add("в MR есть прямые следы Claude Code (подписи/трейлеры/служебные файлы) — это почти доказательство");
+        }
+
+        if (forAi.Count > 0)
+        {
+            parts.Add("за ИИ говорят: " + string.Join(", ", forAi));
+        }
+
+        if (forHuman.Count > 0)
+        {
+            parts.Add("за человека: " + string.Join(", ", forHuman));
+        }
+
+        if (resistant.Count > 0 && !artifacts)
+        {
+            parts.Add("устойчивые к маскировке стиля группы за ИИ: " + string.Join(", ", resistant));
+        }
+
+        string lead = p switch
+        {
+            >= 0.65 => "Код похож на работу Claude Code",
+            > 0.35 => "Однозначного вывода нет",
+            _ => "Код похож на написанный человеком",
+        };
+        return parts.Count == 0 ? lead + "." : lead + ": " + string.Join("; ", parts) + ".";
+    }
+
+    private static string LowerFirst(string s) =>
+        s.Length > 1 && char.IsUpper(s[0]) && !char.IsUpper(s[1]) ? char.ToLowerInvariant(s[0]) + s[1..] : s;
 
     public static List<SignalResult> EvaluateSignals(AnalysisContext ctx, ModelParameters parameters)
     {
