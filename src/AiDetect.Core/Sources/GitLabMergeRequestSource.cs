@@ -95,6 +95,23 @@ public sealed partial class GitLabMergeRequestSource : IMergeRequestSource, IDis
         _log?.Invoke("Загружаю коммиты…");
         data.Commits = await LoadCommitsAsync(mrPath, cancellationToken);
 
+        try
+        {
+            data.Notes = (await GetPagedAsync($"{mrPath}/notes?sort=asc&order_by=created_at", cancellationToken, maxPages: 5))
+                .Select(n => new MrNote
+                {
+                    Author = n.TryGetProperty("author", out var a) && a.ValueKind == JsonValueKind.Object ? Str(a, "username") : "",
+                    CreatedAt = Date(n, "created_at"),
+                    IsSystem = Bool(n, "system"),
+                    Body = Str(n, "body"),
+                })
+                .ToList();
+        }
+        catch (SourceException)
+        {
+            // Комментарии необязательны.
+        }
+
         _log?.Invoke("Загружаю изменения…");
         data.Changes = await LoadChangesAsync(mrPath, cancellationToken);
         await LoadContentsAsync(data, cancellationToken);

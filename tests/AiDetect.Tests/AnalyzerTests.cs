@@ -96,4 +96,19 @@ public class AnalyzerTests
         Assert.Equal(GroupInfo.Cap(SignalGroup.Naming), groups.Single().Capped);
         Assert.Equal(GroupInfo.Cap(SignalGroup.Naming) + new ModelParameters().Bias, logit, 6);
     }
+
+    [Fact]
+    public void FileGrowth_NewFilesCreatedInSingleCommits_AreReportedAsAiLike()
+    {
+        var mr = BuildMr("ai", "feat: discounts", "- a\n- b");
+        mr.Commits.Clear();
+        var newFiles = mr.Changes.Where(c => c.IsNew && c.Path.EndsWith(".cs")).Select(c => c.Path).ToList();
+        mr.Commits.Add(new CommitInfo { Sha = "1", Title = "feat: code", Message = "feat: code", AuthorName = "Dev", ChangedPaths = newFiles.Take(3).ToList() });
+        mr.Commits.Add(new CommitInfo { Sha = "2", Title = "test: tests", Message = "test: tests", AuthorName = "Dev", ChangedPaths = newFiles.Skip(3).ToList() });
+
+        var report = new MergeRequestAnalyzer().Analyze(mr, new AnalyzerOptions { Parameters = new ModelParameters() });
+
+        var growth = Assert.Single(report.Signals, s => s.Id == "proc.fileGrowth");
+        Assert.True(growth.Evidence > 0.5);
+    }
 }

@@ -23,6 +23,9 @@ public sealed class MergeRequestData
     public string? HeadSha { get; set; }
     public List<CommitInfo> Commits { get; set; } = [];
     public List<FileChange> Changes { get; set; } = [];
+
+    /// <summary>Комментарии к MR (обсуждения ревью), если источник их отдаёт.</summary>
+    public List<MrNote> Notes { get; set; } = [];
     public RepositoryContext Repository { get; set; } = new();
 }
 
@@ -43,6 +46,14 @@ public sealed class CommitInfo
 
     /// <summary>Пути файлов, изменённых коммитом (если известны).</summary>
     public List<string> ChangedPaths { get; set; } = [];
+}
+
+public sealed class MrNote
+{
+    public string Author { get; set; } = "";
+    public DateTimeOffset? CreatedAt { get; set; }
+    public bool IsSystem { get; set; }
+    public string Body { get; set; } = "";
 }
 
 public sealed class FileChange

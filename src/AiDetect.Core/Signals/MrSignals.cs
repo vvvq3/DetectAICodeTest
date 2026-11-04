@@ -21,6 +21,8 @@ internal sealed partial class MrSignals(AnalysisContext ctx, SignalBuilder b)
         Shape();
         Commits();
         Speed();
+        FileGrowth();
+        ReviewResponse();
         Description();
     }
 
@@ -426,6 +428,84 @@ internal sealed partial class MrSignals(AnalysisContext ctx, SignalBuilder b)
             best >= 250 ? "Очень высокая скорость: сотни строк кода за минуты между коммитами" : "Скорость написания кода в пределах человеческой нормы",
             SignalBuilder.Map(best, 60, 450), SignalBuilder.Rel(commits.Count - 1, 1.5), 1.0,
             $"коммит {Short(bestCommit.Sha)}: +{bestCommit.Additions} строк через {bestGapMin:0} мин после предыдущего (~{best:0} строк/час)", [], best);
+    }
+
+    // ------------------------------------------------------------------ «готовность с первого раза»
+
+    /// <summary>Сколько коммитов MR правят каждый новый файл: агент создаёт файл целиком, человек наращивает серией коммитов.</summary>
+    private void FileGrowth()
+    {
+        var commits = _mr.Commits.Where(c => c.ChangedPaths.Count > 0 && !c.Title.StartsWith("Merge ", StringComparison.Ordinal)).ToList();
+        if (commits.Count < 2)
+        {
+            return;
+        }
+
+        var newFiles = ctx.AnalyzedCs.Where(f => f.IsNew && f.AddedLines >= 20).Select(f => f.Path).ToList();
+        if (newFiles.Count < 2)
+        {
+            return;
+        }
+
+        var touches = newFiles.Select(p => commits.Count(c => c.ChangedPaths.Contains(p))).Where(t => t > 0).ToList();
+        if (touches.Count < 2)
+        {
+            return;
+        }
+
+        double avg = touches.Average();
+        double onceShare = touches.Count(t => t == 1) / (double)touches.Count;
+        b.Add("proc.fileGrowth", SignalGroup.Process,
+            avg <= 1.3 ? "Новые файлы написаны «с первого раза»: каждый создан одним коммитом и больше не правился" : "Новые файлы наращивались серией коммитов",
+            SignalBuilder.Map(avg, 2.5, 1.0), SignalBuilder.Rel(touches.Count, 3), 0.6,
+            $"{touches.Count} новых файлов, в среднем {avg:0.0} коммита на файл, {onceShare * 100:0}% созданы одним коммитом", [], avg);
+    }
+
+    // ------------------------------------------------------------------ реакция на ревью
+
+    /// <summary>Скорость и ширина исправлений после замечаний ревьюеров.</summary>
+    private void ReviewResponse()
+    {
+        var reviewNotes = _mr.Notes
+            .Where(n => !n.IsSystem && n.CreatedAt is not null && n.Author.Length > 0 &&
+                        !string.Equals(n.Author, _mr.AuthorUsername, StringComparison.OrdinalIgnoreCase) && n.Body.Length >= 15)
+            .OrderBy(n => n.CreatedAt)
+            .ToList();
+        if (reviewNotes.Count == 0)
+        {
+            return;
+        }
+
+        var commits = _mr.Commits.Where(c => (c.AuthoredDate ?? c.CommittedDate) is not null && c.Additions is not null)
+            .OrderBy(c => c.CommittedDate ?? c.AuthoredDate).ToList();
+        var responses = new List<(double Minutes, int Lines)>();
+        foreach (var note in reviewNotes)
+        {
+            var fix = commits.FirstOrDefault(c => (c.CommittedDate ?? c.AuthoredDate) > note.CreatedAt);
+            if (fix is null)
+            {
+                continue;
+            }
+
+            double minutes = ((fix.CommittedDate ?? fix.AuthoredDate)!.Value - note.CreatedAt!.Value).TotalMinutes;
+            if (minutes <= 24 * 60)
+            {
+                responses.Add((minutes, fix.Additions!.Value + (fix.Deletions ?? 0)));
+            }
+        }
+
+        if (responses.Count == 0)
+        {
+            return;
+        }
+
+        var fast = responses.Count(r => r.Minutes <= 15 && r.Lines >= 30);
+        double share = fast / (double)responses.Count;
+        double medianMin = responses.Select(r => r.Minutes).OrderBy(m => m).ElementAt(responses.Count / 2);
+        b.Add("proc.reviewResponse", SignalGroup.Process,
+            share >= 0.5 ? "Замечания ревью исправлялись очень быстро и широко (десятки строк за минуты)" : "Исправления по ревью — в человеческом темпе",
+            share >= 0.5 ? share : -0.3, SignalBuilder.Rel(responses.Count, 2), 0.4,
+            $"{responses.Count} исправлений после замечаний, медиана {medianMin:0} мин, быстрых и широких: {fast}", [], share);
     }
 
     // ------------------------------------------------------------------ описание MR
