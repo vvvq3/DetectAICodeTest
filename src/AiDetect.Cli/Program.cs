@@ -7,7 +7,7 @@ using AiDetect.Core.Sources;
 
 Console.OutputEncoding = Encoding.UTF8;
 var opts = CliOptions.Parse(args);
-if (opts.Help || (opts.Command == "analyze" && opts.Target is null && opts.LoadPath is null && opts.GitRepo is null))
+if (opts.Help || (opts.Command is "analyze" or "fetch" && opts.Target is null && opts.LoadPath is null && opts.GitRepo is null))
 {
     Console.WriteLine(CliOptions.HelpText);
     return opts.Help ? 0 : 1;
@@ -20,6 +20,7 @@ try
         "web" => await WebServer.RunAsync(opts),
         "eval" => await Evaluation.RunEvalAsync(opts),
         "calibrate" => await Evaluation.RunCalibrateAsync(opts),
+        "fetch" => await FetchAsync(opts),
         _ => await AnalyzeAsync(opts),
     };
 }
@@ -27,6 +28,15 @@ catch (SourceException ex)
 {
     Console.Error.WriteLine("Ошибка: " + ex.Message);
     return 2;
+}
+
+static async Task<int> FetchAsync(CliOptions o)
+{
+    var data = await LoadAsync(o, o.Target, msg => { if (!o.Quiet) Console.Error.WriteLine("  " + msg); });
+    var path = o.SavePath ?? o.OutPath ?? "mr.json";
+    await JsonMergeRequestStore.SaveAsync(data, path);
+    Console.WriteLine($"MR сохранён в {path}: {data.Changes.Count} файлов, {data.Commits.Count} коммитов");
+    return 0;
 }
 
 static async Task<int> AnalyzeAsync(CliOptions o)

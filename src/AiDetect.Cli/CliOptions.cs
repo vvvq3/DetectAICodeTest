@@ -33,7 +33,7 @@ public sealed class CliOptions
     {
         var o = new CliOptions();
         int i = 0;
-        if (args.Length > 0 && args[0] is "web" or "eval" or "calibrate" or "analyze")
+        if (args.Length > 0 && args[0] is "web" or "eval" or "calibrate" or "analyze" or "fetch")
         {
             o.Command = args[0];
             i = 1;
@@ -139,6 +139,7 @@ public sealed class CliOptions
           aidetect web [--port 5057]                   локальная веб-страница с полем для ссылки
           aidetect --git <репо> --base <ветка> --head <ветка>   анализ диапазона коммитов локального git
           aidetect --load mr.json                      анализ сохранённого MR
+          aidetect fetch <ссылка> --save mr.json       только скачать MR в JSON (без анализа)
           aidetect eval <каталог корпуса>              точность на размеченном корпусе (human/, ai/)
           aidetect calibrate <каталог корпуса> -o weights.json   подбор весов на своих размеченных MR
 

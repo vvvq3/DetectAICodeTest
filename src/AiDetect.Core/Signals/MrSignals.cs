@@ -420,7 +420,7 @@ internal sealed partial class MrSignals(AnalysisContext ctx, SignalBuilder b)
     private void Description()
     {
         var d = _mr.Description?.Trim() ?? "";
-        if (_mr.Title.Length == 0 && d.Length == 0)
+        if (!_mr.HasMrMetadata || (_mr.Title.Length == 0 && d.Length == 0))
         {
             return;
         }
@@ -467,7 +467,7 @@ internal sealed partial class MrSignals(AnalysisContext ctx, SignalBuilder b)
 
         if (d.Length < 60)
         {
-            s -= 0.5;
+            s -= 0.3;
             notes.Add(d.Length == 0 ? "описание пустое" : "описание в одну строку");
         }
 

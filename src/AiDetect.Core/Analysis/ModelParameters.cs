@@ -12,7 +12,7 @@ public sealed class ModelParameters
     public double Bias { get; set; }
 
     /// <summary>Делитель итогового логита: больше — осторожнее вероятности.</summary>
-    public double Temperature { get; set; } = 1.6;
+    public double Temperature { get; set; } = 2.5;
 
     /// <summary>Переопределения весов: id признака → вес в логитах.</summary>
     public Dictionary<string, double> Weights { get; set; } = new(StringComparer.Ordinal);

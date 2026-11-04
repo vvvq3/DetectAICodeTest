@@ -283,7 +283,9 @@ public static partial class CSharpFeatureExtractor
         "log", "throw", "verify", "fetch", "send", "register", "configure", "compute", "find", "determine", "prepare",
         "store", "persist", "publish", "notify", "generate", "normalize", "extract", "resolve", "attempt", "try",
         "skip", "use", "call", "invoke", "wait", "mark", "append", "clear", "reset", "sort", "group", "merge", "assign",
-        "fall", "default", "only", "first", "then", "finally", "next", "now", "otherwise", "if", "early", "guard",
+        "fall", "default", "only", "first", "then", "finally", "next", "now", "otherwise", "if", "early", "guard", "cap", "limit",
+        "clamp", "round", "wrap", "dispose", "cleanup", "release", "emit", "raise", "dispatch", "schedule", "seed", "copy", "match",
+        "lookup", "look", "collect", "aggregate", "calculate", "recalculate", "refresh", "sync", "trim", "strip", "split", "combine", "keep",
     };
 
     private static readonly HashSet<string> CommentStopWords = new(StringComparer.OrdinalIgnoreCase)
@@ -324,6 +326,12 @@ public static partial class CSharpFeatureExtractor
                 : raw.Trim('/', '*').Trim();
             if (body.Length == 0)
             {
+                continue;
+            }
+
+            if (AaaMarkerRegex().IsMatch(body))
+            {
+                // Маркеры Arrange/Act/Assert учитываются в признаках тестов, а не как обычные комментарии.
                 continue;
             }
 
@@ -446,6 +454,9 @@ public static partial class CSharpFeatureExtractor
 
         return CodeLikeRegex().IsMatch(b);
     }
+
+    [GeneratedRegex(@"^(Arrange|Act|Assert|Act\s*&\s*Assert|Given|When|Then|Setup|Verify)\b[\s:.]*$", RegexOptions.IgnoreCase)]
+    private static partial Regex AaaMarkerRegex();
 
     [GeneratedRegex(@"\b(TODO|FIXME|HACK|XXX|КОСТЫЛЬ|ToDo|todo)\b")]
     private static partial Regex TodoRegex();

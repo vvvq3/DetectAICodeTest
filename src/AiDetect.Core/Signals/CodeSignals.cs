@@ -87,13 +87,13 @@ internal sealed class CodeSignals(AnalysisContext ctx, SignalBuilder b)
         {
             b.Add("cmt.narrative", SignalGroup.Comments,
                 _a[K.NarrativeComments] / prose >= 0.2 ? "Пошаговые комментарии-«повествование» (// Validate…, // Map…, // Save…)" : "Мало пошаговых комментариев-повествований",
-                SignalBuilder.Map(_a[K.NarrativeComments] / prose, 0.05, 0.45), SignalBuilder.Rel(prose, 4), 1.0,
+                Soften(SignalBuilder.Map(_a[K.NarrativeComments] / prose, 0.0, 0.4), 0.3), SignalBuilder.Rel(prose, 4), 1.0,
                 $"{_a[K.NarrativeComments]:0} из {prose:0} комментариев начинаются с глагола-действия", _a.GetExamples(K.NarrativeComments),
                 _a[K.NarrativeComments] / prose);
 
             b.Add("cmt.restating", SignalGroup.Comments,
                 _a[K.RestatingComments] / prose >= 0.15 ? "Комментарии пересказывают следующую строку кода" : "Комментарии не пересказывают код",
-                SignalBuilder.Map(_a[K.RestatingComments] / prose, 0.03, 0.35), SignalBuilder.Rel(prose, 4), 0.7,
+                Soften(SignalBuilder.Map(_a[K.RestatingComments] / prose, 0.0, 0.3), 0.25), SignalBuilder.Rel(prose, 4), 0.7,
                 $"{_a[K.RestatingComments]:0} из {prose:0} комментариев повторяют идентификаторы следующей строки", _a.GetExamples(K.RestatingComments),
                 _a[K.RestatingComments] / prose);
 
@@ -205,6 +205,9 @@ internal sealed class CodeSignals(AnalysisContext ctx, SignalBuilder b)
                 $"{xShare * 100:0}% лямбд с параметрами x/y/a/b…", [], xShare);
         }
     }
+
+    /// <summary>Ослабляет «человеческую» сторону признака: отсутствие ИИ-паттерна — слабое свидетельство.</summary>
+    private static double Soften(double e, double humanFactor) => e < 0 ? e * humanFactor : e;
 
     private static bool IsWord(string n) => n is "name" or "user" or "item" or "data" or "code" or "type" or "list" or "path" or "file" or "line"
         or "text" or "date" or "time" or "key" or "map" or "set" or "sum" or "max" or "min" or "url" or "uri" or "row" or "tag" or "age" or "day"

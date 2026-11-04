@@ -11,6 +11,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="..\..\model\weights.json" Link="weights.json" CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\..\model\weights.json')" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\AiDetect.Core\AiDetect.Core.csproj" />
   </ItemGroup>
 

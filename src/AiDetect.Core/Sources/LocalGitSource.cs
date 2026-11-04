@@ -34,6 +34,7 @@ public sealed class LocalGitSource(string repoPath, string baseRef, string headR
             HeadSha = head,
             SourceBranch = Branch ?? (headRef.Contains('/') || !headRef.All(char.IsLetterOrDigit) ? headRef : ""),
             TargetBranch = baseRef,
+            HasMrMetadata = Description is not null,
         };
 
         data.Commits = LoadCommits(mergeBase, head);

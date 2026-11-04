@@ -10,6 +10,9 @@ public sealed class MergeRequestData
     public string Source { get; set; } = "";
     public string Title { get; set; } = "";
     public string Description { get; set; } = "";
+
+    /// <summary>true, если есть настоящие метаданные MR (описание, автор); false — для диапазона локального git.</summary>
+    public bool HasMrMetadata { get; set; } = true;
     public string AuthorName { get; set; } = "";
     public string AuthorUsername { get; set; } = "";
     public string SourceBranch { get; set; } = "";
