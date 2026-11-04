@@ -150,14 +150,28 @@ public sealed partial class GitLabMergeRequestSource : IMergeRequestSource, IDis
         }).ToList();
     }
 
+    private const int Parallelism = 8;
+
     private async Task LoadContentsAsync(MergeRequestData data, CancellationToken ct)
     {
         int i = 0;
         var relevant = data.Changes.Where(c => FileClassifier.IsCSharp(c.Path) || c.Path.EndsWith(".md", StringComparison.OrdinalIgnoreCase)).ToList();
-        foreach (var change in relevant)
+        _log?.Invoke($"Загружаю содержимое {relevant.Count} файлов…");
+        await Parallel.ForEachAsync(relevant, new ParallelOptions { MaxDegreeOfParallelism = Parallelism, CancellationToken = ct }, async (change, token) =>
         {
-            i++;
-            _log?.Invoke($"Файлы {i}/{relevant.Count}: {change.Path}");
+            int n = Interlocked.Increment(ref i);
+            if (n % 20 == 0)
+            {
+                _log?.Invoke($"  файлы {n}/{relevant.Count}");
+            }
+
+            await LoadChangeContentAsync(data, change, token);
+        });
+    }
+
+    private async Task LoadChangeContentAsync(MergeRequestData data, FileChange change, CancellationToken ct)
+    {
+        {
             if (!change.IsDeleted && data.HeadSha is not null)
             {
                 change.NewContent = await GetRawFileAsync(change.NewPath, data.HeadSha, ct);
@@ -186,7 +200,14 @@ public sealed partial class GitLabMergeRequestSource : IMergeRequestSource, IDis
         }
 
         _log?.Invoke($"Статистика по {commits.Count} коммитам…");
-        foreach (var commit in commits)
+        await Parallel.ForEachAsync(commits, new ParallelOptions { MaxDegreeOfParallelism = Parallelism, CancellationToken = ct }, async (commit, token) =>
+        {
+            await LoadCommitStatAsync(commit, token);
+        });
+    }
+
+    private async Task LoadCommitStatAsync(CommitInfo commit, CancellationToken ct)
+    {
         {
             try
             {
@@ -279,18 +300,19 @@ public sealed partial class GitLabMergeRequestSource : IMergeRequestSource, IDis
             }
         }
 
-        // Берём файлы равномерно: сначала по одному-два из каждого каталога, тесты и код вперемешку.
-        foreach (var path in candidates.Take(_limits.MaxBaselineFiles * 2))
+        // Ближайшие к изменённым файлам каталоги идут первыми; загружаем параллельно и сохраняем исходный порядок.
+        var picked = candidates.Take(_limits.MaxBaselineFiles + 4).ToList();
+        var loaded = new string?[picked.Count];
+        await Parallel.ForEachAsync(Enumerable.Range(0, picked.Count), new ParallelOptions { MaxDegreeOfParallelism = Parallelism, CancellationToken = ct }, async (idx, token) =>
         {
-            if (data.Repository.BaselineFiles.Count >= _limits.MaxBaselineFiles)
-            {
-                break;
-            }
+            loaded[idx] = await GetRawFileAsync(picked[idx], baseRef, token);
+        });
 
-            var content = await GetRawFileAsync(path, baseRef, ct);
-            if (content is not null && content.Length <= _limits.MaxBaselineFileBytes)
+        for (int idx = 0; idx < picked.Count && data.Repository.BaselineFiles.Count < _limits.MaxBaselineFiles; idx++)
+        {
+            if (loaded[idx] is { } content && content.Length <= _limits.MaxBaselineFileBytes)
             {
-                data.Repository.BaselineFiles.Add(new SourceFile { Path = path, Content = content });
+                data.Repository.BaselineFiles.Add(new SourceFile { Path = picked[idx], Content = content });
             }
         }
     }

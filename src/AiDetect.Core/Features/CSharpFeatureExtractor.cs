@@ -535,7 +535,7 @@ public static partial class CSharpFeatureExtractor
                     _s.Add(K.ConcreteClasses);
                     if (node.Modifiers.Any(SyntaxKind.SealedKeyword))
                     {
-                        ctx.Hit(K.SealedClasses, node.Identifier.Parent!);
+                        ctx.Hit(K.SealedClasses, ctx.LineOf(node.Identifier));
                     }
                 }
 
@@ -1089,7 +1089,7 @@ public static partial class CSharpFeatureExtractor
                 _s.MethodComplexities.Add(1 + body.DescendantNodes().Count(IsBranch));
                 if (MaxNesting(body) >= 4)
                 {
-                    ctx.Hit(K.DeepNestedMethods, node.Identifier.Parent!);
+                    ctx.Hit(K.DeepNestedMethods, ctx.LineOf(node.Identifier));
                 }
             }
 
@@ -1115,7 +1115,7 @@ public static partial class CSharpFeatureExtractor
 
             if (isAsync && returnType == "void" && !IsEventHandler(node.ParameterList))
             {
-                ctx.Hit(K.AsyncVoid, node.Identifier.Parent!);
+                ctx.Hit(K.AsyncVoid, ctx.LineOf(node.Identifier));
             }
 
             if (ctx.IsTest || node.Modifiers.Any(SyntaxKind.OverrideKeyword) || node.ExplicitInterfaceSpecifier is not null)
@@ -1181,7 +1181,7 @@ public static partial class CSharpFeatureExtractor
             int underscores = name.Count(c => c == '_');
             if (underscores >= 2)
             {
-                ctx.Hit(K.TestNamePattern, node.Identifier.Parent!);
+                ctx.Hit(K.TestNamePattern, ctx.LineOf(node.Identifier));
             }
             else if (name.Contains("Should", StringComparison.Ordinal))
             {
@@ -1203,7 +1203,7 @@ public static partial class CSharpFeatureExtractor
             var full = node.ToFullString();
             if (AaaRegex().IsMatch(full))
             {
-                ctx.Hit(K.TestAaa, node.Identifier.Parent!);
+                ctx.Hit(K.TestAaa, ctx.LineOf(node.Identifier));
             }
         }
 
@@ -1427,7 +1427,7 @@ public static partial class CSharpFeatureExtractor
                 bool hasReturns = elements.Contains("returns");
                 if (paramDocs >= parameters.Parameters.Count && (!needsReturns || hasReturns))
                 {
-                    ctx.Hit(K.DocMethodsComplete, identifier.Parent!);
+                    ctx.Hit(K.DocMethodsComplete, ctx.LineOf(identifier));
                 }
             }
         }
