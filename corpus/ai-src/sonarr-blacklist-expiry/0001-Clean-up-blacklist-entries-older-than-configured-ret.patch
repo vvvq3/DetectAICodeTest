@@ -1,0 +1,197 @@
+From 5c9947287d59b2f9639567f362f3cd80c5825046 Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Mon, 30 Nov 2020 20:00:00 +0000
+Subject: [PATCH] Clean up blacklist entries older than configured retention
+
+- Add BlacklistRetentionDays setting (0 disables cleanup)
+- Add DeleteOlderThan to blacklist repository
+- Add CleanupExpiredBlacklist housekeeping task with tests
+---
+ .../CleanupExpiredBlacklistFixture.cs         | 60 +++++++++++++++++++
+ .../Blacklisting/BlacklistRepository.cs       | 15 +++++
+ .../Configuration/ConfigService.cs            |  6 ++
+ .../Configuration/IConfigService.cs           |  3 +
+ .../Housekeepers/CleanupExpiredBlacklist.cs   | 43 +++++++++++++
+ 5 files changed, 127 insertions(+)
+ create mode 100644 src/NzbDrone.Core.Test/Housekeeping/Housekeepers/CleanupExpiredBlacklistFixture.cs
+ create mode 100644 src/NzbDrone.Core/Housekeeping/Housekeepers/CleanupExpiredBlacklist.cs
+
+diff --git a/src/NzbDrone.Core.Test/Housekeeping/Housekeepers/CleanupExpiredBlacklistFixture.cs b/src/NzbDrone.Core.Test/Housekeeping/Housekeepers/CleanupExpiredBlacklistFixture.cs
+new file mode 100644
+index 0000000000..26e302173d
+--- /dev/null
++++ b/src/NzbDrone.Core.Test/Housekeeping/Housekeepers/CleanupExpiredBlacklistFixture.cs
+@@ -0,0 +1,60 @@
++using System;
++using FluentAssertions;
++using Moq;
++using NUnit.Framework;
++using NzbDrone.Core.Blacklisting;
++using NzbDrone.Core.Configuration;
++using NzbDrone.Core.Housekeeping.Housekeepers;
++using NzbDrone.Core.Test.Framework;
++
++namespace NzbDrone.Core.Test.Housekeeping.Housekeepers
++{
++    [TestFixture]
++    public class CleanupExpiredBlacklistFixture : CoreTest<CleanupExpiredBlacklist>
++    {
++        private void GivenRetentionDays(int days)
++        {
++            Mocker.GetMock<IConfigService>()
++                  .SetupGet(s => s.BlacklistRetentionDays)
++                  .Returns(days);
++        }
++
++        [Test]
++        public void should_not_delete_anything_when_retention_is_disabled()
++        {
++            GivenRetentionDays(0);
++
++            Subject.Clean();
++
++            Mocker.GetMock<IBlacklistRepository>()
++                  .Verify(v => v.DeleteOlderThan(It.IsAny<DateTime>()), Times.Never());
++        }
++
++        [Test]
++        public void should_delete_entries_older_than_retention()
++        {
++            GivenRetentionDays(30);
++
++            Mocker.GetMock<IBlacklistRepository>()
++                  .Setup(s => s.DeleteOlderThan(It.IsAny<DateTime>()))
++                  .Returns(3);
++
++            Subject.Clean();
++
++            Mocker.GetMock<IBlacklistRepository>()
++                  .Verify(v => v.DeleteOlderThan(It.Is<DateTime>(d => d < DateTime.UtcNow.AddDays(-29) && d > DateTime.UtcNow.AddDays(-31))), Times.Once());
++        }
++
++        [TestCase(-1)]
++        [TestCase(0)]
++        public void should_treat_non_positive_retention_as_disabled(int days)
++        {
++            GivenRetentionDays(days);
++
++            Subject.Clean();
++
++            Mocker.GetMock<IBlacklistRepository>()
++                  .Verify(v => v.DeleteOlderThan(It.IsAny<DateTime>()), Times.Never());
++        }
++    }
++}
+diff --git a/src/NzbDrone.Core/Blacklisting/BlacklistRepository.cs b/src/NzbDrone.Core/Blacklisting/BlacklistRepository.cs
+index 906f2a92b8..259083edad 100644
+--- a/src/NzbDrone.Core/Blacklisting/BlacklistRepository.cs
++++ b/src/NzbDrone.Core/Blacklisting/BlacklistRepository.cs
+@@ -11,6 +11,7 @@ public interface IBlacklistRepository : IBasicRepository<Blacklist>
+         List<Blacklist> BlacklistedByTitle(int seriesId, string sourceTitle);
+         List<Blacklist> BlacklistedByTorrentInfoHash(int seriesId, string torrentInfoHash);
+         List<Blacklist> BlacklistedBySeries(int seriesId);
++        int DeleteOlderThan(DateTime cutoff);
+     }
+ 
+     public class BlacklistRepository : BasicRepository<Blacklist>, IBlacklistRepository
+@@ -43,5 +44,19 @@ protected override SortBuilder<Blacklist> GetPagedQuery(QueryBuilder<Blacklist>
+ 
+             return base.GetPagedQuery(baseQuery, pagingSpec);
+         }
++
++        public int DeleteOlderThan(DateTime cutoff)
++        {
++            var expired = Query(b => b.Date < cutoff);
++
++            if (expired.Count == 0)
++            {
++                return 0;
++            }
++
++            Delete(expired);
++
++            return expired.Count;
++        }
+     }
+ }
+diff --git a/src/NzbDrone.Core/Configuration/ConfigService.cs b/src/NzbDrone.Core/Configuration/ConfigService.cs
+index d2844ccbe7..0a578258cd 100644
+--- a/src/NzbDrone.Core/Configuration/ConfigService.cs
++++ b/src/NzbDrone.Core/Configuration/ConfigService.cs
+@@ -445,5 +445,11 @@ private static void ClearCache()
+                 _cache = new Dictionary<string, string>();
+             }
+         }
++
++        public int BlacklistRetentionDays
++        {
++            get { return GetValueInt("BlacklistRetentionDays", 0); }
++            set { SetValue("BlacklistRetentionDays", value); }
++        }
+     }
+ }
+diff --git a/src/NzbDrone.Core/Configuration/IConfigService.cs b/src/NzbDrone.Core/Configuration/IConfigService.cs
+index ad3bef22c4..e43ce6e385 100644
+--- a/src/NzbDrone.Core/Configuration/IConfigService.cs
++++ b/src/NzbDrone.Core/Configuration/IConfigService.cs
+@@ -88,5 +88,8 @@ public interface IConfigService
+         int BackupRetention { get; }
+ 
+         CertificateValidationType CertificateValidation { get; }
++
++        //Housekeeping
++        int BlacklistRetentionDays { get; set; }
+     }
+ }
+diff --git a/src/NzbDrone.Core/Housekeeping/Housekeepers/CleanupExpiredBlacklist.cs b/src/NzbDrone.Core/Housekeeping/Housekeepers/CleanupExpiredBlacklist.cs
+new file mode 100644
+index 0000000000..b4d777cc31
+--- /dev/null
++++ b/src/NzbDrone.Core/Housekeeping/Housekeepers/CleanupExpiredBlacklist.cs
+@@ -0,0 +1,43 @@
++using System;
++using NLog;
++using NzbDrone.Core.Blacklisting;
++using NzbDrone.Core.Configuration;
++
++namespace NzbDrone.Core.Housekeeping.Housekeepers
++{
++    /// <summary>
++    /// Removes blacklist entries that are older than the configured retention period.
++    /// </summary>
++    public class CleanupExpiredBlacklist : IHousekeepingTask
++    {
++        private readonly IBlacklistRepository _blacklistRepository;
++        private readonly IConfigService _configService;
++        private readonly Logger _logger;
++
++        public CleanupExpiredBlacklist(IBlacklistRepository blacklistRepository, IConfigService configService, Logger logger)
++        {
++            _blacklistRepository = blacklistRepository;
++            _configService = configService;
++            _logger = logger;
++        }
++
++        public void Clean()
++        {
++            var retentionDays = _configService.BlacklistRetentionDays;
++
++            if (retentionDays <= 0)
++            {
++                _logger.Debug("Blacklist retention is disabled, skipping cleanup.");
++                return;
++            }
++
++            var cutoff = DateTime.UtcNow.AddDays(-retentionDays);
++            var removed = _blacklistRepository.DeleteOlderThan(cutoff);
++
++            if (removed > 0)
++            {
++                _logger.Info("Removed {0} blacklist entries older than {1} days.", removed, retentionDays);
++            }
++        }
++    }
++}
+-- 
+2.43.0
+

@@ -233,14 +233,6 @@ internal sealed class CodeSignals(AnalysisContext ctx, SignalBuilder b)
     /// <summary>Ослабляет «человеческую» сторону признака: отсутствие ИИ-паттерна — слабое свидетельство.</summary>
     private static double Soften(double e, double humanFactor) => e < 0 ? e * humanFactor : e;
 
-    private static bool IsWord(string n) => n is "name" or "user" or "item" or "data" or "code" or "type" or "list" or "path" or "file" or "line"
-        or "text" or "date" or "time" or "key" or "map" or "set" or "sum" or "max" or "min" or "url" or "uri" or "row" or "tag" or "age" or "day"
-        or "log" or "job" or "task" or "node" or "page" or "size" or "port" or "host" or "mode" or "kind" or "role" or "unit" or "rule" or "step"
-        or "next" or "prev" or "last" or "head" or "tail" or "body" or "form" or "view" or "hash" or "salt" or "json" or "xml" or "html" or "sql"
-        or "csv" or "bytes" or "token" or "count" or "index" or "order" or "price" or "total" or "query" or "items" or "field" or "parts" or "part"
-        or "rate" or "flag" or "args" or "user" or "role" or "dto" or "id" or "ids" or "cost" or "city" or "zip" or "now" or "end" or "start" or "from"
-        or "to" or "skip" or "take" or "seed" or "lock" or "sort" or "plan" or "slot" or "room" or "seat" or "team" or "game" or "card" or "deal";
-
     // ------------------------------------------------------------------ синтаксис и API
 
     private void Syntax()
