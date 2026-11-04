@@ -454,31 +454,44 @@ public sealed partial class GitLabMergeRequestSource : IMergeRequestSource, IDis
         return result;
     }
 
+    private const int MaxAttempts = 4;
+
     private async Task<HttpResponseMessage> SendAsync(string url, CancellationToken ct)
     {
         for (int attempt = 1; ; attempt++)
         {
+            HttpResponseMessage resp;
             try
             {
-                var resp = await _http.GetAsync(url, ct);
-                if ((int)resp.StatusCode == 429 || (int)resp.StatusCode >= 500 && attempt < 3)
+                resp = await _http.GetAsync(url, ct);
+            }
+            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !ct.IsCancellationRequested)
+            {
+                if (attempt >= MaxAttempts)
                 {
-                    resp.Dispose();
-                    await Task.Delay(TimeSpan.FromSeconds(attempt * 2), ct);
-                    continue;
+                    throw new SourceException($"Не удалось получить ответ от {_url.BaseUrl}: {ex.Message}. Проверьте адрес, VPN, сертификат (флаг --insecure для самоподписанного).", ex);
                 }
 
+                _log?.Invoke($"Сетевая ошибка ({ex.Message}), повтор {attempt}/{MaxAttempts - 1}…");
+                await Task.Delay(TimeSpan.FromSeconds(attempt * 2), ct);
+                continue;
+            }
+
+            bool retryable = (int)resp.StatusCode == 429 || (int)resp.StatusCode >= 500;
+            if (!retryable || attempt >= MaxAttempts)
+            {
                 return resp;
             }
-            catch (HttpRequestException ex) when (attempt < 3)
+
+            var delay = resp.Headers.RetryAfter?.Delta ?? TimeSpan.FromSeconds(attempt * 3);
+            if (delay > TimeSpan.FromSeconds(30))
             {
-                _log?.Invoke($"Сетевая ошибка ({ex.Message}), повтор…");
-                await Task.Delay(TimeSpan.FromSeconds(attempt * 2), ct);
+                delay = TimeSpan.FromSeconds(30);
             }
-            catch (HttpRequestException ex)
-            {
-                throw new SourceException($"Не удалось подключиться к {_url.BaseUrl}: {ex.Message}. Проверьте адрес, VPN, сертификат (флаг --insecure для самоподписанного).", ex);
-            }
+
+            _log?.Invoke($"GitLab ответил {(int)resp.StatusCode}, жду {delay.TotalSeconds:0} с и повторяю…");
+            resp.Dispose();
+            await Task.Delay(delay, ct);
         }
     }
 
