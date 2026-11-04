@@ -595,6 +595,11 @@ public static partial class CSharpFeatureExtractor
         {
             if (ctx.In(node.Identifier))
             {
+                if (!node.Modifiers.Any(SyntaxKind.StaticKeyword))
+                {
+                    CheckAccess(node, node.Modifiers);
+                }
+
                 CheckDoc(node, node.Modifiers, node.Identifier, node.ParameterList);
                 CheckParameters(node.ParameterList);
                 CheckGuards(node, node.Modifiers, node.ParameterList, node.Body, node.ExpressionBody);
@@ -627,6 +632,7 @@ public static partial class CSharpFeatureExtractor
         {
             if (ctx.In(node.Identifier))
             {
+                CheckAccess(node, node.Modifiers);
                 CheckDoc(node, node.Modifiers, node.Identifier);
                 if (node.Modifiers.Any(SyntaxKind.RequiredKeyword))
                 {
@@ -675,12 +681,14 @@ public static partial class CSharpFeatureExtractor
         {
             if (ctx.In(node))
             {
+                CheckAccess(node, node.Modifiers);
                 var mods = node.Modifiers;
                 bool isConst = mods.Any(SyntaxKind.ConstKeyword);
                 bool isPublic = mods.Any(SyntaxKind.PublicKeyword) || mods.Any(SyntaxKind.InternalKeyword) || mods.Any(SyntaxKind.ProtectedKeyword);
                 bool isPrivate = !isPublic;
                 if (isConst)
                 {
+                    _s.Add(K.ConstDeclarations);
                     foreach (var v in node.Declaration.Variables)
                     {
                         if (v.Identifier.Text == "SectionName")
@@ -1009,6 +1017,31 @@ public static partial class CSharpFeatureExtractor
             base.VisitCatchClause(node);
         }
 
+        public override void VisitArgument(ArgumentSyntax node)
+        {
+            if (node.NameColon is not null && ctx.In(node))
+            {
+                _s.Add(K.NamedArguments);
+            }
+
+            base.VisitArgument(node);
+        }
+
+        public override void VisitReturnStatement(ReturnStatementSyntax node)
+        {
+            if (ctx.In(node) && node.Parent is BlockSyntax block && block.Statements.IndexOf(node) > 0)
+            {
+                _s.Add(K.ReturnsChecked);
+                int line = ctx.LineOf(node);
+                if (ctx.LineText(line - 1).Trim().Length == 0)
+                {
+                    _s.Add(K.ReturnsWithBlankLine);
+                }
+            }
+
+            base.VisitReturnStatement(node);
+        }
+
         public override void VisitQueryExpression(QueryExpressionSyntax node)
         {
             if (ctx.In(node))
@@ -1034,6 +1067,10 @@ public static partial class CSharpFeatureExtractor
         private void AnalyzeMethod(MethodDeclarationSyntax node)
         {
             _s.Add(K.Methods);
+            if (node.ExplicitInterfaceSpecifier is null)
+            {
+                CheckAccess(node, node.Modifiers);
+            }
             CheckDoc(node, node.Modifiers, node.Identifier, node.ParameterList, node.ReturnType);
             CheckParameters(node.ParameterList);
             CountCollectionTypes(node.ReturnType, node);
@@ -1050,6 +1087,10 @@ public static partial class CSharpFeatureExtractor
                 int end = ctx.Text.Lines.GetLineFromPosition(body.Span.End).LineNumber + 1;
                 _s.MethodLengths.Add(end - start + 1);
                 _s.MethodComplexities.Add(1 + body.DescendantNodes().Count(IsBranch));
+                if (MaxNesting(body) >= 4)
+                {
+                    ctx.Hit(K.DeepNestedMethods, node.Identifier.Parent!);
+                }
             }
 
             bool isTestMethod = node.AttributeLists.SelectMany(a => a.Attributes).Any(a => TestAttributes.Contains(a.Name.ToString()));
@@ -1278,6 +1319,15 @@ public static partial class CSharpFeatureExtractor
             }
 
             var typeName = creation is ObjectCreationExpressionSyntax oc ? oc.Type.ToString() : "";
+            if (typeName is "Exception" or "System.Exception" or "ApplicationException" or "SystemException")
+            {
+                ctx.Hit(K.GenericExceptionThrows, expr);
+            }
+            else if (typeName.EndsWith("Exception", StringComparison.Ordinal))
+            {
+                _s.Add(K.SpecificExceptionThrows);
+            }
+
             var args = creation.ArgumentList?.Arguments;
             if (args is null || args.Value.Count == 0)
             {
@@ -1356,6 +1406,11 @@ public static partial class CSharpFeatureExtractor
             {
                 _s.Add(K.InheritDoc);
                 return;
+            }
+
+            if (docText.Contains("<exception cref", StringComparison.Ordinal))
+            {
+                _s.Add(K.DocExceptionTags);
             }
 
             if (TemplateDocPhrases.Any(p => docText.Contains(p, StringComparison.OrdinalIgnoreCase)))
@@ -1469,6 +1524,25 @@ public static partial class CSharpFeatureExtractor
             }
         }
 
+        private void CheckAccess(MemberDeclarationSyntax member, SyntaxTokenList modifiers)
+        {
+            if (member.Parent is not (ClassDeclarationSyntax or StructDeclarationSyntax or RecordDeclarationSyntax))
+            {
+                return;
+            }
+
+            _s.Add(K.MembersChecked);
+            if (modifiers.Any(SyntaxKind.PublicKeyword) || modifiers.Any(SyntaxKind.PrivateKeyword) || modifiers.Any(SyntaxKind.ProtectedKeyword) ||
+                modifiers.Any(SyntaxKind.InternalKeyword))
+            {
+                _s.Add(K.ExplicitAccess);
+            }
+            else
+            {
+                _s.AddExample(K.ExplicitAccess + ".missing", ctx.Path, ctx.LineOf(member), ctx.LineText(ctx.LineOf(member)));
+            }
+        }
+
         private void CheckMemberOrder(TypeDeclarationSyntax type)
         {
             if (type.Members.Count < 4)
@@ -1559,6 +1633,31 @@ public static partial class CSharpFeatureExtractor
         or SyntaxKind.CasePatternSwitchLabel or SyntaxKind.SwitchExpressionArm or SyntaxKind.ForStatement or SyntaxKind.ForEachStatement
         or SyntaxKind.WhileStatement or SyntaxKind.DoStatement or SyntaxKind.CatchClause or SyntaxKind.LogicalAndExpression
         or SyntaxKind.LogicalOrExpression or SyntaxKind.CoalesceExpression;
+
+    /// <summary>Максимальная глубина вложенности управляющих конструкций (else-if не увеличивает глубину).</summary>
+    internal static int MaxNesting(SyntaxNode body)
+    {
+        int max = 0;
+        foreach (var n in body.DescendantNodes().Where(IsNestingStatement))
+        {
+            int depth = 0;
+            for (var cur = n; cur is not null && cur != body; cur = cur.Parent)
+            {
+                if (IsNestingStatement(cur) && !(cur is IfStatementSyntax && cur.Parent is ElseClauseSyntax))
+                {
+                    depth++;
+                }
+            }
+
+            max = Math.Max(max, depth);
+        }
+
+        return max;
+    }
+
+    private static bool IsNestingStatement(SyntaxNode n) => n.Kind() is SyntaxKind.IfStatement or SyntaxKind.ForStatement or SyntaxKind.ForEachStatement
+        or SyntaxKind.WhileStatement or SyntaxKind.DoStatement or SyntaxKind.SwitchStatement or SyntaxKind.TryStatement or SyntaxKind.UsingStatement
+        or SyntaxKind.LockStatement;
 
     private static bool IsEventHandler(ParameterListSyntax list) =>
         list.Parameters.Count == 2 && list.Parameters[0].Type?.ToString() is "object" or "object?";

@@ -228,6 +228,16 @@ public static class K
     public const string AsNoTracking = "ef.asNoTracking";
     public const string MagicNumbers = "misc.magicNumbers";
     public const string PublicFields = "fld.public";
+    public const string MembersChecked = "acc.members";
+    public const string ExplicitAccess = "acc.explicit";
+    public const string NamedArguments = "syn.namedArgs";
+    public const string ConstDeclarations = "syn.const";
+    public const string GenericExceptionThrows = "exc.generic";
+    public const string SpecificExceptionThrows = "exc.specific";
+    public const string DeepNestedMethods = "mth.deepNesting";
+    public const string ReturnsChecked = "fmt.returns";
+    public const string ReturnsWithBlankLine = "fmt.blankBeforeReturn";
+    public const string DocExceptionTags = "doc.exceptionTags";
 
     // Форматирование
     public const string TrailingWhitespace = "fmt.trailingWs";

@@ -66,6 +66,12 @@ internal sealed class CodeSignals(AnalysisContext ctx, SignalBuilder b)
             hits: K.DocTemplatePhrase, total: K.DocBlocks, humanAt: 0.05, aiAt: 0.5, k: 4, weight: 0.5, alpha: 0.8,
             detail: (h, t) => $"{h:0} из {t:0} блоков документации", exAi: K.DocTemplatePhrase, minTotal: 2);
 
+        if (_a[K.DocExceptionTags] >= 1)
+        {
+            b.Add("doc.exceptionTags", SignalGroup.Documentation, "XML-doc документирует исключения: <exception cref=…>",
+                1, SignalBuilder.Rel(_a[K.DocExceptionTags], 1), 0.15, $"{_a[K.DocExceptionTags]:0} блоков", [], _a[K.DocExceptionTags]);
+        }
+
         if (_a[K.InheritDoc] >= 2)
         {
             b.Add("doc.inheritdoc", SignalGroup.Documentation, "Реализации помечены /// <inheritdoc />",
@@ -414,6 +420,16 @@ internal sealed class CodeSignals(AnalysisContext ctx, SignalBuilder b)
                 _a.GetExamples(K.CatchVarE), eShare);
         }
 
+        double thrown = _a[K.GenericExceptionThrows] + _a[K.SpecificExceptionThrows];
+        if (thrown >= 2)
+        {
+            double genericShare = _a[K.GenericExceptionThrows] / thrown;
+            b.Add("exc.generic", SignalGroup.Exceptions,
+                genericShare >= 0.2 ? "Бросается общий new Exception(...) вместо конкретного типа" : "Только конкретные типы исключений (InvalidOperationException, KeyNotFoundException…)",
+                SignalBuilder.Map(genericShare, 0.4, 0.0), SignalBuilder.Rel(thrown, 3), 0.6,
+                $"{_a[K.GenericExceptionThrows]:0} из {thrown:0} throw new — общий Exception", _a.GetExamples(K.GenericExceptionThrows), genericShare);
+        }
+
         double bad = _a[K.ThrowEx] + _a[K.EmptyCatch];
         if (bad > 0)
         {
@@ -458,6 +474,20 @@ internal sealed class CodeSignals(AnalysisContext ctx, SignalBuilder b)
                 b.Add("mth.complexity", SignalGroup.Structure, $"Очень запутанный метод (цикломатическая сложность {maxCx})",
                     -Math.Min(1, (maxCx - 10) / 10.0), 1, 0.4, $"средняя сложность {avgCx:0.0}, максимум {maxCx}", [], maxCx);
             }
+        }
+
+        b.Rate("acc.explicit", SignalGroup.Structure,
+            ai: "Явный модификатор доступа у каждого члена класса (private/public везде)", human: "Члены классов без явного модификатора доступа",
+            hits: K.ExplicitAccess, total: K.MembersChecked, humanAt: 0.75, aiAt: 1.0, k: 6, weight: 0.4, alpha: 0.6,
+            detail: (h, t) => $"{h:0} из {t:0} членов с явным модификатором", exHuman: K.ExplicitAccess + ".missing");
+
+        if (_a.MethodLengths.Count >= 5)
+        {
+            double deepShare = _a[K.DeepNestedMethods] / _a.MethodLengths.Count;
+            b.Add("mth.nesting", SignalGroup.Structure,
+                deepShare >= 0.05 ? "Глубокая вложенность if/for/try (4+ уровня)" : "Плоский код: ранние возвраты вместо вложенности",
+                SignalBuilder.Map(deepShare, 0.15, 0.0), SignalBuilder.Rel(_a.MethodLengths.Count, 6), 0.5,
+                $"{_a[K.DeepNestedMethods]:0} из {_a.MethodLengths.Count} методов с вложенностью ≥ 4", _a.GetExamples(K.DeepNestedMethods), deepShare);
         }
 
         if (_a[K.PublicFields] >= 1)
@@ -534,6 +564,24 @@ internal sealed class CodeSignals(AnalysisContext ctx, SignalBuilder b)
             SignalBuilder.AdjustForBaseline(e, eb, 0.5), SignalBuilder.Rel(lines, 80), 1.0,
             $"{total:0} небрежностей на {lines:0} строк" + (basePer100 is { } b2 ? $" (в проекте {b2:0.0} на 100 строк)" : ""), examples, per100);
         b.TrackShift("fmt.irregular", "аккуратность форматирования", per100, basePer100, e, eb, v => $"{v:0.0}/100 строк");
+
+        b.Rate("fmt.blankBeforeReturn", SignalGroup.Formatting,
+            ai: "Пустая строка перед return почти везде (ровная «вёрстка» блоков)", human: "return без отбивки пустой строкой",
+            hits: K.ReturnsWithBlankLine, total: K.ReturnsChecked, humanAt: 0.3, aiAt: 0.9, k: 5, weight: 0.15, alpha: 0.5,
+            detail: (h, t) => $"{h:0} из {t:0} return после пустой строки");
+
+        if (lines >= 80)
+        {
+            double named = _a[K.NamedArguments] * 100 / lines;
+            double? baseNamed = _base is not null && _base[K.CodeLines] >= 100 ? _base[K.NamedArguments] * 100 / _base[K.CodeLines] : null;
+            if (_a[K.NamedArguments] >= 2)
+            {
+                double en = SignalBuilder.Map(named, 0.1, 1.5);
+                b.Add("syn.namedArgs", SignalGroup.ModernSyntax, "Именованные аргументы для «непонятных» литералов (pageSize: 10, leaveOpen: true)",
+                    SignalBuilder.AdjustForBaseline(Math.Max(0, en), baseNamed is { } bn ? SignalBuilder.Map(bn, 0.1, 1.5) : null, 0.5),
+                    SignalBuilder.Rel(_a[K.NamedArguments], 3), 0.1, $"{_a[K.NamedArguments]:0} на {lines:0} строк", [], named);
+            }
+        }
 
         double kr = _a[K.KAndRBraces] * 100 / lines;
         if (_a[K.KAndRBraces] >= 2)
