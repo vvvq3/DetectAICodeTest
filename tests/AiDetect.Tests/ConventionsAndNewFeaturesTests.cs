@@ -99,3 +99,28 @@ public class ConventionsAndNewFeaturesTests
         Assert.Equal(1, s[K.CyrillicPolishedComments]);
     }
 }
+
+public class TranslitTests
+{
+    [Fact]
+    public void Extract_DetectsTranslitAndHungarianNames()
+    {
+        const string code = """
+            class ZakazService
+            {
+                private string strName;
+                void M()
+                {
+                    var kolvoTovarov = 5;
+                    var lstItems = new List<int>();
+                    var description = "zakaz";
+                }
+            }
+            """;
+
+        var s = AiDetect.Core.Features.CSharpFeatureExtractor.Extract("A.cs", code, _ => true, false, true);
+
+        Assert.Equal(2, s[AiDetect.Core.Features.K.TranslitIdentifiers]);
+        Assert.Equal(2, s[AiDetect.Core.Features.K.HungarianNames]);
+    }
+}

@@ -221,6 +221,9 @@ public static class K
     public const string LinqQuerySyntax = "misc.linqQuery";
     public const string ThreadSleep = "misc.threadSleep";
     public const string Typos = "misc.typos";
+    public const string TranslitIdentifiers = "name.translit";
+    public const string HungarianNames = "name.hungarian";
+    public const string CyrillicIdentifiers = "name.cyrillic";
     public const string EmojiInStrings = "misc.emoji";
     public const string ProducesResponseType = "web.producesResponseType";
     public const string ControllerActions = "web.actions";

@@ -126,6 +126,7 @@ public static partial class CSharpFeatureExtractor
 
             ctx.S.Add(K.CodeLines);
             CheckTypos(ctx, line, lineNo);
+            CheckTranslit(ctx, line, lineNo);
 
             if (line.Length > 0 && (line.EndsWith(' ') || line.EndsWith('\t')))
             {
@@ -196,6 +197,51 @@ public static partial class CSharpFeatureExtractor
         "transction", "trasaction", "udpate", "updat", "usefull", "usuall", "valdiate", "validaton", "valus", "verfiy", "wether", "whith", "writting",
         "accout", "ammount", "amout", "cutomer", "custmer", "costumer", "oder", "ordes", "prodcut", "pruduct", "quanity", "quantiy", "summery",
     };
+
+    /// <summary>Типичные корни русского транслита в идентификаторах (zakaz, polzovatel, kolvo…).</summary>
+    private static readonly HashSet<string> TranslitRoots = new(StringComparer.Ordinal)
+    {
+        "zakaz", "zakazy", "zakazov", "polzovatel", "polzovatelya", "polzovateli", "tovar", "tovary", "tovarov", "klient", "klienta", "dogovor",
+        "ostatok", "ostatki", "kolvo", "kolichestvo", "summa", "summy", "spisok", "nomer", "schet", "scheta", "oplata", "oplaty", "sklad",
+        "otchet", "otcheta", "dokument", "postavshik", "postavshchik", "sotrudnik", "podrazdelenie", "naimenovanie", "cena", "ceny", "skidka",
+        "dostavka", "familiya", "imya", "otchestvo", "nds", "inn", "kpp", "ogrn", "bik", "rasschet", "raschet", "itogo", "vsego", "data", "vremya",
+        "nachalo", "konec", "spravochnik", "provodka", "nakladnaya", "prihod", "rashod", "pokupatel", "prodavec", "zayavka", "zadacha", "otvet",
+        "zapros", "polucheno", "otpravleno", "udalit", "dobavit", "sohranit", "poluchit", "proverka", "oshibka", "soobshenie", "uvedomlenie",
+    };
+
+    private static readonly System.Text.RegularExpressions.Regex HungarianRegex =
+        new(@"^(str|lst|dt|dic|arr|obj|int|dbl|dec|bln|b|i|n|s|m_|s_|g_)[A-Z_]", RegexOptions.Compiled);
+
+    private static void CheckTranslit(Ctx ctx, string line, int lineNo)
+    {
+        var code = StripStringsAndComments(line);
+        foreach (Match m in IdentifierRegex().Matches(code))
+        {
+            int hits = 0;
+            foreach (Match part in CamelPartRegex().Matches(m.Value))
+            {
+                var p = part.Value.ToLowerInvariant();
+                if (p != "data" && TranslitRoots.Contains(p))
+                {
+                    hits++;
+                }
+            }
+
+            if (hits > 0)
+            {
+                ctx.Hit(K.TranslitIdentifiers, lineNo);
+                return;
+            }
+        }
+
+        if (CyrillicIdentifierRegex().IsMatch(code))
+        {
+            ctx.Hit(K.CyrillicIdentifiers, lineNo);
+        }
+    }
+
+    [GeneratedRegex(@"(?<![""'])\b[А-Яа-яЁё][А-Яа-яЁё0-9_]*\s*[=(.;,)]")]
+    private static partial Regex CyrillicIdentifierRegex();
 
     private static void CheckTypos(Ctx ctx, string line, int lineNo)
     {
@@ -716,6 +762,11 @@ public static partial class CSharpFeatureExtractor
                         if (v.Identifier.Text.StartsWith('_'))
                         {
                             _s.Add(K.UnderscoreFields);
+                        }
+
+                        if (HungarianRegex.IsMatch(v.Identifier.Text))
+                        {
+                            ctx.Hit(K.HungarianNames, node);
                         }
                     }
                 }
@@ -1612,6 +1663,10 @@ public static partial class CSharpFeatureExtractor
             if (name.Length > 0 && name != "_")
             {
                 _s.LocalNames.Add(name);
+                if (HungarianRegex.IsMatch(name))
+                {
+                    _s.Add(K.HungarianNames);
+                }
             }
         }
 

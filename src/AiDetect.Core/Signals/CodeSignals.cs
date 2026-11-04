@@ -197,6 +197,23 @@ internal sealed class CodeSignals(AnalysisContext ctx, SignalBuilder b)
             }
         }
 
+        double translit = _a[K.TranslitIdentifiers] + _a[K.CyrillicIdentifiers];
+        if (translit >= 1)
+        {
+            b.Add("name.translit", SignalGroup.Naming, "Транслит или кириллица в идентификаторах (zakaz, polzovatel, kolvo…) — Claude так не пишет",
+                -Math.Min(1, 0.5 + (0.25 * translit)), 1, 1.0, $"{translit:0} строк",
+                _a.GetExamples(K.TranslitIdentifiers).Concat(_a.GetExamples(K.CyrillicIdentifiers)).Take(3).ToList(), translit);
+        }
+
+        double allNames = _a.LocalNames.Count + _a[K.PrivateFields];
+        if (_a[K.HungarianNames] >= 2 && allNames >= 8)
+        {
+            double share = _a[K.HungarianNames] / allNames;
+            b.Add("name.hungarian", SignalGroup.Naming, "Венгерская нотация в именах (strName, lstItems, m_field)",
+                -Math.Min(1, share * 6), SignalBuilder.Rel(_a[K.HungarianNames], 2), 0.6, $"{_a[K.HungarianNames]:0} имён из {allNames:0}",
+                _a.GetExamples(K.HungarianNames), share);
+        }
+
         b.Rate("name.ct", SignalGroup.Naming,
             ai: "Токен отмены всегда назван полностью: cancellationToken", human: "Токен отмены назван коротко (ct, token)",
             hits: K.CtFullName, total: K.CtParams, humanAt: 0.3, aiAt: 1.0, k: 2, weight: 0.6, alpha: 0.4,
