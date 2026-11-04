@@ -27,7 +27,7 @@ public sealed class CliOptions
     public string? Description { get; private set; }
     public string? Branch { get; private set; }
     public int Port { get; private set; } = 5057;
-    public double Lambda { get; private set; } = 4.0;
+    public double Lambda { get; private set; } = 16.0;
     public bool Balanced { get; private set; }
     public bool OpenBrowser { get; private set; } = true;
 
