@@ -1,0 +1,268 @@
+From cbc7e19cc22138206461357431e91dab3d78b817 Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Mon, 30 Nov 2020 16:40:00 +0000
+Subject: [PATCH 1/2] wishlist
+
+---
+ .../Entities/WishlistAggregate/Wishlist.cs    | 45 ++++++++++++++
+ .../WishlistAggregate/WishlistItem.cs         | 17 ++++++
+ .../Interfaces/IWishlistService.cs            | 13 ++++
+ .../Services/WishlistService.cs               | 60 +++++++++++++++++++
+ .../WishlistWithItemsSpecification.cs         | 15 +++++
+ .../WishlistEndpoints/AddToWishlist.cs        | 59 ++++++++++++++++++
+ 6 files changed, 209 insertions(+)
+ create mode 100644 src/ApplicationCore/Entities/WishlistAggregate/Wishlist.cs
+ create mode 100644 src/ApplicationCore/Entities/WishlistAggregate/WishlistItem.cs
+ create mode 100644 src/ApplicationCore/Interfaces/IWishlistService.cs
+ create mode 100644 src/ApplicationCore/Services/WishlistService.cs
+ create mode 100644 src/ApplicationCore/Specifications/WishlistWithItemsSpecification.cs
+ create mode 100644 src/PublicApi/WishlistEndpoints/AddToWishlist.cs
+
+diff --git a/src/ApplicationCore/Entities/WishlistAggregate/Wishlist.cs b/src/ApplicationCore/Entities/WishlistAggregate/Wishlist.cs
+new file mode 100644
+index 0000000..839d3c1
+--- /dev/null
++++ b/src/ApplicationCore/Entities/WishlistAggregate/Wishlist.cs
+@@ -0,0 +1,45 @@
++using Ardalis.GuardClauses;
++using Microsoft.eShopWeb.ApplicationCore.Interfaces;
++using System.Collections.Generic;
++using System.Linq;
++
++namespace Microsoft.eShopWeb.ApplicationCore.Entities.WishlistAggregate
++{
++    public class Wishlist : BaseEntity, IAggregateRoot
++    {
++        private readonly List<WishlistItem> _items = new List<WishlistItem>();
++
++        private Wishlist()
++        {
++            // required by EF
++        }
++
++        public Wishlist(string buyerId)
++        {
++            Guard.Against.NullOrEmpty(buyerId, nameof(buyerId));
++            BuyerId = buyerId;
++        }
++
++        public string BuyerId { get; private set; }
++        public IReadOnlyCollection<WishlistItem> Items => _items.AsReadOnly();
++
++        public void AddItem(int catalogItemId)
++        {
++            if (_items.Any(i => i.CatalogItemId == catalogItemId))
++            {
++                return;
++            }
++
++            _items.Add(new WishlistItem(catalogItemId));
++        }
++
++        public void RemoveItem(int catalogItemId)
++        {
++            var item = _items.FirstOrDefault(i => i.CatalogItemId == catalogItemId);
++            if (item != null)
++            {
++                _items.Remove(item);
++            }
++        }
++    }
++}
+diff --git a/src/ApplicationCore/Entities/WishlistAggregate/WishlistItem.cs b/src/ApplicationCore/Entities/WishlistAggregate/WishlistItem.cs
+new file mode 100644
+index 0000000..b901266
+--- /dev/null
++++ b/src/ApplicationCore/Entities/WishlistAggregate/WishlistItem.cs
+@@ -0,0 +1,17 @@
++using System;
++
++namespace Microsoft.eShopWeb.ApplicationCore.Entities.WishlistAggregate
++{
++    public class WishlistItem : BaseEntity
++    {
++        public WishlistItem(int catalogItemId)
++        {
++            CatalogItemId = catalogItemId;
++            AddedDate = DateTimeOffset.UtcNow;
++        }
++
++        public int CatalogItemId { get; private set; }
++        public DateTimeOffset AddedDate { get; private set; }
++        public int WishlistId { get; private set; }
++    }
++}
+diff --git a/src/ApplicationCore/Interfaces/IWishlistService.cs b/src/ApplicationCore/Interfaces/IWishlistService.cs
+new file mode 100644
+index 0000000..37f7cb2
+--- /dev/null
++++ b/src/ApplicationCore/Interfaces/IWishlistService.cs
+@@ -0,0 +1,13 @@
++using Microsoft.eShopWeb.ApplicationCore.Entities.WishlistAggregate;
++using System.Threading;
++using System.Threading.Tasks;
++
++namespace Microsoft.eShopWeb.ApplicationCore.Interfaces
++{
++    public interface IWishlistService
++    {
++        Task<Wishlist> GetOrCreateWishlistAsync(string buyerId, CancellationToken cancellationToken = default);
++        Task AddItemAsync(string buyerId, int catalogItemId, CancellationToken cancellationToken = default);
++        Task RemoveItemAsync(string buyerId, int catalogItemId, CancellationToken cancellationToken = default);
++    }
++}
+diff --git a/src/ApplicationCore/Services/WishlistService.cs b/src/ApplicationCore/Services/WishlistService.cs
+new file mode 100644
+index 0000000..138d597
+--- /dev/null
++++ b/src/ApplicationCore/Services/WishlistService.cs
+@@ -0,0 +1,60 @@
++using Ardalis.GuardClauses;
++using Microsoft.eShopWeb.ApplicationCore.Entities;
++using Microsoft.eShopWeb.ApplicationCore.Entities.WishlistAggregate;
++using Microsoft.eShopWeb.ApplicationCore.Interfaces;
++using Microsoft.eShopWeb.ApplicationCore.Specifications;
++using System.Threading;
++using System.Threading.Tasks;
++
++namespace Microsoft.eShopWeb.ApplicationCore.Services
++{
++    public class WishlistService : IWishlistService
++    {
++        private readonly IAsyncRepository<Wishlist> _wishlistRepository;
++        private readonly IAsyncRepository<CatalogItem> _itemRepository;
++        private readonly IAppLogger<WishlistService> _logger;
++
++        public WishlistService(IAsyncRepository<Wishlist> wishlistRepository,
++            IAsyncRepository<CatalogItem> itemRepository,
++            IAppLogger<WishlistService> logger)
++        {
++            _wishlistRepository = wishlistRepository;
++            _itemRepository = itemRepository;
++            _logger = logger;
++        }
++
++        public async Task<Wishlist> GetOrCreateWishlistAsync(string buyerId, CancellationToken cancellationToken = default)
++        {
++            Guard.Against.NullOrEmpty(buyerId, nameof(buyerId));
++
++            var spec = new WishlistWithItemsSpecification(buyerId);
++            var wishlist = await _wishlistRepository.FirstOrDefaultAsync(spec, cancellationToken);
++            if (wishlist != null)
++            {
++                return wishlist;
++            }
++
++            wishlist = new Wishlist(buyerId);
++            return await _wishlistRepository.AddAsync(wishlist, cancellationToken);
++        }
++
++        public async Task AddItemAsync(string buyerId, int catalogItemId, CancellationToken cancellationToken = default)
++        {
++            var catalogItem = await _itemRepository.GetByIdAsync(catalogItemId, cancellationToken);
++            Guard.Against.Null(catalogItem, nameof(catalogItem));
++
++            var wishlist = await GetOrCreateWishlistAsync(buyerId, cancellationToken);
++            wishlist.AddItem(catalogItemId);
++            await _wishlistRepository.UpdateAsync(wishlist, cancellationToken);
++
++            _logger.LogInformation("Item {catalogItemId} added to wishlist of {buyerId}", catalogItemId, buyerId);
++        }
++
++        public async Task RemoveItemAsync(string buyerId, int catalogItemId, CancellationToken cancellationToken = default)
++        {
++            var wishlist = await GetOrCreateWishlistAsync(buyerId, cancellationToken);
++            wishlist.RemoveItem(catalogItemId);
++            await _wishlistRepository.UpdateAsync(wishlist, cancellationToken);
++        }
++    }
++}
+diff --git a/src/ApplicationCore/Specifications/WishlistWithItemsSpecification.cs b/src/ApplicationCore/Specifications/WishlistWithItemsSpecification.cs
+new file mode 100644
+index 0000000..802b053
+--- /dev/null
++++ b/src/ApplicationCore/Specifications/WishlistWithItemsSpecification.cs
+@@ -0,0 +1,15 @@
++using Ardalis.Specification;
++using Microsoft.eShopWeb.ApplicationCore.Entities.WishlistAggregate;
++
++namespace Microsoft.eShopWeb.ApplicationCore.Specifications
++{
++    public sealed class WishlistWithItemsSpecification : Specification<Wishlist>, ISingleResultSpecification
++    {
++        public WishlistWithItemsSpecification(string buyerId)
++        {
++            Query
++                .Where(w => w.BuyerId == buyerId)
++                .Include(w => w.Items);
++        }
++    }
++}
+diff --git a/src/PublicApi/WishlistEndpoints/AddToWishlist.cs b/src/PublicApi/WishlistEndpoints/AddToWishlist.cs
+new file mode 100644
+index 0000000..af1664a
+--- /dev/null
++++ b/src/PublicApi/WishlistEndpoints/AddToWishlist.cs
+@@ -0,0 +1,59 @@
++using Ardalis.ApiEndpoints;
++using Microsoft.AspNetCore.Authentication.JwtBearer;
++using Microsoft.AspNetCore.Authorization;
++using Microsoft.AspNetCore.Mvc;
++using Microsoft.eShopWeb.ApplicationCore.Interfaces;
++using Swashbuckle.AspNetCore.Annotations;
++using System.Threading;
++using System.Threading.Tasks;
++
++namespace Microsoft.eShopWeb.PublicApi.WishlistEndpoints
++{
++    [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
++    public class AddToWishlist : BaseAsyncEndpoint<AddToWishlistRequest, AddToWishlistResponse>
++    {
++        private readonly IWishlistService _wishlistService;
++
++        public AddToWishlist(IWishlistService wishlistService)
++        {
++            _wishlistService = wishlistService;
++        }
++
++        [HttpPost("api/wishlist/items")]
++        [SwaggerOperation(
++            Summary = "Adds an item to the wishlist",
++            Description = "Adds an item to the wishlist of the current user",
++            OperationId = "wishlist.add",
++            Tags = new[] { "WishlistEndpoints" })
++        ]
++        public override async Task<ActionResult<AddToWishlistResponse>> HandleAsync(AddToWishlistRequest request, CancellationToken cancellationToken)
++        {
++            var response = new AddToWishlistResponse(request.CorrelationId());
++
++            await _wishlistService.AddItemAsync(User.Identity.Name, request.CatalogItemId, cancellationToken);
++
++            var wishlist = await _wishlistService.GetOrCreateWishlistAsync(User.Identity.Name, cancellationToken);
++            response.ItemCount = wishlist.Items.Count;
++
++            return Ok(response);
++        }
++    }
++
++    public class AddToWishlistRequest : BaseRequest
++    {
++        public int CatalogItemId { get; set; }
++    }
++
++    public class AddToWishlistResponse : BaseResponse
++    {
++        public AddToWishlistResponse(System.Guid correlationId) : base(correlationId)
++        {
++        }
++
++        public AddToWishlistResponse()
++        {
++        }
++
++        public int ItemCount { get; set; }
++    }
++}
+-- 
+2.43.0
+

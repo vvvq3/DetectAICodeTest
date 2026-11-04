@@ -9,7 +9,7 @@ namespace AiDetect.Core.Analysis;
 public sealed class ModelParameters
 {
     /// <summary>Априорный логит (0 = 50/50).</summary>
-    public double Bias { get; set; }
+    public double Bias { get; set; } = -0.8;
 
     /// <summary>Делитель итогового логита: больше — осторожнее вероятности.</summary>
     public double Temperature { get; set; } = 2.5;

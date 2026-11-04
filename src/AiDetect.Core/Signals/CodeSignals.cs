@@ -61,15 +61,10 @@ internal sealed class CodeSignals(AnalysisContext ctx, SignalBuilder b)
             hits: K.DocMethodsComplete, total: K.DocMethodsWithParams, humanAt: 0.3, aiAt: 0.95, k: 3, weight: 0.8, alpha: 0.5,
             detail: (h, t) => $"{h:0} из {t:0} документированных методов с параметрами", exAi: K.DocMethodsComplete);
 
-        var docBlocks = _a[K.DocBlocks] - _a[K.InheritDoc];
-        if (docBlocks >= 2)
-        {
-            var rate = _a[K.DocTemplatePhrase] / docBlocks;
-            b.Add("doc.template", SignalGroup.Documentation,
-                rate >= 0.2 ? "Шаблонные формулировки XML-doc («Gets or sets…», «A token to cancel…»)" : "XML-doc без шаблонных формулировок",
-                SignalBuilder.Map(rate, 0.05, 0.5), SignalBuilder.Rel(docBlocks, 4), 0.6,
-                $"{_a[K.DocTemplatePhrase]:0} из {docBlocks:0} блоков документации", _a.GetExamples(K.DocTemplatePhrase), rate);
-        }
+        b.Rate("doc.template", SignalGroup.Documentation,
+            ai: "Шаблонные формулировки XML-doc («Gets or sets…», «A token to cancel…»)", human: "XML-doc без шаблонных формулировок",
+            hits: K.DocTemplatePhrase, total: K.DocBlocks, humanAt: 0.05, aiAt: 0.5, k: 4, weight: 0.5, alpha: 0.8,
+            detail: (h, t) => $"{h:0} из {t:0} блоков документации", exAi: K.DocTemplatePhrase, minTotal: 2);
 
         if (_a[K.InheritDoc] >= 2)
         {
@@ -86,8 +81,8 @@ internal sealed class CodeSignals(AnalysisContext ctx, SignalBuilder b)
         if (prose >= 3)
         {
             b.Add("cmt.narrative", SignalGroup.Comments,
-                _a[K.NarrativeComments] / prose >= 0.2 ? "Пошаговые комментарии-«повествование» (// Validate…, // Map…, // Save…)" : "Мало пошаговых комментариев-повествований",
-                Soften(SignalBuilder.Map(_a[K.NarrativeComments] / prose, 0.0, 0.4), 0.3), SignalBuilder.Rel(prose, 4), 1.0,
+                _a[K.NarrativeComments] / prose >= 0.275 ? "Пошаговые комментарии-«повествование» (// Validate…, // Map…, // Save…)" : "Мало пошаговых комментариев-повествований",
+                Soften(SignalBuilder.Map(_a[K.NarrativeComments] / prose, 0.05, 0.5), 0.3), SignalBuilder.Rel(prose, 4), 0.7,
                 $"{_a[K.NarrativeComments]:0} из {prose:0} комментариев начинаются с глагола-действия", _a.GetExamples(K.NarrativeComments),
                 _a[K.NarrativeComments] / prose);
 
@@ -100,7 +95,7 @@ internal sealed class CodeSignals(AnalysisContext ctx, SignalBuilder b)
             var lower = _a[K.LowercaseComments] / prose;
             b.Add("cmt.case", SignalGroup.Comments,
                 lower >= 0.3 ? "Комментарии со строчной буквы, «разговорные»" : "Комментарии аккуратные: с заглавной буквы, грамотные",
-                SignalBuilder.Map(lower, 0.5, 0.03), SignalBuilder.Rel(prose, 5), 0.5,
+                SignalBuilder.Map(lower, 0.5, 0.03), SignalBuilder.Rel(prose, 5), 0.3,
                 $"{_a[K.LowercaseComments]:0} из {prose:0} комментариев начинаются со строчной", lower >= 0.3 ? _a.GetExamples(K.LowercaseComments) : [], lower);
         }
 
@@ -168,13 +163,14 @@ internal sealed class CodeSignals(AnalysisContext ctx, SignalBuilder b)
                 SignalBuilder.Map(shortShare, 0.15, 0.01), SignalBuilder.Rel(names.Count, 15), 0.8,
                 $"{shortNames.Count} из {names.Count} имён ≤ 3 символов", [], shortShare);
 
-            var abbrev = names.Where(n => Abbreviations.Contains(n) || (n.Length <= 4 && n.All(char.IsLower) && !ShortNameExceptions.Contains(n) && !IsWord(n))).ToList();
+            var abbrev = names.Where(n => Abbreviations.Contains(n) && !ShortNameExceptions.Contains(n)).ToList();
             double abbrevShare = (double)abbrev.Count / names.Count;
             if (abbrev.Count > 0 || names.Count >= 12)
             {
+                double ea = abbrev.Count == 0 ? 0.3 : -Math.Min(1, 0.2 + (abbrevShare * 8));
                 b.Add("name.abbrev", SignalGroup.Naming,
                     abbrev.Count > 0 ? $"Сокращения в именах ({string.Join(", ", abbrev.Distinct().Take(6))})" : "Нет сокращений в именах",
-                    SignalBuilder.Map(abbrevShare, 0.12, 0.0), SignalBuilder.Rel(names.Count, 15), 0.7,
+                    ea, SignalBuilder.Rel(names.Count, 15), 0.7,
                     $"{abbrev.Count} из {names.Count} имён — сокращения", [], abbrevShare);
             }
 
@@ -250,7 +246,7 @@ internal sealed class CodeSignals(AnalysisContext ctx, SignalBuilder b)
             var examples = _a.GetExamples(K.CollectionExpressions).Concat(_a.GetExamples(K.SwitchExpressions)).Concat(_a.GetExamples(K.RequiredMembers))
                 .Concat(_a.GetExamples(K.PrimaryCtorClasses)).Take(3).ToList();
             b.Add("syn.modern", SignalGroup.ModernSyntax,
-                density >= 1.5 ? "Плотно используются новейшие возможности C# ([], new(), switch-выражения, record, required, primary ctor)" : "Новые возможности C# почти не используются",
+                density >= 1.9 ? "Плотно используются новейшие возможности C# ([], new(), switch-выражения, record, required, primary ctor)" : "Новые возможности C# почти не используются",
                 SignalBuilder.AdjustForBaseline(e, eb, 0.6), SignalBuilder.Rel(lines, 60), 0.6,
                 $"{modern:0} конструкций на {lines:0} строк ({density:0.0} на 100 строк)" + (baseDensity is { } bd2 ? $", в проекте {bd2:0.0}" : ""), examples, density);
             b.TrackShift("syn.modern", "новый синтаксис C#", density, baseDensity, e, eb, v => $"{v:0.0}/100 строк");
@@ -366,7 +362,7 @@ internal sealed class CodeSignals(AnalysisContext ctx, SignalBuilder b)
     {
         b.Rate("log.templated", SignalGroup.Logging,
             ai: "Структурное логирование: шаблоны {OrderId} вместо интерполяции", human: "Логирование через интерполяцию/конкатенацию строк",
-            hits: K.LogTemplated, total: null, totalKeys: [K.LogTemplated, K.LogInterpolated], humanAt: 0.2, aiAt: 1.0, k: 2, weight: 1.2, alpha: 0.2,
+            hits: K.LogTemplated, total: null, totalKeys: [K.LogTemplated, K.LogInterpolated], humanAt: 0.3, aiAt: 1.0, k: 3, weight: 0.9, alpha: 0.3,
             detail: (h, t) => $"{h:0} из {t:0} вызовов логгера с параметрами — через шаблон", exAi: K.LogTemplated, exHuman: K.LogInterpolated);
 
         double lines = _a[K.CodeLines];
@@ -400,7 +396,7 @@ internal sealed class CodeSignals(AnalysisContext ctx, SignalBuilder b)
         if (_a[K.ThrowMessageQuoted] >= 2)
         {
             b.Add("exc.quoted", SignalGroup.Exceptions, "Значения в сообщениях взяты в кавычки: '{orderId}'",
-                1, SignalBuilder.Rel(_a[K.ThrowMessageQuoted], 2), 0.4, $"{_a[K.ThrowMessageQuoted]:0} сообщений",
+                1, SignalBuilder.Rel(_a[K.ThrowMessageQuoted], 2), 0.3, $"{_a[K.ThrowMessageQuoted]:0} сообщений",
                 _a.GetExamples(K.ThrowMessageQuoted), _a[K.ThrowMessageQuoted]);
         }
 
@@ -409,7 +405,7 @@ internal sealed class CodeSignals(AnalysisContext ctx, SignalBuilder b)
         {
             double eShare = _a[K.CatchVarE] / catches;
             b.Add("exc.catchName", SignalGroup.Exceptions,
-                eShare >= 0.5 ? "catch (Exception e) — короткое имя исключения" : "catch (Exception ex) — стандартное имя",
+                eShare >= 0.35 ? "catch (Exception e) — короткое имя исключения" : "catch (Exception ex) — стандартное имя",
                 SignalBuilder.Map(eShare, 0.7, 0.0), SignalBuilder.Rel(catches, 3), 0.4, $"{_a[K.CatchVarE]:0} из {catches:0} catch с именем e",
                 _a.GetExamples(K.CatchVarE), eShare);
         }
@@ -525,13 +521,9 @@ internal sealed class CodeSignals(AnalysisContext ctx, SignalBuilder b)
             basePer100 = keys.Sum(k => _base[k]) * 100 / _base[K.CodeLines];
         }
 
-        double e = per100 <= 0.01 ? 0.5 : SignalBuilder.Map(per100, 3.0, 0.0);
-        if (per100 > 0.01)
-        {
-            e = Math.Min(e, 0.2);
-        }
-
-        double? eb = basePer100 is { } bp ? (bp <= 0.01 ? 0.5 : Math.Min(0.2, SignalBuilder.Map(bp, 3.0, 0.0))) : null;
+        static double Ev(double total, double per100) => total == 0 ? 0.4 : -Math.Min(1, 0.15 + (per100 / 2));
+        double e = Ev(total, per100);
+        double? eb = basePer100 is { } bp ? Ev(bp, bp) : null;
         var examples = keys.SelectMany(k => _a.GetExamples(k).Take(1)).Take(4).ToList();
         b.Add("fmt.irregular", SignalGroup.Formatting,
             total == 0 ? "Идеальное форматирование: ни одного пробела в конце строки, if(…) без пробела, двойной пустой строки" : "Небрежности форматирования (пробелы в конце строк, if(…), x=y, двойные пустые строки)",

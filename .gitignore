@@ -8,3 +8,6 @@ obj/
 /.cache/
 TestResults/
 .build/
+corpus/human/
+corpus/ai-default/
+corpus/ai-masked/

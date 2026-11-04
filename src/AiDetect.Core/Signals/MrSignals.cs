@@ -186,10 +186,10 @@ internal sealed partial class MrSignals(AnalysisContext ctx, SignalBuilder b)
         bool extras = cs.Any(f => f.Layer is Layer.Options or Layer.Validation);
         if (pairs >= 1 && di)
         {
-            double score = Math.Min(1, 0.5 + (0.25 * pairs) + (extras ? 0.25 : 0));
+            double score = Math.Min(1, 0.3 + (0.2 * pairs) + (extras ? 0.4 : 0));
             b.Add("mr.fullArchitecture", SignalGroup.MrShape,
                 "«Полная» архитектура: новый интерфейс + реализация + регистрация в DI" + (extras ? " + options/валидатор" : ""),
-                score, 1, 0.6, $"{pairs} пар интерфейс/реализация", [], pairs);
+                score, 1, 0.5, $"{pairs} пар интерфейс/реализация", [], pairs);
         }
 
         // Единообразие: признаки «ИИ-стиля» одинаково выражены во всех файлах (человек пишет неровно).
@@ -332,7 +332,7 @@ internal sealed partial class MrSignals(AnalysisContext ctx, SignalBuilder b)
         double avg = scores.Average();
         var sample = commits.Take(3).Select(c => new CodeExample("коммит " + Short(c.Sha), 0, c.Title)).ToList();
         b.Add("proc.commitStyle", SignalGroup.Process,
-            avg >= 0.2 ? "Сообщения коммитов «как по учебнику»: императив/Conventional Commits, тело со списком изменений" : "Сообщения коммитов короткие и неформальные",
+            avg >= 0 ? "Сообщения коммитов «как по учебнику»: императив/Conventional Commits, тело со списком изменений" : "Сообщения коммитов короткие и неформальные",
             Math.Clamp(avg * 1.3, -1, 1), SignalBuilder.Rel(commits.Count, 1.5), 0.8,
             $"{commits.Count} коммитов, средняя оценка {avg:0.00}", sample, avg);
 
@@ -384,7 +384,9 @@ internal sealed partial class MrSignals(AnalysisContext ctx, SignalBuilder b)
             var cur = (commits[i].CommittedDate ?? commits[i].AuthoredDate)!.Value;
             double gapH = (cur - prev).TotalHours;
             int add = commits[i].Additions!.Value;
-            if (gapH < 2.0 / 60 || gapH > 8 || add < 40)
+            bool sameAuthor = string.Equals(commits[i].AuthorEmail, commits[i - 1].AuthorEmail, StringComparison.OrdinalIgnoreCase) ||
+                              string.Equals(commits[i].AuthorName, commits[i - 1].AuthorName, StringComparison.OrdinalIgnoreCase);
+            if (!sameAuthor || gapH < 2.0 / 60 || gapH > 8 || add < 40)
             {
                 continue;
             }
@@ -478,7 +480,7 @@ internal sealed partial class MrSignals(AnalysisContext ctx, SignalBuilder b)
         }
 
         b.Add("proc.description", SignalGroup.Process,
-            s >= 0.3 ? "Описание MR структурировано как у агента (заголовки, списки, разметка)" : "Описание MR краткое, «человеческое»",
+            s >= 0 ? "Описание MR структурировано как у агента (заголовки, списки, разметка)" : "Описание MR краткое, «человеческое»",
             Math.Clamp(s, -1, 1), 1, 0.7, string.Join(", ", notes), [], s);
     }
 

@@ -1,0 +1,426 @@
+From 6ef43e40d68a5fee06453feb2f71b1c2a1e460b3 Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Mon, 28 Sep 2020 10:14:00 +0000
+Subject: [PATCH 1/2] Add catalog item reviews to Catalog.API
+
+- Add CatalogItemReview model and EF configuration
+- Add ICatalogReviewService with paging, rating summary and one-review-per-buyer rule
+- Add CatalogReviewsController endpoints
+- Register the service in Startup
+---
+ .../Controllers/CatalogReviewsController.cs   |  72 ++++++++++++
+ .../Infrastructure/CatalogContext.cs          |   4 +-
+ ...atalogItemReviewEntityTypeConfiguration.cs |  38 +++++++
+ .../Catalog.API/Model/CatalogItemReview.cs    |  29 +++++
+ .../Services/CatalogReviewService.cs          | 107 ++++++++++++++++++
+ .../Services/ICatalogReviewService.cs         |  28 +++++
+ src/Services/Catalog/Catalog.API/Startup.cs   |   4 +-
+ .../ViewModel/CreateReviewRequest.cs          |  14 +++
+ .../ViewModel/ReviewSummaryViewModel.cs       |  15 +++
+ 9 files changed, 309 insertions(+), 2 deletions(-)
+ create mode 100644 src/Services/Catalog/Catalog.API/Controllers/CatalogReviewsController.cs
+ create mode 100644 src/Services/Catalog/Catalog.API/Infrastructure/EntityConfigurations/CatalogItemReviewEntityTypeConfiguration.cs
+ create mode 100644 src/Services/Catalog/Catalog.API/Model/CatalogItemReview.cs
+ create mode 100644 src/Services/Catalog/Catalog.API/Services/CatalogReviewService.cs
+ create mode 100644 src/Services/Catalog/Catalog.API/Services/ICatalogReviewService.cs
+ create mode 100644 src/Services/Catalog/Catalog.API/ViewModel/CreateReviewRequest.cs
+ create mode 100644 src/Services/Catalog/Catalog.API/ViewModel/ReviewSummaryViewModel.cs
+
+diff --git a/src/Services/Catalog/Catalog.API/Controllers/CatalogReviewsController.cs b/src/Services/Catalog/Catalog.API/Controllers/CatalogReviewsController.cs
+new file mode 100644
+index 00000000..1be32358
+--- /dev/null
++++ b/src/Services/Catalog/Catalog.API/Controllers/CatalogReviewsController.cs
+@@ -0,0 +1,72 @@
++using Microsoft.AspNetCore.Authorization;
++using Microsoft.AspNetCore.Mvc;
++using Microsoft.eShopOnContainers.Services.Catalog.API.Infrastructure.Exceptions;
++using Microsoft.eShopOnContainers.Services.Catalog.API.Model;
++using Microsoft.eShopOnContainers.Services.Catalog.API.Services;
++using Microsoft.eShopOnContainers.Services.Catalog.API.ViewModel;
++using System.Net;
++using System.Security.Claims;
++using System.Threading;
++using System.Threading.Tasks;
++
++namespace Microsoft.eShopOnContainers.Services.Catalog.API.Controllers
++{
++    [Route("api/v1/catalog/items/{catalogItemId:int}/reviews")]
++    [ApiController]
++    public class CatalogReviewsController : ControllerBase
++    {
++        private const int MaxPageSize = 50;
++
++        private readonly ICatalogReviewService _reviewService;
++
++        public CatalogReviewsController(ICatalogReviewService reviewService)
++        {
++            _reviewService = reviewService;
++        }
++
++        // GET api/v1/catalog/items/5/reviews?pageSize=10&pageIndex=0
++        [HttpGet]
++        [ProducesResponseType(typeof(PaginatedItemsViewModel<CatalogItemReview>), (int)HttpStatusCode.OK)]
++        [ProducesResponseType((int)HttpStatusCode.BadRequest)]
++        public async Task<IActionResult> GetReviewsAsync(int catalogItemId, [FromQuery] int pageSize = 10, [FromQuery] int pageIndex = 0, CancellationToken cancellationToken = default)
++        {
++            if (pageSize <= 0 || pageSize > MaxPageSize || pageIndex < 0)
++            {
++                return BadRequest($"pageSize must be between 1 and {MaxPageSize}, pageIndex must be non-negative.");
++            }
++
++            var reviews = await _reviewService.GetReviewsAsync(catalogItemId, pageIndex, pageSize, cancellationToken);
++            return Ok(reviews);
++        }
++
++        // GET api/v1/catalog/items/5/reviews/summary
++        [HttpGet("summary")]
++        [ProducesResponseType(typeof(ReviewSummaryViewModel), (int)HttpStatusCode.OK)]
++        public async Task<ActionResult<ReviewSummaryViewModel>> GetSummaryAsync(int catalogItemId, CancellationToken cancellationToken)
++        {
++            return await _reviewService.GetSummaryAsync(catalogItemId, cancellationToken);
++        }
++
++        // POST api/v1/catalog/items/5/reviews
++        [HttpPost]
++        [Authorize]
++        [ProducesResponseType(typeof(CatalogItemReview), (int)HttpStatusCode.Created)]
++        [ProducesResponseType((int)HttpStatusCode.BadRequest)]
++        [ProducesResponseType((int)HttpStatusCode.Conflict)]
++        public async Task<IActionResult> CreateReviewAsync(int catalogItemId, [FromBody] CreateReviewRequest request, CancellationToken cancellationToken)
++        {
++            var buyerId = User.FindFirstValue("sub");
++            var buyerName = User.FindFirstValue("name");
++
++            try
++            {
++                var review = await _reviewService.AddReviewAsync(catalogItemId, buyerId, buyerName, request, cancellationToken);
++                return CreatedAtAction(nameof(GetReviewsAsync), new { catalogItemId }, review);
++            }
++            catch (CatalogDomainException ex)
++            {
++                return Conflict(ex.Message);
++            }
++        }
++    }
++}
+diff --git a/src/Services/Catalog/Catalog.API/Infrastructure/CatalogContext.cs b/src/Services/Catalog/Catalog.API/Infrastructure/CatalogContext.cs
+index 8cff66b0..eff39f80 100644
+--- a/src/Services/Catalog/Catalog.API/Infrastructure/CatalogContext.cs
++++ b/src/Services/Catalog/Catalog.API/Infrastructure/CatalogContext.cs
+@@ -1,4 +1,4 @@
+-﻿namespace Microsoft.eShopOnContainers.Services.Catalog.API.Infrastructure
++namespace Microsoft.eShopOnContainers.Services.Catalog.API.Infrastructure
+ {
+     using Microsoft.EntityFrameworkCore;
+     using EntityConfigurations;
+@@ -13,11 +13,13 @@
+         public DbSet<CatalogItem> CatalogItems { get; set; }
+         public DbSet<CatalogBrand> CatalogBrands { get; set; }
+         public DbSet<CatalogType> CatalogTypes { get; set; }
++        public DbSet<CatalogItemReview> CatalogItemReviews { get; set; }
+ 
+         protected override void OnModelCreating(ModelBuilder builder)
+         {
+             builder.ApplyConfiguration(new CatalogBrandEntityTypeConfiguration());
+             builder.ApplyConfiguration(new CatalogTypeEntityTypeConfiguration());
++            builder.ApplyConfiguration(new CatalogItemReviewEntityTypeConfiguration());
+             builder.ApplyConfiguration(new CatalogItemEntityTypeConfiguration());
+         }     
+     }
+diff --git a/src/Services/Catalog/Catalog.API/Infrastructure/EntityConfigurations/CatalogItemReviewEntityTypeConfiguration.cs b/src/Services/Catalog/Catalog.API/Infrastructure/EntityConfigurations/CatalogItemReviewEntityTypeConfiguration.cs
+new file mode 100644
+index 00000000..fe1da690
+--- /dev/null
++++ b/src/Services/Catalog/Catalog.API/Infrastructure/EntityConfigurations/CatalogItemReviewEntityTypeConfiguration.cs
+@@ -0,0 +1,38 @@
++using Microsoft.EntityFrameworkCore;
++using Microsoft.EntityFrameworkCore.Metadata.Builders;
++using Microsoft.eShopOnContainers.Services.Catalog.API.Model;
++
++namespace Microsoft.eShopOnContainers.Services.Catalog.API.Infrastructure.EntityConfigurations
++{
++    public class CatalogItemReviewEntityTypeConfiguration : IEntityTypeConfiguration<CatalogItemReview>
++    {
++        public void Configure(EntityTypeBuilder<CatalogItemReview> builder)
++        {
++            builder.ToTable("CatalogItemReview");
++
++            builder.HasKey(r => r.Id);
++
++            builder.Property(r => r.Id)
++                .UseHiLo("catalog_review_hilo")
++                .IsRequired();
++
++            builder.Property(r => r.BuyerId)
++                .IsRequired()
++                .HasMaxLength(200);
++
++            builder.Property(r => r.BuyerName)
++                .HasMaxLength(200);
++
++            builder.Property(r => r.Comment)
++                .HasMaxLength(2000);
++
++            builder.HasOne(r => r.CatalogItem)
++                .WithMany()
++                .HasForeignKey(r => r.CatalogItemId)
++                .OnDelete(DeleteBehavior.Cascade);
++
++            builder.HasIndex(r => new { r.CatalogItemId, r.BuyerId })
++                .IsUnique();
++        }
++    }
++}
+diff --git a/src/Services/Catalog/Catalog.API/Model/CatalogItemReview.cs b/src/Services/Catalog/Catalog.API/Model/CatalogItemReview.cs
+new file mode 100644
+index 00000000..bf2a6867
+--- /dev/null
++++ b/src/Services/Catalog/Catalog.API/Model/CatalogItemReview.cs
+@@ -0,0 +1,29 @@
++using System;
++
++namespace Microsoft.eShopOnContainers.Services.Catalog.API.Model
++{
++    /// <summary>
++    /// Represents a customer review for a catalog item.
++    /// </summary>
++    public class CatalogItemReview
++    {
++        public int Id { get; set; }
++
++        public int CatalogItemId { get; set; }
++
++        public CatalogItem CatalogItem { get; set; }
++
++        public string BuyerId { get; set; }
++
++        public string BuyerName { get; set; }
++
++        /// <summary>
++        /// Gets or sets the rating from 1 to 5.
++        /// </summary>
++        public int Rating { get; set; }
++
++        public string Comment { get; set; }
++
++        public DateTime CreatedAtUtc { get; set; }
++    }
++}
+diff --git a/src/Services/Catalog/Catalog.API/Services/CatalogReviewService.cs b/src/Services/Catalog/Catalog.API/Services/CatalogReviewService.cs
+new file mode 100644
+index 00000000..b5f5534b
+--- /dev/null
++++ b/src/Services/Catalog/Catalog.API/Services/CatalogReviewService.cs
+@@ -0,0 +1,107 @@
++using Microsoft.EntityFrameworkCore;
++using Microsoft.eShopOnContainers.Services.Catalog.API.Infrastructure;
++using Microsoft.eShopOnContainers.Services.Catalog.API.Infrastructure.Exceptions;
++using Microsoft.eShopOnContainers.Services.Catalog.API.Model;
++using Microsoft.eShopOnContainers.Services.Catalog.API.ViewModel;
++using Microsoft.Extensions.Logging;
++using System;
++using System.Linq;
++using System.Threading;
++using System.Threading.Tasks;
++
++namespace Microsoft.eShopOnContainers.Services.Catalog.API.Services
++{
++    public class CatalogReviewService : ICatalogReviewService
++    {
++        private readonly CatalogContext _catalogContext;
++        private readonly ILogger<CatalogReviewService> _logger;
++
++        public CatalogReviewService(CatalogContext catalogContext, ILogger<CatalogReviewService> logger)
++        {
++            _catalogContext = catalogContext ?? throw new ArgumentNullException(nameof(catalogContext));
++            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
++        }
++
++        public async Task<PaginatedItemsViewModel<CatalogItemReview>> GetReviewsAsync(int catalogItemId, int pageIndex, int pageSize, CancellationToken cancellationToken = default)
++        {
++            var query = _catalogContext.CatalogItemReviews
++                .AsNoTracking()
++                .Where(r => r.CatalogItemId == catalogItemId);
++
++            var totalItems = await query.LongCountAsync(cancellationToken);
++
++            var reviews = await query
++                .OrderByDescending(r => r.CreatedAtUtc)
++                .Skip(pageSize * pageIndex)
++                .Take(pageSize)
++                .ToListAsync(cancellationToken);
++
++            return new PaginatedItemsViewModel<CatalogItemReview>(pageIndex, pageSize, totalItems, reviews);
++        }
++
++        public async Task<ReviewSummaryViewModel> GetSummaryAsync(int catalogItemId, CancellationToken cancellationToken = default)
++        {
++            var ratings = await _catalogContext.CatalogItemReviews
++                .AsNoTracking()
++                .Where(r => r.CatalogItemId == catalogItemId)
++                .GroupBy(r => r.Rating)
++                .Select(g => new { Rating = g.Key, Count = g.Count() })
++                .ToListAsync(cancellationToken);
++
++            var total = ratings.Sum(r => r.Count);
++            var average = total == 0 ? 0 : ratings.Sum(r => r.Rating * r.Count) / (double)total;
++
++            return new ReviewSummaryViewModel
++            {
++                CatalogItemId = catalogItemId,
++                TotalReviews = total,
++                AverageRating = Math.Round(average, 2),
++                RatingDistribution = Enumerable.Range(1, 5)
++                    .ToDictionary(rating => rating, rating => ratings.FirstOrDefault(r => r.Rating == rating)?.Count ?? 0)
++            };
++        }
++
++        public async Task<CatalogItemReview> AddReviewAsync(int catalogItemId, string buyerId, string buyerName, CreateReviewRequest request, CancellationToken cancellationToken = default)
++        {
++            if (string.IsNullOrWhiteSpace(buyerId))
++            {
++                throw new ArgumentException("Buyer id must be provided.", nameof(buyerId));
++            }
++
++            if (request is null)
++            {
++                throw new ArgumentNullException(nameof(request));
++            }
++
++            var itemExists = await _catalogContext.CatalogItems.AnyAsync(i => i.Id == catalogItemId, cancellationToken);
++            if (!itemExists)
++            {
++                throw new CatalogDomainException($"Catalog item {catalogItemId} does not exist.");
++            }
++
++            var alreadyReviewed = await _catalogContext.CatalogItemReviews
++                .AnyAsync(r => r.CatalogItemId == catalogItemId && r.BuyerId == buyerId, cancellationToken);
++            if (alreadyReviewed)
++            {
++                throw new CatalogDomainException($"Buyer '{buyerId}' has already reviewed catalog item {catalogItemId}.");
++            }
++
++            var review = new CatalogItemReview
++            {
++                CatalogItemId = catalogItemId,
++                BuyerId = buyerId,
++                BuyerName = buyerName,
++                Rating = request.Rating,
++                Comment = request.Comment?.Trim(),
++                CreatedAtUtc = DateTime.UtcNow
++            };
++
++            _catalogContext.CatalogItemReviews.Add(review);
++            await _catalogContext.SaveChangesAsync(cancellationToken);
++
++            _logger.LogInformation("Buyer {BuyerId} added a {Rating}-star review for catalog item {CatalogItemId}", buyerId, request.Rating, catalogItemId);
++
++            return review;
++        }
++    }
++}
+diff --git a/src/Services/Catalog/Catalog.API/Services/ICatalogReviewService.cs b/src/Services/Catalog/Catalog.API/Services/ICatalogReviewService.cs
+new file mode 100644
+index 00000000..5d045988
+--- /dev/null
++++ b/src/Services/Catalog/Catalog.API/Services/ICatalogReviewService.cs
+@@ -0,0 +1,28 @@
++using Microsoft.eShopOnContainers.Services.Catalog.API.Model;
++using Microsoft.eShopOnContainers.Services.Catalog.API.ViewModel;
++using System.Threading;
++using System.Threading.Tasks;
++
++namespace Microsoft.eShopOnContainers.Services.Catalog.API.Services
++{
++    /// <summary>
++    /// Provides operations for managing catalog item reviews.
++    /// </summary>
++    public interface ICatalogReviewService
++    {
++        /// <summary>
++        /// Gets a page of reviews for the specified catalog item, newest first.
++        /// </summary>
++        Task<PaginatedItemsViewModel<CatalogItemReview>> GetReviewsAsync(int catalogItemId, int pageIndex, int pageSize, CancellationToken cancellationToken = default);
++
++        /// <summary>
++        /// Gets the aggregated rating summary for the specified catalog item.
++        /// </summary>
++        Task<ReviewSummaryViewModel> GetSummaryAsync(int catalogItemId, CancellationToken cancellationToken = default);
++
++        /// <summary>
++        /// Adds a review from the specified buyer. Each buyer can review an item only once.
++        /// </summary>
++        Task<CatalogItemReview> AddReviewAsync(int catalogItemId, string buyerId, string buyerName, CreateReviewRequest request, CancellationToken cancellationToken = default);
++    }
++}
+diff --git a/src/Services/Catalog/Catalog.API/Startup.cs b/src/Services/Catalog/Catalog.API/Startup.cs
+index 836b6a7b..7beee35f 100644
+--- a/src/Services/Catalog/Catalog.API/Startup.cs
++++ b/src/Services/Catalog/Catalog.API/Startup.cs
+@@ -1,4 +1,4 @@
+-﻿using Autofac;
++using Autofac;
+ using Autofac.Extensions.DependencyInjection;
+ using Catalog.API.Grpc;
+ using global::Catalog.API.Infrastructure.Filters;
+@@ -19,6 +19,7 @@ using Microsoft.eShopOnContainers.BuildingBlocks.EventBusServiceBus;
+ using Microsoft.eShopOnContainers.BuildingBlocks.IntegrationEventLogEF;
+ using Microsoft.eShopOnContainers.BuildingBlocks.IntegrationEventLogEF.Services;
+ using Microsoft.eShopOnContainers.Services.Catalog.API.Infrastructure;
++using Microsoft.eShopOnContainers.Services.Catalog.API.Services;
+ using Microsoft.eShopOnContainers.Services.Catalog.API.IntegrationEvents.EventHandling;
+ using Microsoft.eShopOnContainers.Services.Catalog.API.IntegrationEvents.Events;
+ using Microsoft.Extensions.Configuration;
+@@ -275,6 +276,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API
+                 sp => (DbConnection c) => new IntegrationEventLogService(c));
+ 
+             services.AddTransient<ICatalogIntegrationEventService, CatalogIntegrationEventService>();
++            services.AddScoped<ICatalogReviewService, CatalogReviewService>();
+ 
+             if (configuration.GetValue<bool>("AzureServiceBusEnabled"))
+             {
+diff --git a/src/Services/Catalog/Catalog.API/ViewModel/CreateReviewRequest.cs b/src/Services/Catalog/Catalog.API/ViewModel/CreateReviewRequest.cs
+new file mode 100644
+index 00000000..a3fbd109
+--- /dev/null
++++ b/src/Services/Catalog/Catalog.API/ViewModel/CreateReviewRequest.cs
+@@ -0,0 +1,14 @@
++using System.ComponentModel.DataAnnotations;
++
++namespace Microsoft.eShopOnContainers.Services.Catalog.API.ViewModel
++{
++    public class CreateReviewRequest
++    {
++        [Required]
++        [Range(1, 5)]
++        public int Rating { get; set; }
++
++        [StringLength(2000)]
++        public string Comment { get; set; }
++    }
++}
+diff --git a/src/Services/Catalog/Catalog.API/ViewModel/ReviewSummaryViewModel.cs b/src/Services/Catalog/Catalog.API/ViewModel/ReviewSummaryViewModel.cs
+new file mode 100644
+index 00000000..668203eb
+--- /dev/null
++++ b/src/Services/Catalog/Catalog.API/ViewModel/ReviewSummaryViewModel.cs
+@@ -0,0 +1,15 @@
++using System.Collections.Generic;
++
++namespace Microsoft.eShopOnContainers.Services.Catalog.API.ViewModel
++{
++    public class ReviewSummaryViewModel
++    {
++        public int CatalogItemId { get; set; }
++
++        public int TotalReviews { get; set; }
++
++        public double AverageRating { get; set; }
++
++        public IReadOnlyDictionary<int, int> RatingDistribution { get; set; }
++    }
++}
+-- 
+2.43.0
+

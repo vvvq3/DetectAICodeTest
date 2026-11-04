@@ -1,0 +1,289 @@
+From 475cac1624d7757b12121467e69cef80dbdb11f7 Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Mon, 30 Nov 2020 19:05:00 +0000
+Subject: [PATCH 1/2] Add watch history export endpoint
+
+Adds GET /Users/{userId}/WatchHistory/Export which returns the played
+movies and episodes of a user as CSV or JSON.
+
+- Add WatchHistoryEntryDto
+- Add WatchHistoryExporter helper with RFC 4180 escaping
+- Add WatchHistoryController
+---
+ .../Controllers/WatchHistoryController.cs     | 126 ++++++++++++++++++
+ Jellyfin.Api/Helpers/WatchHistoryExporter.cs  |  82 ++++++++++++
+ .../WatchHistoryDtos/WatchHistoryEntryDto.cs  |  40 ++++++
+ 3 files changed, 248 insertions(+)
+ create mode 100644 Jellyfin.Api/Controllers/WatchHistoryController.cs
+ create mode 100644 Jellyfin.Api/Helpers/WatchHistoryExporter.cs
+ create mode 100644 Jellyfin.Api/Models/WatchHistoryDtos/WatchHistoryEntryDto.cs
+
+diff --git a/Jellyfin.Api/Controllers/WatchHistoryController.cs b/Jellyfin.Api/Controllers/WatchHistoryController.cs
+new file mode 100644
+index 0000000000..6e1ff28fd2
+--- /dev/null
++++ b/Jellyfin.Api/Controllers/WatchHistoryController.cs
+@@ -0,0 +1,126 @@
++using System;
++using System.ComponentModel.DataAnnotations;
++using System.IO;
++using System.Linq;
++using System.Net.Mime;
++using System.Threading;
++using System.Threading.Tasks;
++using Jellyfin.Api.Constants;
++using Jellyfin.Api.Helpers;
++using Jellyfin.Api.Models.WatchHistoryDtos;
++using Jellyfin.Data.Enums;
++using MediaBrowser.Controller.Entities;
++using MediaBrowser.Controller.Entities.TV;
++using MediaBrowser.Controller.Library;
++using Microsoft.AspNetCore.Authorization;
++using Microsoft.AspNetCore.Http;
++using Microsoft.AspNetCore.Mvc;
++using Microsoft.Extensions.Logging;
++
++namespace Jellyfin.Api.Controllers
++{
++    /// <summary>
++    /// Watch history controller.
++    /// </summary>
++    [Route("Users/{userId}/WatchHistory")]
++    [Authorize(Policy = Policies.DefaultAuthorization)]
++    public class WatchHistoryController : BaseJellyfinApiController
++    {
++        private const int MaxExportItems = 10000;
++
++        private readonly IUserManager _userManager;
++        private readonly ILibraryManager _libraryManager;
++        private readonly IUserDataManager _userDataManager;
++        private readonly ILogger<WatchHistoryController> _logger;
++
++        /// <summary>
++        /// Initializes a new instance of the <see cref="WatchHistoryController"/> class.
++        /// </summary>
++        /// <param name="userManager">Instance of the <see cref="IUserManager"/> interface.</param>
++        /// <param name="libraryManager">Instance of the <see cref="ILibraryManager"/> interface.</param>
++        /// <param name="userDataManager">Instance of the <see cref="IUserDataManager"/> interface.</param>
++        /// <param name="logger">Instance of the <see cref="ILogger{WatchHistoryController}"/> interface.</param>
++        public WatchHistoryController(
++            IUserManager userManager,
++            ILibraryManager libraryManager,
++            IUserDataManager userDataManager,
++            ILogger<WatchHistoryController> logger)
++        {
++            _userManager = userManager;
++            _libraryManager = libraryManager;
++            _userDataManager = userDataManager;
++            _logger = logger;
++        }
++
++        /// <summary>
++        /// Exports the watch history of a user.
++        /// </summary>
++        /// <param name="userId">The user id.</param>
++        /// <param name="format">The export format. Either "csv" or "json".</param>
++        /// <param name="cancellationToken">The cancellation token.</param>
++        /// <response code="200">Watch history exported.</response>
++        /// <response code="400">Unsupported export format.</response>
++        /// <response code="404">User not found.</response>
++        /// <returns>A file containing the watch history.</returns>
++        [HttpGet("Export")]
++        [ProducesResponseType(StatusCodes.Status200OK)]
++        [ProducesResponseType(StatusCodes.Status400BadRequest)]
++        [ProducesResponseType(StatusCodes.Status404NotFound)]
++        [ProducesFile("text/csv", MediaTypeNames.Application.Json)]
++        public async Task<ActionResult> ExportWatchHistory(
++            [FromRoute, Required] Guid userId,
++            [FromQuery] string format = "csv",
++            CancellationToken cancellationToken = default)
++        {
++            var user = _userManager.GetUserById(userId);
++            if (user is null)
++            {
++                return NotFound();
++            }
++
++            if (!string.Equals(format, "csv", StringComparison.OrdinalIgnoreCase)
++                && !string.Equals(format, "json", StringComparison.OrdinalIgnoreCase))
++            {
++                return BadRequest($"Unsupported export format '{format}'. Supported formats are 'csv' and 'json'.");
++            }
++
++            var items = _libraryManager.GetItemList(new InternalItemsQuery(user)
++            {
++                IsPlayed = true,
++                Recursive = true,
++                IncludeItemTypes = new[] { nameof(Movie), nameof(Episode) },
++                OrderBy = new[] { (ItemSortBy.DatePlayed, SortOrder.Descending) },
++                Limit = MaxExportItems
++            });
++
++            var entries = items
++                .Select(item =>
++                {
++                    var userData = _userDataManager.GetUserData(user, item);
++                    return new WatchHistoryEntryDto
++                    {
++                        ItemId = item.Id,
++                        Name = item.Name,
++                        SeriesName = (item as Episode)?.SeriesName,
++                        ItemType = item.GetBaseItemKind().ToString(),
++                        LastPlayedDate = userData.LastPlayedDate,
++                        PlayCount = userData.PlayCount
++                    };
++                })
++                .ToList();
++
++            _logger.LogInformation("Exporting {Count} watch history entries for user {UserId} as {Format}", entries.Count, userId, format);
++
++            if (string.Equals(format, "json", StringComparison.OrdinalIgnoreCase))
++            {
++                return Ok(entries);
++            }
++
++            var stream = new MemoryStream();
++            await WatchHistoryExporter.WriteCsvAsync(entries, stream, cancellationToken).ConfigureAwait(false);
++            stream.Position = 0;
++
++            return File(stream, "text/csv", $"watch-history-{user.Username}.csv");
++        }
++    }
++}
+diff --git a/Jellyfin.Api/Helpers/WatchHistoryExporter.cs b/Jellyfin.Api/Helpers/WatchHistoryExporter.cs
+new file mode 100644
+index 0000000000..43cf2cee38
+--- /dev/null
++++ b/Jellyfin.Api/Helpers/WatchHistoryExporter.cs
+@@ -0,0 +1,82 @@
++using System;
++using System.Collections.Generic;
++using System.Globalization;
++using System.IO;
++using System.Linq;
++using System.Text;
++using System.Threading;
++using System.Threading.Tasks;
++using Jellyfin.Api.Models.WatchHistoryDtos;
++
++namespace Jellyfin.Api.Helpers
++{
++    /// <summary>
++    /// Helper class for exporting the watch history of a user.
++    /// </summary>
++    public static class WatchHistoryExporter
++    {
++        private const string CsvHeader = "ItemId,Name,SeriesName,ItemType,LastPlayedDate,PlayCount";
++
++        /// <summary>
++        /// Writes the given watch history entries to the stream in CSV format.
++        /// </summary>
++        /// <param name="entries">The watch history entries.</param>
++        /// <param name="stream">The destination stream.</param>
++        /// <param name="cancellationToken">The cancellation token.</param>
++        /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
++        public static async Task WriteCsvAsync(IEnumerable<WatchHistoryEntryDto> entries, Stream stream, CancellationToken cancellationToken)
++        {
++            if (entries is null)
++            {
++                throw new ArgumentNullException(nameof(entries));
++            }
++
++            if (stream is null)
++            {
++                throw new ArgumentNullException(nameof(stream));
++            }
++
++            await using var writer = new StreamWriter(stream, new UTF8Encoding(false), leaveOpen: true);
++            await writer.WriteLineAsync(CsvHeader.AsMemory(), cancellationToken).ConfigureAwait(false);
++
++            foreach (var entry in entries)
++            {
++                cancellationToken.ThrowIfCancellationRequested();
++
++                var line = string.Join(
++                    ',',
++                    entry.ItemId.ToString("N", CultureInfo.InvariantCulture),
++                    EscapeCsv(entry.Name),
++                    EscapeCsv(entry.SeriesName),
++                    EscapeCsv(entry.ItemType),
++                    entry.LastPlayedDate?.ToString("o", CultureInfo.InvariantCulture) ?? string.Empty,
++                    entry.PlayCount.ToString(CultureInfo.InvariantCulture));
++
++                await writer.WriteLineAsync(line.AsMemory(), cancellationToken).ConfigureAwait(false);
++            }
++
++            await writer.FlushAsync().ConfigureAwait(false);
++        }
++
++        /// <summary>
++        /// Escapes a value for use in a CSV file according to RFC 4180.
++        /// </summary>
++        /// <param name="value">The value to escape.</param>
++        /// <returns>The escaped value.</returns>
++        public static string EscapeCsv(string? value)
++        {
++            if (string.IsNullOrEmpty(value))
++            {
++                return string.Empty;
++            }
++
++            var needsQuotes = value.IndexOfAny(new[] { ',', '"', '\n', '\r' }) >= 0;
++            if (!needsQuotes)
++            {
++                return value;
++            }
++
++            return "\"" + value.Replace("\"", "\"\"", StringComparison.Ordinal) + "\"";
++        }
++    }
++}
+diff --git a/Jellyfin.Api/Models/WatchHistoryDtos/WatchHistoryEntryDto.cs b/Jellyfin.Api/Models/WatchHistoryDtos/WatchHistoryEntryDto.cs
+new file mode 100644
+index 0000000000..fe7379d1b0
+--- /dev/null
++++ b/Jellyfin.Api/Models/WatchHistoryDtos/WatchHistoryEntryDto.cs
+@@ -0,0 +1,40 @@
++using System;
++
++namespace Jellyfin.Api.Models.WatchHistoryDtos
++{
++    /// <summary>
++    /// Represents a single entry in the user's watch history export.
++    /// </summary>
++    public class WatchHistoryEntryDto
++    {
++        /// <summary>
++        /// Gets or sets the item id.
++        /// </summary>
++        public Guid ItemId { get; set; }
++
++        /// <summary>
++        /// Gets or sets the item name.
++        /// </summary>
++        public string Name { get; set; } = string.Empty;
++
++        /// <summary>
++        /// Gets or sets the series name, if the item is an episode.
++        /// </summary>
++        public string? SeriesName { get; set; }
++
++        /// <summary>
++        /// Gets or sets the item type.
++        /// </summary>
++        public string ItemType { get; set; } = string.Empty;
++
++        /// <summary>
++        /// Gets or sets the date the item was last played, in UTC.
++        /// </summary>
++        public DateTime? LastPlayedDate { get; set; }
++
++        /// <summary>
++        /// Gets or sets the number of times the item was played.
++        /// </summary>
++        public int PlayCount { get; set; }
++    }
++}
+-- 
+2.43.0
+

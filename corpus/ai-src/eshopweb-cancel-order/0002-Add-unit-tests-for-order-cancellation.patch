@@ -1,0 +1,147 @@
+From e48a666ec8c0c9632a571351547e827cd007ff43 Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Mon, 30 Nov 2020 14:09:00 +0000
+Subject: [PATCH 2/2] Add unit tests for order cancellation
+
+- Cover Order.Cancel state transitions and argument validation
+- Cover OrderService.CancelOrderAsync not-found, unauthorized and success paths
+---
+ .../Entities/OrderTests/OrderCancel.cs        | 51 ++++++++++++++
+ .../Services/OrderServiceTests/CancelOrder.cs | 67 +++++++++++++++++++
+ 2 files changed, 118 insertions(+)
+ create mode 100644 tests/UnitTests/ApplicationCore/Entities/OrderTests/OrderCancel.cs
+ create mode 100644 tests/UnitTests/ApplicationCore/Services/OrderServiceTests/CancelOrder.cs
+
+diff --git a/tests/UnitTests/ApplicationCore/Entities/OrderTests/OrderCancel.cs b/tests/UnitTests/ApplicationCore/Entities/OrderTests/OrderCancel.cs
+new file mode 100644
+index 0000000..78f297c
+--- /dev/null
++++ b/tests/UnitTests/ApplicationCore/Entities/OrderTests/OrderCancel.cs
+@@ -0,0 +1,51 @@
++using Microsoft.eShopWeb.ApplicationCore.Entities.OrderAggregate;
++using Microsoft.eShopWeb.UnitTests.Builders;
++using System;
++using Xunit;
++
++namespace Microsoft.eShopWeb.UnitTests.ApplicationCore.Entities.OrderTests
++{
++    public class OrderCancel
++    {
++        private readonly DateTimeOffset _cancelledDate = new DateTimeOffset(2020, 11, 30, 12, 0, 0, TimeSpan.Zero);
++
++        [Fact]
++        public void Cancel_SubmittedOrder_SetsStatusToCancelled()
++        {
++            // Arrange
++            var order = new OrderBuilder().WithDefaultValues();
++
++            // Act
++            order.Cancel("Changed my mind", _cancelledDate);
++
++            // Assert
++            Assert.Equal(OrderStatus.Cancelled, order.Status);
++            Assert.Equal(_cancelledDate, order.CancelledDate);
++            Assert.Equal("Changed my mind", order.CancellationReason);
++        }
++
++        [Fact]
++        public void Cancel_AlreadyCancelledOrder_ThrowsInvalidOperationException()
++        {
++            // Arrange
++            var order = new OrderBuilder().WithDefaultValues();
++            order.Cancel("First", _cancelledDate);
++
++            // Act & Assert
++            Assert.Throws<InvalidOperationException>(() => order.Cancel("Second", _cancelledDate));
++        }
++
++        [Theory]
++        [InlineData(null)]
++        [InlineData("")]
++        [InlineData("   ")]
++        public void Cancel_WithEmptyReason_ThrowsArgumentException(string reason)
++        {
++            // Arrange
++            var order = new OrderBuilder().WithDefaultValues();
++
++            // Act & Assert
++            Assert.ThrowsAny<ArgumentException>(() => order.Cancel(reason, _cancelledDate));
++        }
++    }
++}
+diff --git a/tests/UnitTests/ApplicationCore/Services/OrderServiceTests/CancelOrder.cs b/tests/UnitTests/ApplicationCore/Services/OrderServiceTests/CancelOrder.cs
+new file mode 100644
+index 0000000..101d1cf
+--- /dev/null
++++ b/tests/UnitTests/ApplicationCore/Services/OrderServiceTests/CancelOrder.cs
+@@ -0,0 +1,67 @@
++using Microsoft.eShopWeb.ApplicationCore.Entities.OrderAggregate;
++using Microsoft.eShopWeb.ApplicationCore.Exceptions;
++using Microsoft.eShopWeb.ApplicationCore.Interfaces;
++using Microsoft.eShopWeb.ApplicationCore.Services;
++using Microsoft.eShopWeb.UnitTests.Builders;
++using Moq;
++using System;
++using System.Threading;
++using System.Threading.Tasks;
++using Xunit;
++
++namespace Microsoft.eShopWeb.UnitTests.ApplicationCore.Services.OrderServiceTests
++{
++    public class CancelOrder
++    {
++        private readonly Mock<IAsyncRepository<Order>> _mockOrderRepo = new Mock<IAsyncRepository<Order>>();
++        private readonly OrderService _orderService;
++
++        public CancelOrder()
++        {
++            _orderService = new OrderService(
++                Mock.Of<IAsyncRepository<Microsoft.eShopWeb.ApplicationCore.Entities.BasketAggregate.Basket>>(),
++                Mock.Of<IAsyncRepository<Microsoft.eShopWeb.ApplicationCore.Entities.CatalogItem>>(),
++                _mockOrderRepo.Object,
++                Mock.Of<IUriComposer>());
++        }
++
++        [Fact]
++        public async Task CancelOrderAsync_OrderNotFound_ThrowsOrderNotFoundException()
++        {
++            // Arrange
++            _mockOrderRepo.Setup(r => r.GetByIdAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
++                .ReturnsAsync((Order)null);
++
++            // Act & Assert
++            await Assert.ThrowsAsync<OrderNotFoundException>(() => _orderService.CancelOrderAsync(1, "buyer", "reason"));
++        }
++
++        [Fact]
++        public async Task CancelOrderAsync_DifferentBuyer_ThrowsUnauthorizedAccessException()
++        {
++            // Arrange
++            var order = new OrderBuilder().WithDefaultValues();
++            _mockOrderRepo.Setup(r => r.GetByIdAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
++                .ReturnsAsync(order);
++
++            // Act & Assert
++            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _orderService.CancelOrderAsync(1, "another-buyer", "reason"));
++        }
++
++        [Fact]
++        public async Task CancelOrderAsync_ValidRequest_CancelsAndUpdatesOrder()
++        {
++            // Arrange
++            var order = new OrderBuilder().WithDefaultValues();
++            _mockOrderRepo.Setup(r => r.GetByIdAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
++                .ReturnsAsync(order);
++
++            // Act
++            await _orderService.CancelOrderAsync(1, order.BuyerId, "No longer needed");
++
++            // Assert
++            Assert.Equal(OrderStatus.Cancelled, order.Status);
++            _mockOrderRepo.Verify(r => r.UpdateAsync(order, It.IsAny<CancellationToken>()), Times.Once);
++        }
++    }
++}
+-- 
+2.43.0
+

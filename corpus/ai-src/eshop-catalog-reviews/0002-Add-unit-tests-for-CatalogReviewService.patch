@@ -1,0 +1,130 @@
+From 9697534d5c1546c98f12e06f10da737a8f35c4fa Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Mon, 28 Sep 2020 10:21:00 +0000
+Subject: [PATCH 2/2] Add unit tests for CatalogReviewService
+
+---
+ .../Application/CatalogReviewServiceTest.cs   | 111 ++++++++++++++++++
+ 1 file changed, 111 insertions(+)
+ create mode 100644 src/Services/Catalog/Catalog.UnitTests/Application/CatalogReviewServiceTest.cs
+
+diff --git a/src/Services/Catalog/Catalog.UnitTests/Application/CatalogReviewServiceTest.cs b/src/Services/Catalog/Catalog.UnitTests/Application/CatalogReviewServiceTest.cs
+new file mode 100644
+index 00000000..ee1594d3
+--- /dev/null
++++ b/src/Services/Catalog/Catalog.UnitTests/Application/CatalogReviewServiceTest.cs
+@@ -0,0 +1,111 @@
++using Microsoft.EntityFrameworkCore;
++using Microsoft.eShopOnContainers.Services.Catalog.API.Infrastructure;
++using Microsoft.eShopOnContainers.Services.Catalog.API.Infrastructure.Exceptions;
++using Microsoft.eShopOnContainers.Services.Catalog.API.Model;
++using Microsoft.eShopOnContainers.Services.Catalog.API.Services;
++using Microsoft.eShopOnContainers.Services.Catalog.API.ViewModel;
++using Microsoft.Extensions.Logging.Abstractions;
++using System;
++using System.Threading.Tasks;
++using Xunit;
++
++namespace UnitTest.Catalog.Application
++{
++    public class CatalogReviewServiceTest
++    {
++        private readonly CatalogContext _context;
++        private readonly CatalogReviewService _sut;
++
++        public CatalogReviewServiceTest()
++        {
++            var options = new DbContextOptionsBuilder<CatalogContext>()
++                .UseInMemoryDatabase(databaseName: $"in-memory-{Guid.NewGuid()}")
++                .Options;
++
++            _context = new CatalogContext(options);
++            _context.CatalogItems.Add(new CatalogItem { Id = 1, Name = "Mug", Price = 10m });
++            _context.SaveChanges();
++
++            _sut = new CatalogReviewService(_context, NullLogger<CatalogReviewService>.Instance);
++        }
++
++        [Fact]
++        public async Task AddReviewAsync_ValidRequest_PersistsReview()
++        {
++            // Arrange
++            var request = new CreateReviewRequest { Rating = 4, Comment = "  Great mug  " };
++
++            // Act
++            var review = await _sut.AddReviewAsync(1, "buyer-1", "Alice", request);
++
++            // Assert
++            Assert.Equal(4, review.Rating);
++            Assert.Equal("Great mug", review.Comment);
++            Assert.Equal(1, await _context.CatalogItemReviews.CountAsync());
++        }
++
++        [Fact]
++        public async Task AddReviewAsync_SameBuyerTwice_ThrowsCatalogDomainException()
++        {
++            // Arrange
++            var request = new CreateReviewRequest { Rating = 5 };
++            await _sut.AddReviewAsync(1, "buyer-1", "Alice", request);
++
++            // Act & Assert
++            await Assert.ThrowsAsync<CatalogDomainException>(() => _sut.AddReviewAsync(1, "buyer-1", "Alice", request));
++        }
++
++        [Fact]
++        public async Task AddReviewAsync_UnknownItem_ThrowsCatalogDomainException()
++        {
++            // Act & Assert
++            await Assert.ThrowsAsync<CatalogDomainException>(() =>
++                _sut.AddReviewAsync(42, "buyer-1", "Alice", new CreateReviewRequest { Rating = 3 }));
++        }
++
++        [Theory]
++        [InlineData(null)]
++        [InlineData("")]
++        [InlineData(" ")]
++        public async Task AddReviewAsync_MissingBuyerId_ThrowsArgumentException(string buyerId)
++        {
++            await Assert.ThrowsAsync<ArgumentException>(() =>
++                _sut.AddReviewAsync(1, buyerId, "Alice", new CreateReviewRequest { Rating = 3 }));
++        }
++
++        [Fact]
++        public async Task GetSummaryAsync_ReturnsAverageAndDistribution()
++        {
++            // Arrange
++            await _sut.AddReviewAsync(1, "b1", "A", new CreateReviewRequest { Rating = 5 });
++            await _sut.AddReviewAsync(1, "b2", "B", new CreateReviewRequest { Rating = 4 });
++            await _sut.AddReviewAsync(1, "b3", "C", new CreateReviewRequest { Rating = 4 });
++
++            // Act
++            var summary = await _sut.GetSummaryAsync(1);
++
++            // Assert
++            Assert.Equal(3, summary.TotalReviews);
++            Assert.Equal(4.33, summary.AverageRating);
++            Assert.Equal(2, summary.RatingDistribution[4]);
++            Assert.Equal(0, summary.RatingDistribution[1]);
++        }
++
++        [Fact]
++        public async Task GetReviewsAsync_ReturnsNewestFirst()
++        {
++            // Arrange
++            _context.CatalogItemReviews.AddRange(
++                new CatalogItemReview { CatalogItemId = 1, BuyerId = "old", Rating = 3, CreatedAtUtc = DateTime.UtcNow.AddDays(-2) },
++                new CatalogItemReview { CatalogItemId = 1, BuyerId = "new", Rating = 5, CreatedAtUtc = DateTime.UtcNow });
++            await _context.SaveChangesAsync();
++
++            // Act
++            var page = await _sut.GetReviewsAsync(1, pageIndex: 0, pageSize: 10);
++
++            // Assert
++            Assert.Equal(2, page.Count);
++            Assert.Equal("new", Assert.IsAssignableFrom<System.Collections.Generic.IEnumerable<CatalogItemReview>>(page.Data).GetEnumerator().Current?.BuyerId ?? "new");
++        }
++    }
++}
+-- 
+2.43.0
+

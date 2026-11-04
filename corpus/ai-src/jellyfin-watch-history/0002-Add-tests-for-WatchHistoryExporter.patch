@@ -1,0 +1,77 @@
+From b60aa75b3c420b7039cb6e2615b4f39f33796bf3 Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Mon, 30 Nov 2020 19:11:00 +0000
+Subject: [PATCH 2/2] Add tests for WatchHistoryExporter
+
+---
+ .../Helpers/WatchHistoryExporterTests.cs      | 58 +++++++++++++++++++
+ 1 file changed, 58 insertions(+)
+ create mode 100644 tests/Jellyfin.Api.Tests/Helpers/WatchHistoryExporterTests.cs
+
+diff --git a/tests/Jellyfin.Api.Tests/Helpers/WatchHistoryExporterTests.cs b/tests/Jellyfin.Api.Tests/Helpers/WatchHistoryExporterTests.cs
+new file mode 100644
+index 0000000000..c9316aaa04
+--- /dev/null
++++ b/tests/Jellyfin.Api.Tests/Helpers/WatchHistoryExporterTests.cs
+@@ -0,0 +1,58 @@
++using System;
++using System.IO;
++using System.Text;
++using System.Threading;
++using System.Threading.Tasks;
++using Jellyfin.Api.Helpers;
++using Jellyfin.Api.Models.WatchHistoryDtos;
++using Xunit;
++
++namespace Jellyfin.Api.Tests.Helpers
++{
++    public static class WatchHistoryExporterTests
++    {
++        [Theory]
++        [InlineData(null, "")]
++        [InlineData("", "")]
++        [InlineData("Simple", "Simple")]
++        [InlineData("With, comma", "\"With, comma\"")]
++        [InlineData("With \"quotes\"", "\"With \"\"quotes\"\"\"")]
++        [InlineData("Line\nbreak", "\"Line\nbreak\"")]
++        public static void EscapeCsv_ReturnsExpectedValue(string? input, string expected)
++        {
++            Assert.Equal(expected, WatchHistoryExporter.EscapeCsv(input));
++        }
++
++        [Fact]
++        public static async Task WriteCsvAsync_WritesHeaderAndRows()
++        {
++            var entries = new[]
++            {
++                new WatchHistoryEntryDto
++                {
++                    ItemId = Guid.Parse("11111111-2222-3333-4444-555555555555"),
++                    Name = "Pilot",
++                    SeriesName = "Some Show",
++                    ItemType = "Episode",
++                    LastPlayedDate = new DateTime(2020, 11, 1, 20, 0, 0, DateTimeKind.Utc),
++                    PlayCount = 2
++                }
++            };
++
++            using var stream = new MemoryStream();
++            await WatchHistoryExporter.WriteCsvAsync(entries, stream, CancellationToken.None);
++
++            var lines = Encoding.UTF8.GetString(stream.ToArray()).Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
++            Assert.Equal(2, lines.Length);
++            Assert.Equal("ItemId,Name,SeriesName,ItemType,LastPlayedDate,PlayCount", lines[0]);
++            Assert.Equal("11111111222233334444555555555555,Pilot,Some Show,Episode,2020-11-01T20:00:00.0000000Z,2", lines[1]);
++        }
++
++        [Fact]
++        public static async Task WriteCsvAsync_NullEntries_ThrowsArgumentNullException()
++        {
++            using var stream = new MemoryStream();
++            await Assert.ThrowsAsync<ArgumentNullException>(() => WatchHistoryExporter.WriteCsvAsync(null!, stream, CancellationToken.None));
++        }
++    }
++}
+-- 
+2.43.0
+

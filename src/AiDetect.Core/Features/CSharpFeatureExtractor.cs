@@ -1417,7 +1417,9 @@ public static partial class CSharpFeatureExtractor
             foreach (var stmt in body.Statements.Take(Math.Max(3, refParams.Count + 1)))
             {
                 var text = stmt.ToString();
-                if (text.Contains("ThrowIf", StringComparison.Ordinal))
+                if (text.Contains("ThrowIf", StringComparison.Ordinal) || text.Contains("Guard.Against.", StringComparison.Ordinal) ||
+                    text.Contains("Guard.NotNull", StringComparison.Ordinal) || text.Contains("Check.NotNull", StringComparison.Ordinal) ||
+                    text.Contains("Ensure.", StringComparison.Ordinal))
                 {
                     guarded = true;
                 }

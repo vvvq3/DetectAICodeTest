@@ -1,0 +1,306 @@
+From 99e2d1ef3d04034dd939bbe16fed6437d27e0469 Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Mon, 30 Nov 2020 14:02:00 +0000
+Subject: [PATCH 1/2] Add order cancellation to ApplicationCore and PublicApi
+
+- Add OrderStatus enum and Order.Cancel domain method
+- Add CancelOrderAsync to IOrderService and OrderService
+- Add OrderNotFoundException
+- Add POST api/orders/{OrderId}/cancel endpoint
+---
+ .../Entities/OrderAggregate/Order.cs          | 30 ++++++++-
+ .../Entities/OrderAggregate/OrderStatus.cs    | 12 ++++
+ .../Exceptions/OrderNotFoundException.cs      | 21 ++++++
+ .../Interfaces/IOrderService.cs               | 12 +++-
+ src/ApplicationCore/Services/OrderService.cs  | 26 +++++++-
+ src/PublicApi/OrderEndpoints/Cancel.cs        | 65 +++++++++++++++++++
+ .../OrderEndpoints/CancelOrderRequest.cs      |  8 +++
+ .../OrderEndpoints/CancelOrderResponse.cs     | 18 +++++
+ 8 files changed, 189 insertions(+), 3 deletions(-)
+ create mode 100644 src/ApplicationCore/Entities/OrderAggregate/OrderStatus.cs
+ create mode 100644 src/ApplicationCore/Exceptions/OrderNotFoundException.cs
+ create mode 100644 src/PublicApi/OrderEndpoints/Cancel.cs
+ create mode 100644 src/PublicApi/OrderEndpoints/CancelOrderRequest.cs
+ create mode 100644 src/PublicApi/OrderEndpoints/CancelOrderResponse.cs
+
+diff --git a/src/ApplicationCore/Entities/OrderAggregate/Order.cs b/src/ApplicationCore/Entities/OrderAggregate/Order.cs
+index c869041..436f971 100644
+--- a/src/ApplicationCore/Entities/OrderAggregate/Order.cs
++++ b/src/ApplicationCore/Entities/OrderAggregate/Order.cs
+@@ -1,4 +1,4 @@
+-﻿using Microsoft.eShopWeb.ApplicationCore.Interfaces;
++using Microsoft.eShopWeb.ApplicationCore.Interfaces;
+ using Ardalis.GuardClauses;
+ using System;
+ using System.Collections.Generic;
+@@ -26,6 +26,9 @@ namespace Microsoft.eShopWeb.ApplicationCore.Entities.OrderAggregate
+         public string BuyerId { get; private set; }
+         public DateTimeOffset OrderDate { get; private set; } = DateTimeOffset.Now;
+         public Address ShipToAddress { get; private set; }
++        public OrderStatus Status { get; private set; } = OrderStatus.Submitted;
++        public DateTimeOffset? CancelledDate { get; private set; }
++        public string CancellationReason { get; private set; }
+ 
+         // DDD Patterns comment
+         // Using a private collection field, better for DDD Aggregate's encapsulation
+@@ -39,6 +42,31 @@ namespace Microsoft.eShopWeb.ApplicationCore.Entities.OrderAggregate
+         //https://msdn.microsoft.com/en-us/library/e78dcd75(v=vs.110).aspx 
+         public IReadOnlyCollection<OrderItem> OrderItems => _orderItems.AsReadOnly();
+ 
++        /// <summary>
++        /// Cancels the order if it has not been shipped yet.
++        /// </summary>
++        /// <param name="reason">The reason for the cancellation.</param>
++        /// <param name="cancelledDate">The date and time the order was cancelled.</param>
++        /// <exception cref="InvalidOperationException">Thrown when the order has already been shipped or cancelled.</exception>
++        public void Cancel(string reason, DateTimeOffset cancelledDate)
++        {
++            Guard.Against.NullOrWhiteSpace(reason, nameof(reason));
++
++            if (Status == OrderStatus.Shipped)
++            {
++                throw new InvalidOperationException($"Order {Id} cannot be cancelled because it has already been shipped.");
++            }
++
++            if (Status == OrderStatus.Cancelled)
++            {
++                throw new InvalidOperationException($"Order {Id} has already been cancelled.");
++            }
++
++            Status = OrderStatus.Cancelled;
++            CancelledDate = cancelledDate;
++            CancellationReason = reason;
++        }
++
+         public decimal Total()
+         {
+             var total = 0m;
+diff --git a/src/ApplicationCore/Entities/OrderAggregate/OrderStatus.cs b/src/ApplicationCore/Entities/OrderAggregate/OrderStatus.cs
+new file mode 100644
+index 0000000..a104984
+--- /dev/null
++++ b/src/ApplicationCore/Entities/OrderAggregate/OrderStatus.cs
+@@ -0,0 +1,12 @@
++namespace Microsoft.eShopWeb.ApplicationCore.Entities.OrderAggregate
++{
++    /// <summary>
++    /// Represents the lifecycle status of an order.
++    /// </summary>
++    public enum OrderStatus
++    {
++        Submitted = 0,
++        Shipped = 1,
++        Cancelled = 2
++    }
++}
+diff --git a/src/ApplicationCore/Exceptions/OrderNotFoundException.cs b/src/ApplicationCore/Exceptions/OrderNotFoundException.cs
+new file mode 100644
+index 0000000..aea9f5f
+--- /dev/null
++++ b/src/ApplicationCore/Exceptions/OrderNotFoundException.cs
+@@ -0,0 +1,21 @@
++using System;
++
++namespace Microsoft.eShopWeb.ApplicationCore.Exceptions
++{
++    /// <summary>
++    /// Exception thrown when an order with the specified identifier cannot be found.
++    /// </summary>
++    public class OrderNotFoundException : Exception
++    {
++        public OrderNotFoundException(int orderId)
++            : base($"No order found with id {orderId}.")
++        {
++            OrderId = orderId;
++        }
++
++        /// <summary>
++        /// Gets the identifier of the order that was not found.
++        /// </summary>
++        public int OrderId { get; }
++    }
++}
+diff --git a/src/ApplicationCore/Interfaces/IOrderService.cs b/src/ApplicationCore/Interfaces/IOrderService.cs
+index feb0cd5..9d1a63c 100644
+--- a/src/ApplicationCore/Interfaces/IOrderService.cs
++++ b/src/ApplicationCore/Interfaces/IOrderService.cs
+@@ -1,4 +1,5 @@
+-﻿using Microsoft.eShopWeb.ApplicationCore.Entities.OrderAggregate;
++using Microsoft.eShopWeb.ApplicationCore.Entities.OrderAggregate;
++using System.Threading;
+ using System.Threading.Tasks;
+ 
+ namespace Microsoft.eShopWeb.ApplicationCore.Interfaces
+@@ -6,5 +7,14 @@ namespace Microsoft.eShopWeb.ApplicationCore.Interfaces
+     public interface IOrderService
+     {
+         Task CreateOrderAsync(int basketId, Address shippingAddress);
++
++        /// <summary>
++        /// Cancels the specified order on behalf of the buyer.
++        /// </summary>
++        /// <param name="orderId">The identifier of the order to cancel.</param>
++        /// <param name="buyerId">The identifier of the buyer requesting the cancellation.</param>
++        /// <param name="reason">The cancellation reason.</param>
++        /// <param name="cancellationToken">A token to cancel the operation.</param>
++        Task CancelOrderAsync(int orderId, string buyerId, string reason, CancellationToken cancellationToken = default);
+     }
+ }
+diff --git a/src/ApplicationCore/Services/OrderService.cs b/src/ApplicationCore/Services/OrderService.cs
+index 3bd63a9..267817f 100644
+--- a/src/ApplicationCore/Services/OrderService.cs
++++ b/src/ApplicationCore/Services/OrderService.cs
+@@ -1,10 +1,13 @@
+-﻿using Ardalis.GuardClauses;
++using Ardalis.GuardClauses;
+ using Microsoft.eShopWeb.ApplicationCore.Entities;
+ using Microsoft.eShopWeb.ApplicationCore.Entities.BasketAggregate;
+ using Microsoft.eShopWeb.ApplicationCore.Entities.OrderAggregate;
++using Microsoft.eShopWeb.ApplicationCore.Exceptions;
+ using Microsoft.eShopWeb.ApplicationCore.Interfaces;
+ using Microsoft.eShopWeb.ApplicationCore.Specifications;
++using System;
+ using System.Linq;
++using System.Threading;
+ using System.Threading.Tasks;
+ 
+ namespace Microsoft.eShopWeb.ApplicationCore.Services
+@@ -50,5 +53,26 @@ namespace Microsoft.eShopWeb.ApplicationCore.Services
+ 
+             await _orderRepository.AddAsync(order);
+         }
++
++        public async Task CancelOrderAsync(int orderId, string buyerId, string reason, CancellationToken cancellationToken = default)
++        {
++            Guard.Against.NullOrEmpty(buyerId, nameof(buyerId));
++            Guard.Against.NullOrWhiteSpace(reason, nameof(reason));
++
++            var order = await _orderRepository.GetByIdAsync(orderId, cancellationToken);
++            if (order is null)
++            {
++                throw new OrderNotFoundException(orderId);
++            }
++
++            if (!string.Equals(order.BuyerId, buyerId, StringComparison.Ordinal))
++            {
++                throw new UnauthorizedAccessException($"Buyer '{buyerId}' is not allowed to cancel order {orderId}.");
++            }
++
++            order.Cancel(reason, DateTimeOffset.UtcNow);
++
++            await _orderRepository.UpdateAsync(order, cancellationToken);
++        }
+     }
+ }
+diff --git a/src/PublicApi/OrderEndpoints/Cancel.cs b/src/PublicApi/OrderEndpoints/Cancel.cs
+new file mode 100644
+index 0000000..3ff34b6
+--- /dev/null
++++ b/src/PublicApi/OrderEndpoints/Cancel.cs
+@@ -0,0 +1,65 @@
++using Ardalis.ApiEndpoints;
++using Microsoft.AspNetCore.Authentication.JwtBearer;
++using Microsoft.AspNetCore.Authorization;
++using Microsoft.AspNetCore.Mvc;
++using Microsoft.eShopWeb.ApplicationCore.Exceptions;
++using Microsoft.eShopWeb.ApplicationCore.Interfaces;
++using Microsoft.Extensions.Logging;
++using Swashbuckle.AspNetCore.Annotations;
++using System;
++using System.Security.Claims;
++using System.Threading;
++using System.Threading.Tasks;
++
++namespace Microsoft.eShopWeb.PublicApi.OrderEndpoints
++{
++    [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
++    public class Cancel : BaseAsyncEndpoint<CancelOrderRequest, CancelOrderResponse>
++    {
++        private readonly IOrderService _orderService;
++        private readonly ILogger<Cancel> _logger;
++
++        public Cancel(IOrderService orderService, ILogger<Cancel> logger)
++        {
++            _orderService = orderService;
++            _logger = logger;
++        }
++
++        [HttpPost("api/orders/{OrderId}/cancel")]
++        [SwaggerOperation(
++            Summary = "Cancels an order",
++            Description = "Cancels an order that has not been shipped yet",
++            OperationId = "orders.cancel",
++            Tags = new[] { "OrderEndpoints" })
++        ]
++        public override async Task<ActionResult<CancelOrderResponse>> HandleAsync(CancelOrderRequest request, CancellationToken cancellationToken)
++        {
++            var response = new CancelOrderResponse(request.CorrelationId());
++            var buyerId = User.FindFirstValue(ClaimTypes.Name);
++
++            try
++            {
++                await _orderService.CancelOrderAsync(request.OrderId, buyerId, request.Reason, cancellationToken);
++            }
++            catch (OrderNotFoundException)
++            {
++                return NotFound();
++            }
++            catch (UnauthorizedAccessException)
++            {
++                return Forbid();
++            }
++            catch (InvalidOperationException ex)
++            {
++                _logger.LogWarning(ex, "Failed to cancel order {OrderId}", request.OrderId);
++                return Conflict(ex.Message);
++            }
++
++            _logger.LogInformation("Order {OrderId} was cancelled by buyer {BuyerId}", request.OrderId, buyerId);
++
++            response.OrderId = request.OrderId;
++            response.Status = "Cancelled";
++            return Ok(response);
++        }
++    }
++}
+diff --git a/src/PublicApi/OrderEndpoints/CancelOrderRequest.cs b/src/PublicApi/OrderEndpoints/CancelOrderRequest.cs
+new file mode 100644
+index 0000000..952d108
+--- /dev/null
++++ b/src/PublicApi/OrderEndpoints/CancelOrderRequest.cs
+@@ -0,0 +1,8 @@
++namespace Microsoft.eShopWeb.PublicApi.OrderEndpoints
++{
++    public class CancelOrderRequest : BaseRequest
++    {
++        public int OrderId { get; set; }
++        public string Reason { get; set; }
++    }
++}
+diff --git a/src/PublicApi/OrderEndpoints/CancelOrderResponse.cs b/src/PublicApi/OrderEndpoints/CancelOrderResponse.cs
+new file mode 100644
+index 0000000..b92b3fc
+--- /dev/null
++++ b/src/PublicApi/OrderEndpoints/CancelOrderResponse.cs
+@@ -0,0 +1,18 @@
++using System;
++
++namespace Microsoft.eShopWeb.PublicApi.OrderEndpoints
++{
++    public class CancelOrderResponse : BaseResponse
++    {
++        public CancelOrderResponse(Guid correlationId) : base(correlationId)
++        {
++        }
++
++        public CancelOrderResponse()
++        {
++        }
++
++        public int OrderId { get; set; }
++        public string Status { get; set; }
++    }
++}
+-- 
+2.43.0
+

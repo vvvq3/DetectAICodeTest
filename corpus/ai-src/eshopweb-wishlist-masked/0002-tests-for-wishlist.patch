@@ -1,0 +1,80 @@
+From f230f97b3b166f80d03ace27ac62aca3dc5f49eb Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Mon, 30 Nov 2020 16:52:00 +0000
+Subject: [PATCH 2/2] tests for wishlist
+
+---
+ .../Services/WishlistServiceTests/AddItem.cs  | 61 +++++++++++++++++++
+ 1 file changed, 61 insertions(+)
+ create mode 100644 tests/UnitTests/ApplicationCore/Services/WishlistServiceTests/AddItem.cs
+
+diff --git a/tests/UnitTests/ApplicationCore/Services/WishlistServiceTests/AddItem.cs b/tests/UnitTests/ApplicationCore/Services/WishlistServiceTests/AddItem.cs
+new file mode 100644
+index 0000000..8eb24b7
+--- /dev/null
++++ b/tests/UnitTests/ApplicationCore/Services/WishlistServiceTests/AddItem.cs
+@@ -0,0 +1,61 @@
++using Microsoft.eShopWeb.ApplicationCore.Entities;
++using Microsoft.eShopWeb.ApplicationCore.Entities.WishlistAggregate;
++using Microsoft.eShopWeb.ApplicationCore.Interfaces;
++using Microsoft.eShopWeb.ApplicationCore.Services;
++using Microsoft.eShopWeb.ApplicationCore.Specifications;
++using Moq;
++using System.Threading;
++using System.Threading.Tasks;
++using Xunit;
++
++namespace Microsoft.eShopWeb.UnitTests.ApplicationCore.Services.WishlistServiceTests
++{
++    public class AddItem
++    {
++        private readonly string _buyerId = "Test buyerId";
++        private readonly Mock<IAsyncRepository<Wishlist>> _mockWishlistRepo = new Mock<IAsyncRepository<Wishlist>>();
++        private readonly Mock<IAsyncRepository<CatalogItem>> _mockItemRepo = new Mock<IAsyncRepository<CatalogItem>>();
++        private readonly Mock<IAppLogger<WishlistService>> _mockLogger = new Mock<IAppLogger<WishlistService>>();
++
++        [Fact]
++        public async Task AddsItemToExistingWishlist()
++        {
++            var wishlist = new Wishlist(_buyerId);
++            _mockWishlistRepo.Setup(x => x.FirstOrDefaultAsync(It.IsAny<WishlistWithItemsSpecification>(), It.IsAny<CancellationToken>())).ReturnsAsync(wishlist);
++            _mockItemRepo.Setup(x => x.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(new CatalogItem(1, 1, "desc", "name", 10m, "uri"));
++            var service = new WishlistService(_mockWishlistRepo.Object, _mockItemRepo.Object, _mockLogger.Object);
++
++            await service.AddItemAsync(_buyerId, 1);
++
++            Assert.Single(wishlist.Items);
++            _mockWishlistRepo.Verify(x => x.UpdateAsync(wishlist, It.IsAny<CancellationToken>()), Times.Once);
++        }
++
++        [Fact]
++        public async Task DoesNotDuplicateItems()
++        {
++            var wishlist = new Wishlist(_buyerId);
++            wishlist.AddItem(1);
++            _mockWishlistRepo.Setup(x => x.FirstOrDefaultAsync(It.IsAny<WishlistWithItemsSpecification>(), It.IsAny<CancellationToken>())).ReturnsAsync(wishlist);
++            _mockItemRepo.Setup(x => x.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(new CatalogItem(1, 1, "desc", "name", 10m, "uri"));
++            var service = new WishlistService(_mockWishlistRepo.Object, _mockItemRepo.Object, _mockLogger.Object);
++
++            await service.AddItemAsync(_buyerId, 1);
++
++            Assert.Single(wishlist.Items);
++        }
++
++        [Fact]
++        public async Task CreatesWishlistIfMissing()
++        {
++            _mockWishlistRepo.Setup(x => x.FirstOrDefaultAsync(It.IsAny<WishlistWithItemsSpecification>(), It.IsAny<CancellationToken>())).ReturnsAsync((Wishlist)null);
++            _mockWishlistRepo.Setup(x => x.AddAsync(It.IsAny<Wishlist>(), It.IsAny<CancellationToken>())).ReturnsAsync((Wishlist w, CancellationToken _) => w);
++            var service = new WishlistService(_mockWishlistRepo.Object, _mockItemRepo.Object, _mockLogger.Object);
++
++            var result = await service.GetOrCreateWishlistAsync(_buyerId);
++
++            Assert.Equal(_buyerId, result.BuyerId);
++            _mockWishlistRepo.Verify(x => x.AddAsync(It.IsAny<Wishlist>(), It.IsAny<CancellationToken>()), Times.Once);
++        }
++    }
++}
+-- 
+2.43.0
+

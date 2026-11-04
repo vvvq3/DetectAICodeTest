@@ -49,7 +49,8 @@ public static partial class FileClassifier
             return true;
         }
 
-        if (p.Contains("/migrations/") || p.StartsWith("migrations/") || p.EndsWith("modelsnapshot.cs", StringComparison.Ordinal))
+        if (p.Contains("/migrations/") || p.StartsWith("migrations/") || p.EndsWith("modelsnapshot.cs", StringComparison.Ordinal) ||
+            p.Contains("/areas/identity/pages/") || p.Contains("/wwwroot/"))
         {
             return true;
         }
