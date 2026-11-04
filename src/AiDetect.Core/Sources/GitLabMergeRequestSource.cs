@@ -28,6 +28,12 @@ public sealed partial class GitLabMergeRequestSource : IMergeRequestSource, IDis
     private readonly Action<string>? _log;
 
     public GitLabMergeRequestSource(string mrUrl, string? token, bool insecure = false, SourceLimits? limits = null, Action<string>? log = null, string? apiBaseOverride = null)
+        : this(mrUrl, token, CreateHandler(insecure), limits, log, apiBaseOverride)
+    {
+    }
+
+    /// <summary>Конструктор с собственным HTTP-обработчиком (для тестов).</summary>
+    internal GitLabMergeRequestSource(string mrUrl, string? token, HttpMessageHandler handler, SourceLimits? limits = null, Action<string>? log = null, string? apiBaseOverride = null)
     {
         _url = ParseUrl(mrUrl);
         if (!string.IsNullOrWhiteSpace(apiBaseOverride))
@@ -37,18 +43,23 @@ public sealed partial class GitLabMergeRequestSource : IMergeRequestSource, IDis
 
         _limits = limits ?? new SourceLimits();
         _log = log;
-        var handler = new HttpClientHandler { AutomaticDecompression = DecompressionMethods.All };
-        if (insecure)
-        {
-            handler.ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
-        }
-
         _http = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(60) };
         _http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("aidetect", "0.1"));
         if (!string.IsNullOrWhiteSpace(token))
         {
             _http.DefaultRequestHeaders.Add("PRIVATE-TOKEN", token);
         }
+    }
+
+    private static HttpClientHandler CreateHandler(bool insecure)
+    {
+        var handler = new HttpClientHandler { AutomaticDecompression = DecompressionMethods.All };
+        if (insecure)
+        {
+            handler.ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
+        }
+
+        return handler;
     }
 
     [GeneratedRegex(@"^(?<base>https?://[^/]+)/(?<project>.+?)/(?:-/)?merge_requests/(?<iid>\d+)", RegexOptions.IgnoreCase)]
@@ -155,6 +166,23 @@ public sealed partial class GitLabMergeRequestSource : IMergeRequestSource, IDis
             _log?.Invoke("Эндпоинт /diffs недоступен, использую /changes (старая версия GitLab)…");
             using var doc = await GetJsonAsync($"{mrPath}/changes?access_raw_diffs=true", ct);
             items = doc.RootElement.GetProperty("changes").EnumerateArray().Select(e => e.Clone()).ToList();
+        }
+
+        if (items.Count == 0)
+        {
+            // Некоторые версии GitLab отдают пустой /diffs — перепроверяем через /changes.
+            try
+            {
+                using var doc = await GetJsonAsync($"{mrPath}/changes?access_raw_diffs=true", ct);
+                if (doc.RootElement.TryGetProperty("changes", out var changes) && changes.ValueKind == JsonValueKind.Array)
+                {
+                    items = changes.EnumerateArray().Select(e => e.Clone()).ToList();
+                }
+            }
+            catch (SourceException)
+            {
+                // Изменений действительно нет.
+            }
         }
 
         return items.Take(_limits.MaxFiles).Select(e => new FileChange
