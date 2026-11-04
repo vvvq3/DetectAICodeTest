@@ -54,11 +54,11 @@ public sealed class CodeStats
     public IReadOnlyList<CodeExample> GetExamples(string key) =>
         Examples.TryGetValue(key, out var list) ? list : [];
 
-    public void Merge(CodeStats other)
+    public void Merge(CodeStats other, double factor = 1.0)
     {
         foreach (var (k, v) in other.Counts)
         {
-            Add(k, v);
+            Add(k, v * factor);
         }
 
         foreach (var (k, list) in other.Examples)
@@ -219,6 +219,7 @@ public static class K
     public const string StringConcat = "misc.stringConcat";
     public const string LinqQuerySyntax = "misc.linqQuery";
     public const string ThreadSleep = "misc.threadSleep";
+    public const string Typos = "misc.typos";
     public const string EmojiInStrings = "misc.emoji";
     public const string ProducesResponseType = "web.producesResponseType";
     public const string ControllerActions = "web.actions";

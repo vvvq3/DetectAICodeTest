@@ -113,6 +113,7 @@ public static partial class CSharpFeatureExtractor
             if (trimmed.StartsWith("//", StringComparison.Ordinal))
             {
                 ctx.S.Add(K.CommentLines);
+                CheckTypos(ctx, line, lineNo);
                 continue;
             }
 
@@ -124,6 +125,7 @@ public static partial class CSharpFeatureExtractor
             }
 
             ctx.S.Add(K.CodeLines);
+            CheckTypos(ctx, line, lineNo);
 
             if (line.Length > 0 && (line.EndsWith(' ') || line.EndsWith('\t')))
             {
@@ -173,6 +175,39 @@ public static partial class CSharpFeatureExtractor
                  code.StartsWith("internal ") || code.StartsWith("protected ") || code.StartsWith("switch") || code.StartsWith("using")))
             {
                 ctx.Hit(K.KAndRBraces, lineNo);
+            }
+        }
+    }
+
+    private static readonly HashSet<string> Misspellings = new(StringComparer.Ordinal)
+    {
+        "recieve", "recieved", "reciever", "seperate", "seperated", "occured", "occurence", "lenght", "adress", "adresses", "sucess", "succesful",
+        "successfull", "sucessful", "retrive", "retreive", "paramter", "paramters", "responce", "reponse", "neccessary", "necesary", "existance",
+        "calender", "comming", "begining", "untill", "wich", "teh", "acces", "accesible", "proccess", "proccessing", "procces", "aditional",
+        "additonal", "adition", "allready", "alredy", "arguement", "assigment", "atribute", "auth0rize", "beggining", "buisness", "bussiness",
+        "cancelation", "comparsion", "compatable", "completly", "conection", "consistant", "containg", "contructor", "convertion", "corect",
+        "curent", "currenty", "defualt", "definately", "dependancy", "dependancies", "desription", "destory", "diffrent", "dissable", "doesnt",
+        "dont", "enviroment", "eqauls", "exeption", "exeptions", "existant", "expection", "failded", "fucntion", "funtion", "garantee", "gurantee",
+        "hanlder", "heigth", "identifer", "immediatly", "implmentation", "implemenation", "independant", "infomation", "initalize", "initialise",
+        "intial", "intergration", "lenth", "maximun", "mesage", "messege", "occuring", "overriden", "paremeter", "perfomance", "permision",
+        "posible", "prefered", "privilage", "probaly", "propery", "proprety", "quantitiy", "recieves", "recursivly", "refered", "refernce",
+        "registred", "relevent", "remaing", "repositry", "requred", "resouce", "resourse", "respone", "responsse", "seach", "sendign", "sepcific",
+        "settigns", "similiar", "singelton", "specfic", "statment", "stauts", "strign", "succeded", "sucess", "suport", "temporay", "threshhold",
+        "transction", "trasaction", "udpate", "updat", "usefull", "usuall", "valdiate", "validaton", "valus", "verfiy", "wether", "whith", "writting",
+        "accout", "ammount", "amout", "cutomer", "custmer", "costumer", "oder", "ordes", "prodcut", "pruduct", "quanity", "quantiy", "summery",
+    };
+
+    private static void CheckTypos(Ctx ctx, string line, int lineNo)
+    {
+        foreach (Match m in IdentifierRegex().Matches(line))
+        {
+            foreach (Match part in CamelPartRegex().Matches(m.Value))
+            {
+                if (part.Value.Length >= 4 && Misspellings.Contains(part.Value.ToLowerInvariant()))
+                {
+                    ctx.Hit(K.Typos, lineNo);
+                    return;
+                }
             }
         }
     }
@@ -1037,7 +1072,8 @@ public static partial class CSharpFeatureExtractor
                     _s.AddExample(K.AsyncWithCt + ".missing", ctx.Path, ctx.LineOf(node.Identifier), ctx.LineText(ctx.LineOf(node.Identifier)));
                 }
 
-                if (name.EndsWith("Async", StringComparison.Ordinal))
+                bool isControllerAction = node.Parent is ClassDeclarationSyntax owner && owner.Identifier.Text.EndsWith("Controller", StringComparison.Ordinal);
+                if (name.EndsWith("Async", StringComparison.Ordinal) || isControllerAction)
                 {
                     _s.Add(K.AsyncSuffix);
                 }

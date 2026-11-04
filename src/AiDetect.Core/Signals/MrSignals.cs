@@ -1,0 +1,503 @@
+using System.Text.RegularExpressions;
+using AiDetect.Core.Analysis;
+using AiDetect.Core.Features;
+using AiDetect.Core.Model;
+using AiDetect.Core.Preprocessing;
+
+namespace AiDetect.Core.Signals;
+
+/// <summary>Сигналы уровня MR: прямые артефакты Claude Code, форма диффа, коммиты и ритм работы, описание MR.</summary>
+internal sealed partial class MrSignals(AnalysisContext ctx, SignalBuilder b)
+{
+    private readonly MergeRequestData _mr = ctx.Mr;
+
+    public void Evaluate()
+    {
+        if (!ctx.Options.IgnoreArtifacts)
+        {
+            Artifacts();
+        }
+
+        Shape();
+        Commits();
+        Speed();
+        Description();
+    }
+
+    // ------------------------------------------------------------------ прямые артефакты
+
+    [GeneratedRegex(@"Co-Authored-By:\s*Claude|noreply@anthropic\.com", RegexOptions.IgnoreCase)]
+    private static partial Regex CoAuthorRegex();
+
+    [GeneratedRegex(@"Generated with \[?Claude Code|🤖 Generated with|claude\.com/claude-code|claude\.ai/code(?!/session)", RegexOptions.IgnoreCase)]
+    private static partial Regex GeneratedRegex();
+
+    [GeneratedRegex(@"claude\.ai/code/session_[A-Za-z0-9]+|Claude-Session:", RegexOptions.IgnoreCase)]
+    private static partial Regex SessionRegex();
+
+    private void Artifacts()
+    {
+        var commitTexts = _mr.Commits.Select(c => (c, text: c.Message + "\n" + c.Title)).ToList();
+
+        var coAuthored = commitTexts.Where(x => CoAuthorRegex().IsMatch(x.text)).ToList();
+        if (coAuthored.Count > 0)
+        {
+            b.Add("art.coauthor", SignalGroup.Artifacts, "Трейлер Co-Authored-By: Claude в коммитах",
+                1, 1, 6.0, $"{coAuthored.Count} из {_mr.Commits.Count} коммитов",
+                coAuthored.Take(3).Select(x => new CodeExample("коммит " + Short(x.c.Sha), 0, FirstLineMatching(x.text, CoAuthorRegex()))).ToList());
+        }
+
+        var allText = _mr.Description + "\n" + string.Join("\n", commitTexts.Select(x => x.text));
+        var gen = GeneratedRegex().Match(allText);
+        if (gen.Success)
+        {
+            b.Add("art.generated", SignalGroup.Artifacts, "Подпись «Generated with Claude Code» в описании MR или коммитах",
+                1, 1, 6.0, "найдена подпись генерации", [new CodeExample("описание/коммиты", 0, LineAround(allText, gen.Index))]);
+        }
+
+        var session = SessionRegex().Match(allText);
+        if (session.Success)
+        {
+            b.Add("art.session", SignalGroup.Artifacts, "Ссылка на сессию claude.ai/code в описании или коммитах",
+                1, 1, 5.0, "ссылка на облачную сессию Claude Code", [new CodeExample("описание/коммиты", 0, LineAround(allText, session.Index))]);
+        }
+
+        var claudeAuthor = _mr.Commits.Where(c => c.AuthorName.Equals("Claude", StringComparison.OrdinalIgnoreCase) ||
+                                                  c.AuthorEmail.Contains("anthropic.com", StringComparison.OrdinalIgnoreCase)).ToList();
+        if (claudeAuthor.Count > 0)
+        {
+            b.Add("art.author", SignalGroup.Artifacts, "Автор коммитов — Claude",
+                1, 1, 5.0, $"{claudeAuthor.Count} коммитов с автором Claude", []);
+        }
+
+        var agentFilesInDiff = _mr.Changes.Where(c => IsAgentFile(c.Path)).Select(c => c.Path).ToList();
+        if (agentFilesInDiff.Count > 0)
+        {
+            b.Add("art.agentFilesInDiff", SignalGroup.Artifacts, "MR добавляет/меняет файлы агента: CLAUDE.md, .claude/",
+                1, 1, 3.5, string.Join(", ", agentFilesInDiff.Take(4)), []);
+        }
+        else if (_mr.Repository.AgentFilesAtHead.Count > 0)
+        {
+            b.Add("art.agentFilesInRepo", SignalGroup.Artifacts, "В репозитории есть инструкции для Claude Code (CLAUDE.md / .claude/) — агент в проекте используется",
+                1, 1, 1.2, string.Join(", ", _mr.Repository.AgentFilesAtHead.Take(4)), []);
+        }
+
+        var gitignore = _mr.Changes.FirstOrDefault(c => c.Path.EndsWith(".gitignore", StringComparison.Ordinal));
+        if (gitignore is not null && gitignore.Diff.Split('\n').Any(l => l.StartsWith('+') && l.Contains(".claude", StringComparison.OrdinalIgnoreCase)))
+        {
+            b.Add("art.gitignore", SignalGroup.Artifacts, "В .gitignore добавлен .claude",
+                1, 1, 1.5, ".gitignore", []);
+        }
+
+        if (_mr.SourceBranch.StartsWith("claude/", StringComparison.OrdinalIgnoreCase))
+        {
+            b.Add("art.branch", SignalGroup.Artifacts, "Ветка создана Claude Code (claude/...)",
+                1, 1, 3.0, _mr.SourceBranch, []);
+        }
+
+        bool summary = SummaryRegex().IsMatch(_mr.Description);
+        bool testPlan = TestPlanRegex().IsMatch(_mr.Description);
+        if (summary && testPlan)
+        {
+            b.Add("art.descTemplate", SignalGroup.Artifacts, "Описание MR по шаблону Claude Code: ## Summary + ## Test plan",
+                1, 1, 2.5, "разделы Summary и Test plan", []);
+        }
+    }
+
+    [GeneratedRegex(@"^#{1,3}\s*(Summary|Overview|Описание|Что сделано)\b", RegexOptions.Multiline | RegexOptions.IgnoreCase)]
+    private static partial Regex SummaryRegex();
+
+    [GeneratedRegex(@"^#{1,3}\s*(Test plan|Testing|How to test|Тестирование|Как проверить)\b", RegexOptions.Multiline | RegexOptions.IgnoreCase)]
+    private static partial Regex TestPlanRegex();
+
+    public static bool IsAgentFile(string path)
+    {
+        var p = path.Replace('\\', '/');
+        var file = Path.GetFileName(p);
+        return file.Equals("CLAUDE.md", StringComparison.OrdinalIgnoreCase) || file.Equals("CLAUDE.local.md", StringComparison.OrdinalIgnoreCase) ||
+               p.StartsWith(".claude/", StringComparison.Ordinal) || p.Contains("/.claude/", StringComparison.Ordinal) ||
+               file.Equals("AGENTS.md", StringComparison.OrdinalIgnoreCase) || p.StartsWith(".mcp.json", StringComparison.Ordinal);
+    }
+
+    // ------------------------------------------------------------------ форма MR
+
+    private static readonly Layer[] MeaningfulLayers =
+    [
+        Layer.Controller, Layer.Service, Layer.Handler, Layer.Repository, Layer.Domain, Layer.Contracts, Layer.DependencyInjection,
+        Layer.Validation, Layer.Options, Layer.Mapping, Layer.Middleware, Layer.Migration, Layer.Tests, Layer.Documentation,
+    ];
+
+    private void Shape()
+    {
+        var files = ctx.Files.Where(f => !f.IsDeleted).ToList();
+        var layers = files.Where(f => !f.Excluded || f.Layer == Layer.Migration).Select(f => f.Layer).Where(l => MeaningfulLayers.Contains(l))
+            .Distinct().ToList();
+        int prodLines = ctx.AddedProdLines;
+        int testLines = ctx.AddedTestLines;
+        if (prodLines + testLines < 30)
+        {
+            return;
+        }
+
+        b.Add("mr.layers", SignalGroup.MrShape,
+            layers.Count >= 4 ? "Связное изменение многих слоёв в одном MR" : "MR затрагивает мало слоёв",
+            SignalBuilder.Map(layers.Count, 1.5, 6), 1, 0.7,
+            $"{layers.Count} слоёв: {string.Join(", ", layers.Select(FileClassifier.LayerTitle))}", [], layers.Count);
+
+        if (prodLines >= 50)
+        {
+            if (testLines >= 20)
+            {
+                double ratio = (double)testLines / prodLines;
+                b.Add("mr.testsWithCode", SignalGroup.MrShape, "Тесты написаны в том же MR, что и код",
+                    1, 1, 0.7, $"+{testLines} строк тестов к +{prodLines} строкам кода", [], 1);
+                b.Add("mr.testRatio", SignalGroup.MrShape,
+                    ratio >= 0.5 ? "Большой объём тестов относительно кода" : "Тестов немного относительно кода",
+                    SignalBuilder.Map(ratio, 0.1, 0.9), 1, 0.5, $"соотношение тесты/код = {ratio:0.00}", [], ratio);
+            }
+            else
+            {
+                b.Add("mr.testsWithCode", SignalGroup.MrShape, "В MR нет тестов к новому коду",
+                    -0.35, 1, 0.7, $"+{prodLines} строк кода, тестов +{testLines}", [], 0);
+            }
+        }
+
+        var docs = files.Where(f => FileClassifier.IsMarkdown(f.Path) && !IsAgentFile(f.Path) && (f.IsNew || f.AddedLines >= 10)).ToList();
+        if (docs.Count > 0)
+        {
+            b.Add("mr.docs", SignalGroup.MrShape, "Markdown-документация как побочный продукт (новые/расширенные .md)",
+                1, 1, 1.0, string.Join(", ", docs.Select(d => $"{d.Path} (+{d.AddedLines})").Take(4)), [], docs.Count);
+        }
+
+        var cs = ctx.AnalyzedCs.ToList();
+        if (cs.Count >= 3)
+        {
+            double newShare = cs.Count(f => f.IsNew) / (double)cs.Count;
+            b.Add("mr.newFiles", SignalGroup.MrShape,
+                newShare >= 0.5 ? "Код в основном в новых файлах — написан целиком" : "В основном правки существующих файлов",
+                SignalBuilder.Map(newShare, 0.15, 0.85), SignalBuilder.Rel(cs.Count, 4), 0.3,
+                $"{cs.Count(f => f.IsNew)} новых из {cs.Count} C#-файлов", [], newShare);
+        }
+
+        // «Полная архитектура на маленькую задачу»: интерфейс + реализация + регистрация DI (+ options/валидатор).
+        var newNames = cs.Where(f => f.IsNew).Select(f => Path.GetFileNameWithoutExtension(f.Path)).ToHashSet(StringComparer.Ordinal);
+        int pairs = newNames.Count(n => n.Length > 1 && n[0] == 'I' && char.IsUpper(n[1]) && newNames.Contains(n[1..]));
+        bool di = cs.Any(f => f.Layer == Layer.DependencyInjection);
+        bool extras = cs.Any(f => f.Layer is Layer.Options or Layer.Validation);
+        if (pairs >= 1 && di)
+        {
+            double score = Math.Min(1, 0.5 + (0.25 * pairs) + (extras ? 0.25 : 0));
+            b.Add("mr.fullArchitecture", SignalGroup.MrShape,
+                "«Полная» архитектура: новый интерфейс + реализация + регистрация в DI" + (extras ? " + options/валидатор" : ""),
+                score, 1, 0.6, $"{pairs} пар интерфейс/реализация", [], pairs);
+        }
+
+        // Единообразие: признаки «ИИ-стиля» одинаково выражены во всех файлах (человек пишет неровно).
+        Uniformity(cs);
+    }
+
+    private void Uniformity(List<FileAnalysis> cs)
+    {
+        var perFile = new List<double>();
+        foreach (var f in cs.Where(f => f.Stats is not null && f.AddedLines >= 25 && !f.IsTest))
+        {
+            var s = f.Stats!;
+            var scores = new List<double>();
+            if (s[K.DocTargets] >= 2)
+            {
+                scores.Add(SignalBuilder.Map(s[K.DocTargetsDocumented] / s[K.DocTargets], 0.05, 0.85));
+            }
+
+            if (s[K.AsyncMethods] >= 2)
+            {
+                scores.Add(SignalBuilder.Map(s[K.AsyncWithCt] / s[K.AsyncMethods], 0.1, 0.85));
+            }
+
+            double nullChecks = s[K.NullPatternChecks] + s[K.NullEqualityChecks];
+            if (nullChecks >= 2)
+            {
+                scores.Add(SignalBuilder.Map(s[K.NullPatternChecks] / nullChecks, 0.15, 0.95));
+            }
+
+            double logs = s[K.LogTemplated] + s[K.LogInterpolated];
+            if (logs >= 2)
+            {
+                scores.Add(SignalBuilder.Map(s[K.LogTemplated] / logs, 0.2, 1.0));
+            }
+
+            if (s[K.CodeLines] >= 30)
+            {
+                double irregular = (s[K.TrailingWhitespace] + s[K.KeywordNoSpace] + s[K.OperatorNoSpace] + s[K.CommaNoSpace]) * 100 / s[K.CodeLines];
+                scores.Add(irregular <= 0.01 ? 0.5 : SignalBuilder.Map(irregular, 3, 0));
+            }
+
+            if (scores.Count >= 2)
+            {
+                perFile.Add(scores.Average());
+            }
+        }
+
+        if (perFile.Count < 3)
+        {
+            return;
+        }
+
+        double mean = perFile.Average();
+        double sd = Math.Sqrt(perFile.Average(v => (v - mean) * (v - mean)));
+        if (mean > 0.2 && sd < 0.3)
+        {
+            b.Add("mr.uniformity", SignalGroup.MrShape, "ИИ-признаки одинаково выражены во всех файлах MR (ровный стиль)",
+                Math.Min(1, mean * 1.5), SignalBuilder.Rel(perFile.Count, 3), 0.6,
+                $"{perFile.Count} файлов, средняя оценка {mean:0.00}, разброс {sd:0.00}", [], sd);
+        }
+        else if (sd >= 0.45)
+        {
+            b.Add("mr.uniformity", SignalGroup.MrShape, "Стиль сильно различается между файлами MR (неровно, как у человека)",
+                -0.6, SignalBuilder.Rel(perFile.Count, 3), 0.6, $"{perFile.Count} файлов, разброс оценок {sd:0.00}", [], sd);
+        }
+    }
+
+    // ------------------------------------------------------------------ коммиты
+
+    [GeneratedRegex(@"^(feat|fix|chore|refactor|test|tests|docs|perf|style|build|ci)(\([^)]+\))?!?:\s+\S", RegexOptions.IgnoreCase)]
+    private static partial Regex ConventionalRegex();
+
+    [GeneratedRegex(@"^(Add|Adds|Implement|Implements|Fix|Update|Refactor|Remove|Introduce|Create|Improve|Extract|Rename|Move|Support|Handle|Use|Replace|Ensure|Make|Allow|Enable|Prevent|Simplify|Expose|Wire|Register|Validate|Persist|Return|Convert|Migrate|Clean|Document)\s+\S+\s+\S+")]
+    private static partial Regex ImperativeRegex();
+
+    [GeneratedRegex(@"^(wip|fix|fixes|fixed|typo|typos|minor|review|cr|pr|tmp|test|temp|update|upd|changes|refactoring|правки|правка|фикс|исправ|доработ|мелк|поправ|ревью|код[ -]?ревью|merge)\b", RegexOptions.IgnoreCase)]
+    private static partial Regex FixupRegex();
+
+    [GeneratedRegex(@"^\s*[-*•]\s+\S", RegexOptions.Multiline)]
+    private static partial Regex BulletRegex();
+
+    [GeneratedRegex(@"[А-Яа-яЁё]")]
+    private static partial Regex CyrillicRegex();
+
+    private void Commits()
+    {
+        var commits = _mr.Commits.Where(c => !c.Title.StartsWith("Merge ", StringComparison.Ordinal)).ToList();
+        if (commits.Count == 0)
+        {
+            return;
+        }
+
+        var scores = new List<double>();
+        int fixups = 0;
+        var fixupTitles = new List<string>();
+        foreach (var c in commits)
+        {
+            var title = c.Title.Trim();
+            var body = BodyWithoutTrailers(c.Message, title);
+            double s = 0;
+            if (ConventionalRegex().IsMatch(title))
+            {
+                s += 0.5;
+            }
+            else if (ImperativeRegex().IsMatch(title))
+            {
+                s += 0.4;
+            }
+
+            int bullets = BulletRegex().Matches(body).Count;
+            if (bullets >= 2)
+            {
+                s += 0.6;
+            }
+            else if (body.Length >= 150)
+            {
+                s += 0.3;
+            }
+
+            bool fixup = FixupRegex().IsMatch(title) && title.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length <= 4 || title.Length < 8;
+            if (fixup)
+            {
+                s -= 0.9;
+                fixups++;
+                fixupTitles.Add(title);
+            }
+            else if (title.Length > 0 && char.IsLower(title[0]) && !ConventionalRegex().IsMatch(title))
+            {
+                s -= 0.4;
+            }
+
+            if (CyrillicRegex().IsMatch(title))
+            {
+                s -= 0.2;
+            }
+
+            scores.Add(Math.Clamp(s, -1, 1));
+        }
+
+        double avg = scores.Average();
+        var sample = commits.Take(3).Select(c => new CodeExample("коммит " + Short(c.Sha), 0, c.Title)).ToList();
+        b.Add("proc.commitStyle", SignalGroup.Process,
+            avg >= 0.2 ? "Сообщения коммитов «как по учебнику»: императив/Conventional Commits, тело со списком изменений" : "Сообщения коммитов короткие и неформальные",
+            Math.Clamp(avg * 1.3, -1, 1), SignalBuilder.Rel(commits.Count, 1.5), 0.8,
+            $"{commits.Count} коммитов, средняя оценка {avg:0.00}", sample, avg);
+
+        if (fixups > 0)
+        {
+            b.Add("proc.fixups", SignalGroup.Process, "Есть мелкие коммиты-доделки («fix», «typo», «правки»)",
+                -Math.Min(1, 0.4 + (0.3 * fixups)), 1, 0.6, string.Join("; ", fixupTitles.Take(4)), [], fixups);
+        }
+        else if (commits.Count >= 2)
+        {
+            b.Add("proc.fixups", SignalGroup.Process, "Нет коммитов-доделок: всё готово «с первого раза»",
+                0.3, 1, 0.6, $"{commits.Count} содержательных коммитов", [], 0);
+        }
+    }
+
+    private static string BodyWithoutTrailers(string message, string title)
+    {
+        var lines = message.Replace("\r", "").Split('\n').ToList();
+        if (lines.Count > 0 && lines[0].Trim() == title)
+        {
+            lines.RemoveAt(0);
+        }
+
+        return string.Join('\n', lines.Where(l => !TrailerRegex().IsMatch(l))).Trim();
+    }
+
+    [GeneratedRegex(@"^[A-Za-z-]+:\s+\S")]
+    private static partial Regex TrailerRegex();
+
+    // ------------------------------------------------------------------ скорость
+
+    private void Speed()
+    {
+        var commits = _mr.Commits
+            .Where(c => c.Additions is not null && (c.CommittedDate ?? c.AuthoredDate) is not null && !c.Title.StartsWith("Merge ", StringComparison.Ordinal))
+            .OrderBy(c => c.CommittedDate ?? c.AuthoredDate)
+            .ToList();
+        if (commits.Count < 2)
+        {
+            return;
+        }
+
+        double best = 0;
+        CommitInfo? bestCommit = null;
+        double bestGapMin = 0;
+        for (int i = 1; i < commits.Count; i++)
+        {
+            var prev = (commits[i - 1].CommittedDate ?? commits[i - 1].AuthoredDate)!.Value;
+            var cur = (commits[i].CommittedDate ?? commits[i].AuthoredDate)!.Value;
+            double gapH = (cur - prev).TotalHours;
+            int add = commits[i].Additions!.Value;
+            if (gapH < 2.0 / 60 || gapH > 8 || add < 40)
+            {
+                continue;
+            }
+
+            double rate = add / Math.Max(gapH, 0.25);
+            if (rate > best)
+            {
+                best = rate;
+                bestCommit = commits[i];
+                bestGapMin = gapH * 60;
+            }
+        }
+
+        if (bestCommit is null)
+        {
+            return;
+        }
+
+        b.Add("proc.speed", SignalGroup.Process,
+            best >= 250 ? "Очень высокая скорость: сотни строк кода за минуты между коммитами" : "Скорость написания кода в пределах человеческой нормы",
+            SignalBuilder.Map(best, 60, 450), SignalBuilder.Rel(commits.Count - 1, 1.5), 1.0,
+            $"коммит {Short(bestCommit.Sha)}: +{bestCommit.Additions} строк через {bestGapMin:0} мин после предыдущего (~{best:0} строк/час)", [], best);
+    }
+
+    // ------------------------------------------------------------------ описание MR
+
+    [GeneratedRegex(@"^#{1,4}\s+\S", RegexOptions.Multiline)]
+    private static partial Regex HeadingRegex();
+
+    [GeneratedRegex(@"^\s*[-*]\s+\[[ xX]\]", RegexOptions.Multiline)]
+    private static partial Regex CheckboxRegex();
+
+    private void Description()
+    {
+        var d = _mr.Description?.Trim() ?? "";
+        if (_mr.Title.Length == 0 && d.Length == 0)
+        {
+            return;
+        }
+
+        double s = 0;
+        var notes = new List<string>();
+        int headings = HeadingRegex().Matches(d).Count;
+        int bullets = BulletRegex().Matches(d).Count;
+        if (headings >= 2)
+        {
+            s += 0.45;
+            notes.Add($"{headings} заголовков");
+        }
+
+        if (bullets >= 3)
+        {
+            s += 0.3;
+            notes.Add($"{bullets} пунктов списка");
+        }
+
+        if (CheckboxRegex().IsMatch(d))
+        {
+            s += 0.15;
+            notes.Add("чекбоксы");
+        }
+
+        if (d.Contains("**", StringComparison.Ordinal) || d.Contains('`'))
+        {
+            s += 0.15;
+            notes.Add("markdown-разметка");
+        }
+
+        if (CSharpFeatureExtractor.ContainsEmoji(d))
+        {
+            s += 0.3;
+            notes.Add("эмодзи");
+        }
+
+        if (d.Length >= 500)
+        {
+            s += 0.15;
+            notes.Add($"{d.Length} символов");
+        }
+
+        if (d.Length < 60)
+        {
+            s -= 0.5;
+            notes.Add(d.Length == 0 ? "описание пустое" : "описание в одну строку");
+        }
+
+        if (CyrillicRegex().IsMatch(d) && headings < 2)
+        {
+            s -= 0.25;
+            notes.Add("на русском");
+        }
+
+        b.Add("proc.description", SignalGroup.Process,
+            s >= 0.3 ? "Описание MR структурировано как у агента (заголовки, списки, разметка)" : "Описание MR краткое, «человеческое»",
+            Math.Clamp(s, -1, 1), 1, 0.7, string.Join(", ", notes), [], s);
+    }
+
+    // ------------------------------------------------------------------ утилиты
+
+    private static string Short(string sha) => sha.Length > 8 ? sha[..8] : sha;
+
+    private static string FirstLineMatching(string text, Regex regex) =>
+        text.Split('\n').FirstOrDefault(l => regex.IsMatch(l))?.Trim() ?? "";
+
+    private static string LineAround(string text, int index)
+    {
+        int start = text.LastIndexOf('\n', Math.Max(0, index - 1)) + 1;
+        int end = text.IndexOf('\n', index);
+        if (end < 0)
+        {
+            end = text.Length;
+        }
+
+        return text[start..end].Trim();
+    }
+}
