@@ -112,3 +112,49 @@ public class AnalyzerTests
         Assert.True(growth.Evidence > 0.5);
     }
 }
+
+public class EdgeCaseTests
+{
+    [Fact]
+    public void MrWithoutCSharp_DoesNotCrash_AndWarnsAboutLittleCode()
+    {
+        var mr = new MergeRequestData { Title = "docs", HasMrMetadata = false };
+        mr.Changes.Add(new FileChange { OldPath = "README.md", NewPath = "README.md", Diff = "@@ -1,1 +1,2 @@\n a\n+b\n", NewContent = "a\nb\n" });
+
+        var report = new MergeRequestAnalyzer().Analyze(mr, new AnalyzerOptions { Parameters = new ModelParameters() });
+
+        Assert.InRange(report.Probability, 0, 1);
+        Assert.Contains(report.Warnings, w => w.Contains("Мало добавленного"));
+    }
+
+    [Fact]
+    public void MrWithOnlyDeletions_DoesNotCrash()
+    {
+        var mr = new MergeRequestData { Title = "cleanup" };
+        mr.Changes.Add(new FileChange { OldPath = "A.cs", NewPath = "A.cs", IsDeleted = true, Diff = "@@ -1,2 +0,0 @@\n-class A {}\n-\n" });
+
+        var report = new MergeRequestAnalyzer().Analyze(mr, new AnalyzerOptions { Parameters = new ModelParameters() });
+
+        Assert.Equal(0, report.FilesAnalyzed);
+    }
+
+    [Fact]
+    public void EmptyMr_DoesNotCrash()
+    {
+        var report = new MergeRequestAnalyzer().Analyze(new MergeRequestData(), new AnalyzerOptions { Parameters = new ModelParameters() });
+
+        Assert.InRange(report.Probability, 0, 1);
+    }
+
+    [Fact]
+    public void BrokenCSharp_IsStillAnalyzed()
+    {
+        var mr = new MergeRequestData();
+        const string code = "public class A { public void M( { var x = ; } ";
+        mr.Changes.Add(new FileChange { OldPath = "A.cs", NewPath = "A.cs", IsNew = true, NewContent = code, Diff = "@@ -0,0 +1,1 @@\n+" + code + "\n" });
+
+        var report = new MergeRequestAnalyzer().Analyze(mr, new AnalyzerOptions { Parameters = new ModelParameters() });
+
+        Assert.Equal(1, report.FilesAnalyzed);
+    }
+}
