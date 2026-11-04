@@ -1,0 +1,109 @@
+From 65375772fd617fc313da7d7aeb24007e575e7605 Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Wed, 30 Sep 2020 15:49:00 +0000
+Subject: [PATCH 2/2] Add tests for order search criteria and query builder
+
+---
+ .../Application/OrderSearchCriteriaTest.cs    | 90 +++++++++++++++++++
+ 1 file changed, 90 insertions(+)
+ create mode 100644 src/Services/Ordering/Ordering.UnitTests/Application/OrderSearchCriteriaTest.cs
+
+diff --git a/src/Services/Ordering/Ordering.UnitTests/Application/OrderSearchCriteriaTest.cs b/src/Services/Ordering/Ordering.UnitTests/Application/OrderSearchCriteriaTest.cs
+new file mode 100644
+index 00000000..4ae8c8e0
+--- /dev/null
++++ b/src/Services/Ordering/Ordering.UnitTests/Application/OrderSearchCriteriaTest.cs
+@@ -0,0 +1,90 @@
++using Microsoft.eShopOnContainers.Services.Ordering.API.Application.Queries;
++using System;
++using Xunit;
++
++namespace UnitTest.Ordering.Application
++{
++    public class OrderSearchCriteriaTest
++    {
++        [Fact]
++        public void Validate_DefaultCriteria_ReturnsNoErrors()
++        {
++            // Arrange
++            var criteria = new OrderSearchCriteria();
++
++            // Act
++            var errors = criteria.Validate();
++
++            // Assert
++            Assert.Empty(errors);
++        }
++
++        [Fact]
++        public void Validate_FromDateAfterToDate_ReturnsError()
++        {
++            // Arrange
++            var criteria = new OrderSearchCriteria { FromDate = new DateTime(2020, 9, 2), ToDate = new DateTime(2020, 9, 1) };
++
++            // Act
++            var errors = criteria.Validate();
++
++            // Assert
++            Assert.Contains(errors, e => e.Contains("FromDate"));
++        }
++
++        [Theory]
++        [InlineData(0)]
++        [InlineData(-5)]
++        [InlineData(OrderSearchCriteria.MaxPageSize + 1)]
++        public void Validate_InvalidPageSize_ReturnsError(int pageSize)
++        {
++            // Arrange
++            var criteria = new OrderSearchCriteria { PageSize = pageSize };
++
++            // Act
++            var errors = criteria.Validate();
++
++            // Assert
++            Assert.Single(errors);
++        }
++
++        [Fact]
++        public void Validate_UnsupportedSortField_ReturnsError()
++        {
++            var criteria = new OrderSearchCriteria { SortBy = "name; DROP TABLE orders" };
++
++            var errors = criteria.Validate();
++
++            Assert.Contains(errors, e => e.Contains("SortBy"));
++        }
++
++        [Fact]
++        public void Build_UnknownSortField_FallsBackToDateColumn()
++        {
++            // Arrange
++            var criteria = new OrderSearchCriteria { SortBy = "unknown", Descending = false };
++
++            // Act
++            var (sql, _, _) = OrderHistoryQueryBuilder.Build(Guid.NewGuid(), criteria);
++
++            // Assert
++            Assert.Contains("ORDER BY o.OrderDate ASC", sql);
++        }
++
++        [Fact]
++        public void Build_WithFilters_AddsParameters()
++        {
++            // Arrange
++            var criteria = new OrderSearchCriteria { Status = " Paid ", MinTotal = 10m, MaxTotal = 100m };
++
++            // Act
++            var (sql, countSql, parameters) = OrderHistoryQueryBuilder.Build(Guid.NewGuid(), criteria);
++
++            // Assert
++            Assert.Contains("os.Name = @status", sql);
++            Assert.Contains("HAVING", countSql);
++            Assert.Equal("paid", parameters.Get<string>("status"));
++            Assert.Equal(10m, parameters.Get<decimal>("minTotal"));
++        }
++    }
++}
+-- 
+2.43.0
+

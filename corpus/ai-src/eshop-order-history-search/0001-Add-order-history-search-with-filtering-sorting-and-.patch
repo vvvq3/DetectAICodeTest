@@ -1,0 +1,310 @@
+From 1c0ed2438fc0b4defd570382e8c30a320aba1328 Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Wed, 30 Sep 2020 15:40:00 +0000
+Subject: [PATCH 1/2] Add order history search with filtering, sorting and
+ paging
+
+- Add OrderSearchCriteria with validation
+- Build parameterized SQL in OrderHistoryQueryBuilder (sort columns are whitelisted)
+- Add SearchOrdersFromUserAsync to IOrderQueries
+- Expose GET api/v1/orders/search
+---
+ .../Application/Queries/IOrderQueries.cs      |  5 +-
+ .../Queries/OrderHistoryQueryBuilder.cs       | 93 +++++++++++++++++++
+ .../Application/Queries/OrderQueries.cs       | 22 ++++-
+ .../Queries/OrderSearchCriteria.cs            | 84 +++++++++++++++++
+ .../Controllers/OrdersController.cs           | 22 ++++-
+ 5 files changed, 223 insertions(+), 3 deletions(-)
+ create mode 100644 src/Services/Ordering/Ordering.API/Application/Queries/OrderHistoryQueryBuilder.cs
+ create mode 100644 src/Services/Ordering/Ordering.API/Application/Queries/OrderSearchCriteria.cs
+
+diff --git a/src/Services/Ordering/Ordering.API/Application/Queries/IOrderQueries.cs b/src/Services/Ordering/Ordering.API/Application/Queries/IOrderQueries.cs
+index 89cf496e..c8ef3e2f 100644
+--- a/src/Services/Ordering/Ordering.API/Application/Queries/IOrderQueries.cs
++++ b/src/Services/Ordering/Ordering.API/Application/Queries/IOrderQueries.cs
+@@ -1,7 +1,8 @@
+-﻿namespace Microsoft.eShopOnContainers.Services.Ordering.API.Application.Queries
++namespace Microsoft.eShopOnContainers.Services.Ordering.API.Application.Queries
+ {
+     using System;
+     using System.Collections.Generic;
++    using System.Threading;
+     using System.Threading.Tasks;
+ 
+     public interface IOrderQueries
+@@ -11,5 +12,7 @@
+         Task<IEnumerable<OrderSummary>> GetOrdersFromUserAsync(Guid userId);
+ 
+         Task<IEnumerable<CardType>> GetCardTypesAsync();
++
++        Task<OrderSearchResult> SearchOrdersFromUserAsync(Guid userId, OrderSearchCriteria criteria, CancellationToken cancellationToken = default);
+     }
+ }
+diff --git a/src/Services/Ordering/Ordering.API/Application/Queries/OrderHistoryQueryBuilder.cs b/src/Services/Ordering/Ordering.API/Application/Queries/OrderHistoryQueryBuilder.cs
+new file mode 100644
+index 00000000..3af88a1f
+--- /dev/null
++++ b/src/Services/Ordering/Ordering.API/Application/Queries/OrderHistoryQueryBuilder.cs
+@@ -0,0 +1,93 @@
++namespace Microsoft.eShopOnContainers.Services.Ordering.API.Application.Queries
++{
++    using Dapper;
++    using System;
++    using System.Collections.Generic;
++    using System.Text;
++
++    /// <summary>
++    /// Builds parameterized SQL for searching a buyer's order history.
++    /// </summary>
++    public static class OrderHistoryQueryBuilder
++    {
++        private static readonly IReadOnlyDictionary<string, string> SortColumns = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
++        {
++            ["date"] = "o.OrderDate",
++            ["total"] = "total",
++            ["status"] = "os.Name"
++        };
++
++        public static (string Sql, string CountSql, DynamicParameters Parameters) Build(Guid userId, OrderSearchCriteria criteria)
++        {
++            if (criteria is null)
++            {
++                throw new ArgumentNullException(nameof(criteria));
++            }
++
++            var parameters = new DynamicParameters();
++            parameters.Add("userId", userId);
++
++            var where = new StringBuilder("WHERE ob.IdentityGuid = @userId");
++
++            if (criteria.FromDate.HasValue)
++            {
++                where.Append(" AND o.OrderDate >= @fromDate");
++                parameters.Add("fromDate", criteria.FromDate.Value);
++            }
++
++            if (criteria.ToDate.HasValue)
++            {
++                where.Append(" AND o.OrderDate <= @toDate");
++                parameters.Add("toDate", criteria.ToDate.Value);
++            }
++
++            if (!string.IsNullOrWhiteSpace(criteria.Status))
++            {
++                where.Append(" AND os.Name = @status");
++                parameters.Add("status", criteria.Status.Trim().ToLowerInvariant());
++            }
++
++            var having = new List<string>();
++            if (criteria.MinTotal.HasValue)
++            {
++                having.Add("SUM(oi.units * oi.unitprice) >= @minTotal");
++                parameters.Add("minTotal", criteria.MinTotal.Value);
++            }
++
++            if (criteria.MaxTotal.HasValue)
++            {
++                having.Add("SUM(oi.units * oi.unitprice) <= @maxTotal");
++                parameters.Add("maxTotal", criteria.MaxTotal.Value);
++            }
++
++            var havingClause = having.Count > 0 ? "HAVING " + string.Join(" AND ", having) : string.Empty;
++            var sortColumn = SortColumns.TryGetValue(criteria.SortBy ?? "date", out var column) ? column : SortColumns["date"];
++            var direction = criteria.Descending ? "DESC" : "ASC";
++
++            parameters.Add("offset", criteria.PageIndex * criteria.PageSize);
++            parameters.Add("pageSize", criteria.PageSize);
++
++            const string baseQuery = @"FROM [ordering].[Orders] o
++                LEFT JOIN [ordering].[orderitems] oi ON o.Id = oi.orderid
++                LEFT JOIN [ordering].[orderstatus] os ON o.OrderStatusId = os.Id
++                LEFT JOIN [ordering].[buyers] ob ON o.BuyerId = ob.Id";
++
++            var sql = $@"SELECT o.[Id] AS ordernumber, o.[OrderDate] AS [date], os.[Name] AS [status], SUM(oi.units * oi.unitprice) AS total
++                {baseQuery}
++                {where}
++                GROUP BY o.[Id], o.[OrderDate], os.[Name]
++                {havingClause}
++                ORDER BY {sortColumn} {direction}, o.[Id] {direction}
++                OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY";
++
++            var countSql = $@"SELECT COUNT(*) FROM (
++                SELECT o.[Id]
++                {baseQuery}
++                {where}
++                GROUP BY o.[Id]
++                {havingClause}) AS filtered";
++
++            return (sql, countSql, parameters);
++        }
++    }
++}
+diff --git a/src/Services/Ordering/Ordering.API/Application/Queries/OrderQueries.cs b/src/Services/Ordering/Ordering.API/Application/Queries/OrderQueries.cs
+index 8509e10d..dae987a7 100644
+--- a/src/Services/Ordering/Ordering.API/Application/Queries/OrderQueries.cs
++++ b/src/Services/Ordering/Ordering.API/Application/Queries/OrderQueries.cs
+@@ -1,7 +1,8 @@
+-﻿namespace Microsoft.eShopOnContainers.Services.Ordering.API.Application.Queries
++namespace Microsoft.eShopOnContainers.Services.Ordering.API.Application.Queries
+ {
+     using Dapper;
+     using System.Data.SqlClient;
++    using System.Threading;
+     using System.Threading.Tasks;
+     using System;
+     using System.Collections.Generic;
+@@ -101,5 +102,24 @@
+ 
+             return order;
+         }
++
++        public async Task<OrderSearchResult> SearchOrdersFromUserAsync(Guid userId, OrderSearchCriteria criteria, CancellationToken cancellationToken = default)
++        {
++            var (sql, countSql, parameters) = OrderHistoryQueryBuilder.Build(userId, criteria);
++
++            using var connection = new SqlConnection(_connectionString);
++            await connection.OpenAsync(cancellationToken);
++
++            var items = await connection.QueryAsync<OrderSummary>(new CommandDefinition(sql, parameters, cancellationToken: cancellationToken));
++            var totalCount = await connection.ExecuteScalarAsync<int>(new CommandDefinition(countSql, parameters, cancellationToken: cancellationToken));
++
++            return new OrderSearchResult
++            {
++                Items = items.AsList(),
++                TotalCount = totalCount,
++                PageIndex = criteria.PageIndex,
++                PageSize = criteria.PageSize
++            };
++        }
+     }
+ }
+diff --git a/src/Services/Ordering/Ordering.API/Application/Queries/OrderSearchCriteria.cs b/src/Services/Ordering/Ordering.API/Application/Queries/OrderSearchCriteria.cs
+new file mode 100644
+index 00000000..6e3a1f23
+--- /dev/null
++++ b/src/Services/Ordering/Ordering.API/Application/Queries/OrderSearchCriteria.cs
+@@ -0,0 +1,84 @@
++namespace Microsoft.eShopOnContainers.Services.Ordering.API.Application.Queries
++{
++    using System;
++    using System.Collections.Generic;
++
++    /// <summary>
++    /// Filtering, sorting and paging options for searching a buyer's order history.
++    /// </summary>
++    public class OrderSearchCriteria
++    {
++        public const int MaxPageSize = 100;
++
++        private static readonly HashSet<string> AllowedSortFields = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
++        {
++            "date",
++            "total",
++            "status"
++        };
++
++        public DateTime? FromDate { get; set; }
++
++        public DateTime? ToDate { get; set; }
++
++        public string Status { get; set; }
++
++        public decimal? MinTotal { get; set; }
++
++        public decimal? MaxTotal { get; set; }
++
++        public string SortBy { get; set; } = "date";
++
++        public bool Descending { get; set; } = true;
++
++        public int PageIndex { get; set; }
++
++        public int PageSize { get; set; } = 20;
++
++        /// <summary>
++        /// Validates the criteria and returns the list of problems found, if any.
++        /// </summary>
++        public IReadOnlyList<string> Validate()
++        {
++            var errors = new List<string>();
++
++            if (FromDate.HasValue && ToDate.HasValue && FromDate > ToDate)
++            {
++                errors.Add("FromDate must be earlier than or equal to ToDate.");
++            }
++
++            if (MinTotal.HasValue && MaxTotal.HasValue && MinTotal > MaxTotal)
++            {
++                errors.Add("MinTotal must be less than or equal to MaxTotal.");
++            }
++
++            if (PageIndex < 0)
++            {
++                errors.Add("PageIndex must be non-negative.");
++            }
++
++            if (PageSize <= 0 || PageSize > MaxPageSize)
++            {
++                errors.Add($"PageSize must be between 1 and {MaxPageSize}.");
++            }
++
++            if (!string.IsNullOrWhiteSpace(SortBy) && !AllowedSortFields.Contains(SortBy))
++            {
++                errors.Add($"SortBy '{SortBy}' is not supported. Allowed values: {string.Join(", ", AllowedSortFields)}.");
++            }
++
++            return errors;
++        }
++    }
++
++    public class OrderSearchResult
++    {
++        public IReadOnlyList<OrderSummary> Items { get; set; }
++
++        public int TotalCount { get; set; }
++
++        public int PageIndex { get; set; }
++
++        public int PageSize { get; set; }
++    }
++}
+diff --git a/src/Services/Ordering/Ordering.API/Controllers/OrdersController.cs b/src/Services/Ordering/Ordering.API/Controllers/OrdersController.cs
+index 7a592bfb..49c4e010 100644
+--- a/src/Services/Ordering/Ordering.API/Controllers/OrdersController.cs
++++ b/src/Services/Ordering/Ordering.API/Controllers/OrdersController.cs
+@@ -1,4 +1,4 @@
+-﻿using MediatR;
++using MediatR;
+ using Microsoft.AspNetCore.Authorization;
+ using Microsoft.AspNetCore.Mvc;
+ using Microsoft.eShopOnContainers.BuildingBlocks.EventBus.Extensions;
+@@ -67,6 +67,26 @@ namespace Microsoft.eShopOnContainers.Services.Ordering.API.Controllers
+             return Ok();
+         }
+ 
++        [Route("search")]
++        [HttpGet]
++        [ProducesResponseType(typeof(OrderSearchResult), (int)HttpStatusCode.OK)]
++        [ProducesResponseType((int)HttpStatusCode.BadRequest)]
++        public async Task<ActionResult<OrderSearchResult>> SearchOrdersAsync([FromQuery] OrderSearchCriteria criteria, CancellationToken cancellationToken)
++        {
++            var errors = criteria.Validate();
++            if (errors.Count > 0)
++            {
++                return BadRequest(errors);
++            }
++
++            var userId = _identityService.GetUserIdentity();
++            var result = await _orderQueries.SearchOrdersFromUserAsync(Guid.Parse(userId), criteria, cancellationToken);
++
++            _logger.LogInformation("Order search for user {UserId} returned {Count} of {TotalCount} orders", userId, result.Items.Count, result.TotalCount);
++
++            return Ok(result);
++        }
++
+         [Route("ship")]
+         [HttpPut]
+         [ProducesResponseType((int)HttpStatusCode.OK)]
+-- 
+2.43.0
+

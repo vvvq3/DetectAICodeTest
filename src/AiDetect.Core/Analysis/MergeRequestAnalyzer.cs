@@ -65,7 +65,7 @@ public sealed class MergeRequestAnalyzer
             Logit = logit,
             ProbabilityWithoutArtifacts = Scorer.Probability(logitNoArtifacts, parameters),
             ArtifactsFound = artifacts,
-            Verdict = Scorer.Verdict(p),
+            Verdict = added < 30 && !artifacts ? "Недостаточно C#-кода для вывода" : Scorer.Verdict(p),
             Confidence = confidence,
             ConfidenceNote = note,
             Groups = groups,

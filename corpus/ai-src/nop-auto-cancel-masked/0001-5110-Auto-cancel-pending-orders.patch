@@ -1,0 +1,155 @@
+From f0e6cd38de1c16c8f1212a6ba8a9e1962632cfde Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Mon, 30 Nov 2020 18:30:00 +0000
+Subject: [PATCH] #5110 Auto cancel pending orders
+
+---
+ .../Nop.Core/Domain/Orders/OrderSettings.cs   |   5 +
+ .../Orders/AutoCancelPendingOrdersTask.cs     | 102 ++++++++++++++++++
+ .../Nop.Services/Orders/NopOrderDefaults.cs   |   5 +
+ 3 files changed, 112 insertions(+)
+ create mode 100644 src/Libraries/Nop.Services/Orders/AutoCancelPendingOrdersTask.cs
+
+diff --git a/src/Libraries/Nop.Core/Domain/Orders/OrderSettings.cs b/src/Libraries/Nop.Core/Domain/Orders/OrderSettings.cs
+index 7a6a661b44..8609142fde 100644
+--- a/src/Libraries/Nop.Core/Domain/Orders/OrderSettings.cs
++++ b/src/Libraries/Nop.Core/Domain/Orders/OrderSettings.cs
+@@ -167,5 +167,10 @@ namespace Nop.Core.Domain.Orders
+         /// Gets or sets a value indicating whether the gift card usage history have to delete when an order is cancelled
+         /// </summary>
+         public bool DeleteGiftCardUsageHistory { get; set; }
++
++        /// <summary>
++        /// Gets or sets the number of hours after which pending unpaid orders are cancelled automatically (0 to disable)
++        /// </summary>
++        public int AutoCancelPendingOrdersAfterHours { get; set; }
+     }
+ }
+\ No newline at end of file
+diff --git a/src/Libraries/Nop.Services/Orders/AutoCancelPendingOrdersTask.cs b/src/Libraries/Nop.Services/Orders/AutoCancelPendingOrdersTask.cs
+new file mode 100644
+index 0000000000..0c78c69525
+--- /dev/null
++++ b/src/Libraries/Nop.Services/Orders/AutoCancelPendingOrdersTask.cs
+@@ -0,0 +1,102 @@
++using System;
++using System.Linq;
++using Nop.Core.Domain.Orders;
++using Nop.Core.Domain.Payments;
++using Nop.Data;
++using Nop.Services.Common;
++using Nop.Services.Localization;
++using Nop.Services.Logging;
++using Nop.Services.Tasks;
++
++namespace Nop.Services.Orders
++{
++    /// <summary>
++    /// Represents a task to cancel pending orders that were not paid in time
++    /// </summary>
++    public partial class AutoCancelPendingOrdersTask : IScheduleTask
++    {
++        #region Fields
++
++        private readonly IGenericAttributeService _genericAttributeService;
++        private readonly ILocalizationService _localizationService;
++        private readonly ILogger _logger;
++        private readonly IOrderProcessingService _orderProcessingService;
++        private readonly IRepository<Order> _orderRepository;
++        private readonly OrderSettings _orderSettings;
++
++        #endregion
++
++        #region Ctor
++
++        public AutoCancelPendingOrdersTask(IGenericAttributeService genericAttributeService,
++            ILocalizationService localizationService,
++            ILogger logger,
++            IOrderProcessingService orderProcessingService,
++            IRepository<Order> orderRepository,
++            OrderSettings orderSettings)
++        {
++            _genericAttributeService = genericAttributeService;
++            _localizationService = localizationService;
++            _logger = logger;
++            _orderProcessingService = orderProcessingService;
++            _orderRepository = orderRepository;
++            _orderSettings = orderSettings;
++        }
++
++        #endregion
++
++        #region Utilities
++
++        /// <summary>
++        /// Gets pending unpaid orders created before the specified date
++        /// </summary>
++        /// <param name="createdBeforeUtc">Date</param>
++        /// <returns>Orders</returns>
++        protected virtual IQueryable<Order> GetExpiredPendingOrders(DateTime createdBeforeUtc)
++        {
++            return _orderRepository.Table.Where(o =>
++                !o.Deleted &&
++                o.OrderStatusId == (int)OrderStatus.Pending &&
++                o.PaymentStatusId == (int)PaymentStatus.Pending &&
++                o.CreatedOnUtc < createdBeforeUtc);
++        }
++
++        #endregion
++
++        #region Methods
++
++        /// <summary>
++        /// Executes a task
++        /// </summary>
++        public virtual void Execute()
++        {
++            //task is disabled
++            if (_orderSettings.AutoCancelPendingOrdersAfterHours <= 0)
++                return;
++
++            var createdBeforeUtc = DateTime.UtcNow.AddHours(-_orderSettings.AutoCancelPendingOrdersAfterHours);
++            var orders = GetExpiredPendingOrders(createdBeforeUtc).Take(500).ToList();
++
++            foreach (var order in orders)
++            {
++                //order could be paid by another process in the meantime
++                if (!_orderProcessingService.CanCancelOrder(order))
++                    continue;
++
++                try
++                {
++                    _orderProcessingService.CancelOrder(order, true);
++
++                    //save reason
++                    _genericAttributeService.SaveAttribute(order, NopOrderDefaults.AutoCancelledAttribute, true);
++                }
++                catch (Exception exc)
++                {
++                    _logger.Error(string.Format(_localizationService.GetResource("ScheduleTasks.AutoCancelPendingOrders.Error"), order.Id), exc);
++                }
++            }
++        }
++
++        #endregion
++    }
++}
+diff --git a/src/Libraries/Nop.Services/Orders/NopOrderDefaults.cs b/src/Libraries/Nop.Services/Orders/NopOrderDefaults.cs
+index 684ef7f4d1..c6fd60ddda 100644
+--- a/src/Libraries/Nop.Services/Orders/NopOrderDefaults.cs
++++ b/src/Libraries/Nop.Services/Orders/NopOrderDefaults.cs
+@@ -49,5 +49,10 @@ namespace Nop.Services.Orders
+         #endregion
+ 
+         #endregion
++
++        /// <summary>
++        /// Gets a name of the attribute to mark orders cancelled by the auto-cancel task
++        /// </summary>
++        public static string AutoCancelledAttribute => "AutoCancelled";
+     }
+ }
+\ No newline at end of file
+-- 
+2.43.0
+
