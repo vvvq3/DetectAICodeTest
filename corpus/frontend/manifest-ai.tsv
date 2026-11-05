@@ -9,6 +9,7 @@ fe-posthog-csv-export	ai-default	PostHog/posthog	51b291602e718e1bf213438f33a4cb7
 fe-reactadmin-copy-button	ai-default	marmelab/react-admin	58c2d77e0e3589c815966d303ca6fdb7e74cc4f4	Add CopyToClipboardButton component	opus
 fe-redash-duplicate-dashboard	ai-default	getredash/redash	dcdff66e6260517e954785bb34da47e565402f1a	Add Duplicate action to dashboard page	opus
 fe-vkui-rating	ai-default	VKCOM/VKUI	bfccc2015100836574aabe3cc55b42c3bb88c5a6	Rating: add star rating component	opus
+fe-gauzy-birthdays-masked	ai-masked	ever-co/ever-gauzy	a821fa463067c42899691bbfd93b91125a0ed92e	feat: upcoming birthdays widget on dashboard	opus
 fe-jitsi-ru-masked	ai-masked	jitsi/jitsi-meet	76b4899c3966b1c8c972e029169735ae9330edbb	таймер встречи: можно скрыть в настройках	opus
 fe-reactadmin-ru-masked	ai-masked	marmelab/react-admin	58c2d77e0e3589c815966d303ca6fdb7e74cc4f4	Добавил PhoneField для российских номеров	sonnet
 fe-ringui-copy-masked	ai-masked	JetBrains/ring-ui	c1a406fc0b7c04d18d82d999363a679a668c67d4	Add CopyButton component	sonnet

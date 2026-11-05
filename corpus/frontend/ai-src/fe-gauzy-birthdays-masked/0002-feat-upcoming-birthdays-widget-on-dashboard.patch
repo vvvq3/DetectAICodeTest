@@ -1,0 +1,223 @@
+From 3f91ecd871a733dcf0dfa2eec5b53e1a063fb2ef Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Thu, 5 Nov 2026 22:16:07 +0000
+Subject: [PATCH 2/2] feat: upcoming birthdays widget on dashboard
+
+---
+ .../accounting/accounting.component.html      |  2 +
+ .../app/pages/dashboard/dashboard.module.ts   |  4 +-
+ .../upcoming-birthdays.component.html         | 41 ++++++++++
+ .../upcoming-birthdays.component.ts           | 74 +++++++++++++++++++
+ .../upcoming-birthdays.module.ts              | 20 +++++
+ apps/gauzy/src/assets/i18n/en.json            |  7 ++
+ 6 files changed, 147 insertions(+), 1 deletion(-)
+ create mode 100644 apps/gauzy/src/app/pages/dashboard/upcoming-birthdays/upcoming-birthdays.component.html
+ create mode 100644 apps/gauzy/src/app/pages/dashboard/upcoming-birthdays/upcoming-birthdays.component.ts
+ create mode 100644 apps/gauzy/src/app/pages/dashboard/upcoming-birthdays/upcoming-birthdays.module.ts
+
+diff --git a/apps/gauzy/src/app/pages/dashboard/accounting/accounting.component.html b/apps/gauzy/src/app/pages/dashboard/accounting/accounting.component.html
+index 0830e1e387..65e415364f 100644
+--- a/apps/gauzy/src/app/pages/dashboard/accounting/accounting.component.html
++++ b/apps/gauzy/src/app/pages/dashboard/accounting/accounting.component.html
+@@ -123,3 +123,5 @@
+ 		</div>
+ 	</nb-card-body>
+ </nb-card>
++
++<ga-upcoming-birthdays></ga-upcoming-birthdays>
+diff --git a/apps/gauzy/src/app/pages/dashboard/dashboard.module.ts b/apps/gauzy/src/app/pages/dashboard/dashboard.module.ts
+index 88cf197d1d..560ffb927a 100644
+--- a/apps/gauzy/src/app/pages/dashboard/dashboard.module.ts
++++ b/apps/gauzy/src/app/pages/dashboard/dashboard.module.ts
+@@ -32,6 +32,7 @@ import { InfoBlockModule } from '../../@shared/dashboard/info-block/info-block.m
+ import { ProjectManagementComponent } from './project-management/project-management.component';
+ import { EmployeeChartsModule } from './human-resources/employee-charts/employee-charts.module';
+ import { TimeTrackingModule } from './time-tracking/time-tracking.module';
++import { UpcomingBirthdaysModule } from './upcoming-birthdays/upcoming-birthdays.module';
+ 
+ @NgModule({
+ 	imports: [
+@@ -63,7 +64,8 @@ import { TimeTrackingModule } from './time-tracking/time-tracking.module';
+ 		SingleStatisticModule,
+ 		InfoBlockModule,
+ 		NbRouteTabsetModule,
+-		TimeTrackingModule
++		TimeTrackingModule,
++		UpcomingBirthdaysModule
+ 	],
+ 	declarations: [
+ 		DashboardComponent,
+diff --git a/apps/gauzy/src/app/pages/dashboard/upcoming-birthdays/upcoming-birthdays.component.html b/apps/gauzy/src/app/pages/dashboard/upcoming-birthdays/upcoming-birthdays.component.html
+new file mode 100644
+index 0000000000..f4781ac1f6
+--- /dev/null
++++ b/apps/gauzy/src/app/pages/dashboard/upcoming-birthdays/upcoming-birthdays.component.html
+@@ -0,0 +1,41 @@
++<nb-card [nbSpinner]="loading" nbSpinnerSize="giant" nbSpinnerStatus="primary">
++	<nb-card-header>{{
++		'DASHBOARD_PAGE.UPCOMING_BIRTHDAYS.TITLE' | translate
++	}}</nb-card-header>
++	<ng-template [ngIf]="birthdays?.length > 0" [ngIfElse]="noBirthdays">
++		<nb-list>
++			<nb-list-item *ngFor="let birthday of birthdays">
++				<div class="w-100">
++					<div class="row align-items-center">
++						<div class="col">
++							<ngx-avatar
++								[name]="birthday.employee?.user?.name"
++								[src]="birthday.employee?.user?.imageUrl"
++								[caption]="birthday.date | date: 'MMMM d'"
++							></ngx-avatar>
++						</div>
++						<div class="col-auto">
++							<span *ngIf="birthday.daysLeft === 0">{{
++								'DASHBOARD_PAGE.UPCOMING_BIRTHDAYS.TODAY'
++									| translate
++							}}</span>
++							<span *ngIf="birthday.daysLeft === 1">{{
++								'DASHBOARD_PAGE.UPCOMING_BIRTHDAYS.TOMORROW'
++									| translate
++							}}</span>
++							<span *ngIf="birthday.daysLeft > 1">{{
++								'DASHBOARD_PAGE.UPCOMING_BIRTHDAYS.DAYS_LEFT'
++									| translate: { days: birthday.daysLeft }
++							}}</span>
++						</div>
++					</div>
++				</div>
++			</nb-list-item>
++		</nb-list>
++	</ng-template>
++	<ng-template #noBirthdays>
++		<div class="text-center p-3" *ngIf="!loading">
++			{{ 'DASHBOARD_PAGE.UPCOMING_BIRTHDAYS.NO_BIRTHDAYS' | translate }}
++		</div>
++	</ng-template>
++</nb-card>
+diff --git a/apps/gauzy/src/app/pages/dashboard/upcoming-birthdays/upcoming-birthdays.component.ts b/apps/gauzy/src/app/pages/dashboard/upcoming-birthdays/upcoming-birthdays.component.ts
+new file mode 100644
+index 0000000000..7a6053c09b
+--- /dev/null
++++ b/apps/gauzy/src/app/pages/dashboard/upcoming-birthdays/upcoming-birthdays.component.ts
+@@ -0,0 +1,74 @@
++import { Component, OnDestroy, OnInit } from '@angular/core';
++import { IEmployee, IOrganization } from '@gauzy/models';
++import { UntilDestroy, untilDestroyed } from '@ngneat/until-destroy';
++import { filter, first } from 'rxjs/operators';
++import * as moment from 'moment';
++import { EmployeesService } from '../../../@core/services/employees.service';
++import { Store } from '../../../@core/services/store.service';
++
++@UntilDestroy({ checkProperties: true })
++@Component({
++	selector: 'ga-upcoming-birthdays',
++	templateUrl: './upcoming-birthdays.component.html'
++})
++export class UpcomingBirthdaysComponent implements OnInit, OnDestroy {
++	birthdays: { employee: IEmployee; date: Date; daysLeft: number }[] = [];
++	organization: IOrganization;
++	loading = true;
++
++	constructor(
++		private store: Store,
++		private employeesService: EmployeesService
++	) {}
++
++	ngOnInit() {
++		this.store.selectedOrganization$
++			.pipe(
++				filter((organization) => !!organization),
++				untilDestroyed(this)
++			)
++			.subscribe((organization) => {
++				this.organization = organization;
++				this.getBirthdays();
++			});
++	}
++
++	getBirthdays() {
++		const { id: organizationId, tenantId } = this.organization;
++		this.loading = true;
++		this.employeesService
++			.getAll(['user'], {
++				organization: { id: organizationId },
++				tenantId
++			})
++			.pipe(first())
++			.toPromise()
++			.then(({ items }) => {
++				const today = moment().startOf('day');
++				this.birthdays = items
++					.filter(
++						(employee) => employee.isActive && employee.dateOfBirth
++					)
++					.map((employee) => {
++						const date = moment(employee.dateOfBirth)
++							.year(today.year())
++							.startOf('day');
++						if (date.isBefore(today)) {
++							date.add(1, 'year');
++						}
++						return {
++							employee,
++							date: date.toDate(),
++							daysLeft: date.diff(today, 'days')
++						};
++					})
++					.filter((birthday) => birthday.daysLeft <= 30)
++					.sort((a, b) => a.daysLeft - b.daysLeft);
++			})
++			.finally(() => {
++				this.loading = false;
++			});
++	}
++
++	ngOnDestroy() {}
++}
+diff --git a/apps/gauzy/src/app/pages/dashboard/upcoming-birthdays/upcoming-birthdays.module.ts b/apps/gauzy/src/app/pages/dashboard/upcoming-birthdays/upcoming-birthdays.module.ts
+new file mode 100644
+index 0000000000..0e4cf17560
+--- /dev/null
++++ b/apps/gauzy/src/app/pages/dashboard/upcoming-birthdays/upcoming-birthdays.module.ts
+@@ -0,0 +1,20 @@
++import { NgModule } from '@angular/core';
++import { CommonModule } from '@angular/common';
++import { NbCardModule, NbListModule, NbSpinnerModule } from '@nebular/theme';
++import { TranslateModule } from '@ngx-translate/core';
++import { SharedModule } from '../../../@shared/shared.module';
++import { UpcomingBirthdaysComponent } from './upcoming-birthdays.component';
++
++@NgModule({
++	imports: [
++		CommonModule,
++		SharedModule,
++		NbCardModule,
++		NbListModule,
++		NbSpinnerModule,
++		TranslateModule
++	],
++	declarations: [UpcomingBirthdaysComponent],
++	exports: [UpcomingBirthdaysComponent]
++})
++export class UpcomingBirthdaysModule {}
+diff --git a/apps/gauzy/src/assets/i18n/en.json b/apps/gauzy/src/assets/i18n/en.json
+index 242420d812..d93c31df91 100644
+--- a/apps/gauzy/src/assets/i18n/en.json
++++ b/apps/gauzy/src/assets/i18n/en.json
+@@ -816,6 +816,13 @@
+ 			"NOTE": "Note: negative bonuses should be deducted in the upcoming months from the positive bonuses before final bonus payments",
+ 			"BONUS": "Bonus"
+ 		},
++		"UPCOMING_BIRTHDAYS": {
++			"TITLE": "Upcoming Birthdays",
++			"TODAY": "Today",
++			"TOMORROW": "Tomorrow",
++			"DAYS_LEFT": "{{ days }} days left",
++			"NO_BIRTHDAYS": "No birthdays in the next 30 days"
++		},
+ 		"ADD_INCOME": "Add New Income Entry",
+ 		"ADD_EXPENSE": "Add New Expense Entry",
+ 		"RECURRING_EXPENSES": "Recurring Expenses",
+-- 
+2.43.0
+
