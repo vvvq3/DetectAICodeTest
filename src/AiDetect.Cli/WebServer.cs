@@ -151,6 +151,7 @@ public static class WebServer
                <div class="card busy" id="busy"><div class="spinner"></div><div><b>Анализирую MR…</b> <span id="elapsed" class="muted"></span><div class="muted" id="busyUrl" style="word-break:break-all"></div><div class="muted" style="font-size:13px">Загружаю MR, коммиты и файлы из GitLab, затем разбираю код. Обычно это занимает от нескольких секунд до минуты.</div></div></div>
                <div class="card" id="histCard" style="display:none"><div class="muted" style="margin-bottom:6px">Проверено в этой сессии (нажмите, чтобы открыть отчёт):</div><ul class="hist" id="hist"></ul></div>
                <div id="result"></div>
+               <div class="muted" style="font-size:12px;text-align:center;margin-top:24px">Детектор ИИ-кода, версия {{HtmlReportWriter.AppVersion}}</div>
                """ +
                "<script>" + Script + "</script></main></body></html>";
     }

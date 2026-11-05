@@ -15,6 +15,7 @@ public sealed class CliOptions
     public bool NoColor { get; private set; }
     public bool NoArtifacts { get; private set; }
     public bool Help { get; private set; }
+    public bool ShowVersion { get; private set; }
     public string? HtmlPath { get; private set; }
     public string? SavePath { get; private set; }
     public string? LoadPath { get; private set; }
@@ -52,6 +53,9 @@ public sealed class CliOptions
             {
                 case "-h" or "--help" or "help":
                     o.Help = true;
+                    break;
+                case "--version" or "version":
+                    o.ShowVersion = true;
                     break;
                 case "--token":
                     o.Token = Next();
@@ -177,6 +181,7 @@ public sealed class CliOptions
           --weights <файл>    свои веса модели (после calibrate)
           --verbose, -v       показать все сработавшие признаки
           --no-color          без цветов
+          --version           версия программы
 
         Пример:
           export GITLAB_TOKEN=glpat-xxxxxxxx

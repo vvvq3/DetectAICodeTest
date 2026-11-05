@@ -113,7 +113,7 @@ public static class HtmlReportWriter
             sb.Append("<br>Исключены: ").Append(E(string.Join("; ", r.ExcludedFiles.Take(8))));
         }
 
-        sb.Append("<br>Оценка вероятностная и не является доказательством авторства.</div>");
+        sb.Append("<br>Оценка вероятностная и не является доказательством авторства. Детектор ИИ-кода, версия ").Append(E(AppVersion)).Append(".</div>");
         foreach (var w in r.Warnings)
         {
             sb.Append("<div class=\"card warn\">⚠ ").Append(E(w)).Append("</div>");
@@ -153,4 +153,9 @@ public static class HtmlReportWriter
     }
 
     public static string E(string? s) => WebUtility.HtmlEncode(s ?? "");
+
+    /// <summary>Версия программы (из Directory.Build.props), без суффикса сборки.</summary>
+    public static string AppVersion { get; } =
+        (System.Reflection.CustomAttributeExtensions.GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>(typeof(HtmlReportWriter).Assembly)
+            ?.InformationalVersion ?? "1.0.0").Split('+')[0];
 }

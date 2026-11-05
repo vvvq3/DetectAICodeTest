@@ -7,6 +7,12 @@ using AiDetect.Core.Sources;
 
 Console.OutputEncoding = Encoding.UTF8;
 var opts = CliOptions.Parse(args);
+if (opts.ShowVersion)
+{
+    Console.WriteLine($"aidetect {HtmlReportWriter.AppVersion} — детектор ИИ-кода (C#) в мердж-реквестах GitLab");
+    return 0;
+}
+
 if (opts.Help || (opts.Command is "analyze" or "fetch" or "batch" && opts.Target is null && opts.LoadPath is null && opts.GitRepo is null))
 {
     Console.WriteLine(CliOptions.HelpText);
