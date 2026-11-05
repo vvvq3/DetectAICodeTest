@@ -22,6 +22,7 @@ public static class HtmlReportWriter
         code,pre{font:13px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace}pre{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:6px 10px;margin:6px 0 0;white-space:pre-wrap;word-break:break-word}
         table{border-collapse:collapse;width:100%}td{padding:5px 6px;border-top:1px solid var(--line);vertical-align:middle}td.v{text-align:right;width:60px}
         .gbar{height:8px;border-radius:4px}.warn{background:var(--ai-bg);border-color:transparent}
+        .stack{margin-top:8px;display:flex;flex-wrap:wrap;gap:4px;align-items:center}.stack .badge{margin-left:0}.badge.lang{background:var(--accent);color:#fff}
         form{display:flex;gap:8px;flex-wrap:wrap}input[type=text],input[type=password]{flex:1;min-width:240px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--text);font-size:15px}
         button{padding:10px 18px;border:0;border-radius:8px;background:var(--accent);color:#fff;font-size:15px;cursor:pointer}label{font-size:13px}
         """;
@@ -50,7 +51,28 @@ public static class HtmlReportWriter
 
         sb.Append("<div class=\"card\"><h1>").Append(E(r.Title)).Append("</h1>");
         sb.Append("<div class=\"muted\">").Append(E(r.Source)).Append("</div>");
-        sb.Append("<div class=\"muted\">").Append(E($"автор: {r.Author} · ветка: {r.SourceBranch} · коммитов: {r.Commits}")).Append("</div></div>");
+        sb.Append("<div class=\"muted\">").Append(E($"автор: {r.Author} · ветка: {r.SourceBranch} · коммитов: {r.Commits}")).Append("</div>");
+        if (!string.IsNullOrEmpty(r.LanguageTitle) || !string.IsNullOrEmpty(r.Stack))
+        {
+            sb.Append("<div class=\"stack\">");
+            if (!string.IsNullOrEmpty(r.LanguageTitle))
+            {
+                sb.Append("<span class=\"badge lang\">").Append(E(r.LanguageTitle)).Append(r.LanguageAuto ? " · авто" : "").Append("</span>");
+            }
+
+            if (!string.IsNullOrEmpty(r.Stack))
+            {
+                sb.Append("<span class=\"muted\">Стек:</span> ");
+                foreach (var item in r.Stack.Split(" · "))
+                {
+                    sb.Append("<span class=\"badge\">").Append(E(item)).Append("</span>");
+                }
+            }
+
+            sb.Append("</div>");
+        }
+
+        sb.Append("</div>");
 
         sb.Append("<div class=\"card\"><div class=\"score\"><div class=\"pct ").Append(cls).Append("\">").Append(pct).Append("%</div><div style=\"flex:1\">");
         sb.Append("<div>Вероятность, что код написан <b>Claude Code</b></div>");
@@ -70,8 +92,8 @@ public static class HtmlReportWriter
 
         sb.Append("</div>");
 
-        AppendSignals(sb, "Главные признаки ИИ", r.TopAiSignals(10), "c-ai");
-        AppendSignals(sb, "Признаки человека", r.TopHumanSignals(8), "c-human");
+        AppendSignals(sb, r, "Главные признаки ИИ", r.TopAiSignals(10), "c-ai");
+        AppendSignals(sb, r, "Признаки человека", r.TopHumanSignals(8), "c-human");
 
         if (r.FileScores.Count >= 2)
         {
@@ -93,7 +115,7 @@ public static class HtmlReportWriter
         {
             int w = (int)Math.Round(Math.Abs(g.Capped) / max * 100);
             string color = g.Capped > 0 ? "var(--ai)" : "var(--human)";
-            sb.Append("<tr><td>").Append(E(GroupInfo.Title(g.Group)));
+            sb.Append("<tr><td>").Append(E(r.GroupTitle(g.Group)));
             if (GroupInfo.IsMimicryResistant(g.Group))
             {
                 sb.Append("<span class=\"badge\">устойчив к маскировке</span>");
@@ -105,7 +127,7 @@ public static class HtmlReportWriter
 
         sb.Append("</table></div>");
 
-        sb.Append("<div class=\"card muted\">Проанализировано: ").Append(r.FilesAnalyzed).Append(" C#-файлов из ").Append(r.FilesChanged)
+        sb.Append("<div class=\"card muted\">Проанализировано: ").Append(r.FilesAnalyzed).Append(' ').Append(E(string.IsNullOrEmpty(r.CodeNoun) ? "C#" : r.CodeNoun)).Append("-файлов из ").Append(r.FilesChanged)
             .Append(" изменённых; +").Append(r.AddedCodeLines).Append(" строк кода, +").Append(r.AddedTestLines).Append(" строк тестов; база проекта: ")
             .Append(r.BaselineFiles).Append(" файлов.");
         if (r.ExcludedFiles.Count > 0)
@@ -122,7 +144,7 @@ public static class HtmlReportWriter
         return sb.ToString();
     }
 
-    private static void AppendSignals(StringBuilder sb, string title, IEnumerable<SignalResult> signals, string cls)
+    private static void AppendSignals(StringBuilder sb, AnalysisReport r, string title, IEnumerable<SignalResult> signals, string cls)
     {
         var list = signals.ToList();
         if (list.Count == 0)
@@ -134,7 +156,7 @@ public static class HtmlReportWriter
         foreach (var s in list)
         {
             sb.Append("<div class=\"sig\"><span class=\"num ").Append(cls).Append("\">").Append(s.Contribution.ToString("+0.0;-0.0")).Append("</span> <span class=\"t\">")
-                .Append(E(s.Title)).Append("</span><span class=\"badge\">").Append(E(GroupInfo.Title(s.Group))).Append("</span>");
+                .Append(E(s.Title)).Append("</span><span class=\"badge\">").Append(E(r.GroupTitle(s.Group))).Append("</span>");
             if (!string.IsNullOrEmpty(s.Detail))
             {
                 sb.Append("<div class=\"muted\">").Append(E(s.Detail)).Append("</div>");

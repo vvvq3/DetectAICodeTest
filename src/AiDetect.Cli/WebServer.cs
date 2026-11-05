@@ -11,7 +11,7 @@ using Microsoft.Extensions.Logging;
 namespace AiDetect.Cli;
 
 /// <summary>
-/// Локальный веб-интерфейс: одна страница с полем для ссылки на MR. Слушает только 127.0.0.1.
+/// Локальный веб-интерфейс: одна страница с полем для ссылки на MR и выбором языка (C#, JS/TS, авто). Слушает только 127.0.0.1.
 /// Анализ запускается фоновым запросом, поэтому токен и галочка остаются на странице между проверками.
 /// </summary>
 public static class WebServer
@@ -41,13 +41,15 @@ public static class WebServer
 
         string? allowedHost = NormalizeHost(o.GitLabHost);
         bool serverHasToken = !string.IsNullOrEmpty(o.Token);
-        app.MapGet("/", () => Results.Content(Page(serverHasToken), "text/html; charset=utf-8"));
+        string defaultLanguage = AppLanguages.Registry.Find(o.Language)?.Id ?? Core.Languages.LanguageRegistry.Auto;
+        app.MapGet("/", () => Results.Content(Page(serverHasToken, defaultLanguage), "text/html; charset=utf-8"));
         app.MapPost("/api/analyze", async (HttpContext http) =>
         {
             var form = await http.Request.ReadFormAsync();
             string url = form["url"].ToString().Trim();
             string? token = form["token"].ToString().Trim() is { Length: > 0 } t ? t : o.Token;
             bool noArtifacts = form["noArtifacts"].ToString() == "on";
+            string lang = form["lang"].ToString().Trim() is { Length: > 0 } l ? l : o.Language;
             if (allowedHost is not null && NormalizeHost(url) != allowedHost)
             {
                 return Results.Text($"Здесь можно проверять только MR с {allowedHost}.", "text/plain; charset=utf-8", statusCode: StatusCodes.Status400BadRequest);
@@ -59,12 +61,14 @@ public static class WebServer
                 var data = await source.LoadAsync(http.RequestAborted);
                 var options = o.ToAnalyzerOptions();
                 options.IgnoreArtifacts = noArtifacts;
+                options.Language = lang;
                 var report = new MergeRequestAnalyzer(AppLanguages.Registry).Analyze(data, options);
 
                 // Краткие сведения для списка проверенных MR (кириллица — в URL-кодировке).
                 http.Response.Headers["X-Probability"] = Math.Round(report.Probability * 100).ToString(CultureInfo.InvariantCulture);
                 http.Response.Headers["X-Verdict"] = Uri.EscapeDataString(report.Verdict);
                 http.Response.Headers["X-Title"] = Uri.EscapeDataString(report.Title);
+                http.Response.Headers["X-Language"] = Uri.EscapeDataString(report.CodeNoun);
                 return Results.Content(HtmlReportWriter.RenderBody(report), "text/html; charset=utf-8");
             }
             catch (Exception ex) when (ex is not OperationCanceledException || !http.RequestAborted.IsCancellationRequested)
@@ -126,19 +130,27 @@ public static class WebServer
         .hist .p{min-width:44px;font-weight:700;font-variant-numeric:tabular-nums}
         .hist .u{color:var(--muted);font-size:13px;word-break:break-all}
         .tokenok{font-size:13px;color:var(--human)}
+        select{padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--text);font-size:15px}
+        .hist .lg{font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:8px;padding:0 6px;white-space:nowrap}
         """;
 
-    private static string Page(bool serverHasToken)
+    private static string Page(bool serverHasToken, string defaultLanguage)
     {
         string tokenPlaceholder = serverHasToken ? "токен уже задан через GITLAB_TOKEN" : "GitLab токен (read_api), вводится один раз";
+        var languages = AppLanguages.Registry.Languages;
+        string Option(string value, string title) =>
+            $"<option value=\"{HtmlReportWriter.E(value)}\"{(value == defaultLanguage ? " selected" : "")}>{HtmlReportWriter.E(title)}</option>";
+        string langOptions = string.Concat(languages.Select(l => Option(l.Id, l.Title))) + Option(Core.Languages.LanguageRegistry.Auto, "Авто (по файлам MR)");
+        string langNames = string.Join(", ", languages.Select(l => l.Title));
         return "<!doctype html><html lang=\"ru\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">" +
                "<title>Детектор ИИ-кода</title><style>" + HtmlReportWriter.Styles + ExtraStyles + "</style></head><body><main>" +
                $$"""
-               <div class="card"><h1>Детектор ИИ-кода в C# MR</h1>
-               <div class="muted" style="margin-bottom:10px">Вставьте ссылку на мердж-реквест GitLab и нажмите «Проверить». Токен и настройки сохраняются, пока открыта вкладка. Анализ выполняется локально, код никуда не отправляется.</div>
+               <div class="card"><h1>Детектор ИИ-кода в мердж-реквестах</h1>
+               <div class="muted" style="margin-bottom:10px">Вставьте ссылку на мердж-реквест GitLab, выберите язык и нажмите «Проверить». Языки: {{langNames}}. Токен и настройки сохраняются, пока открыта вкладка. Анализ выполняется локально, код никуда не отправляется.</div>
                <form id="f" autocomplete="off">
                  <div class="row">
                    <input type="text" id="url" name="url" placeholder="https://gitlab.company.com/group/project/-/merge_requests/123" required autofocus style="flex:3 1 420px">
+                   <select id="lang" name="lang" title="Язык кода в MR">{{langOptions}}</select>
                    <input type="password" id="token" name="token" placeholder="{{tokenPlaceholder}}" style="flex:1 1 200px;max-width:280px" autocomplete="off">
                    <button type="submit" id="go">Проверить</button>
                  </div>
@@ -159,7 +171,7 @@ public static class WebServer
     private const string Script = """
         (() => {
           const $ = id => document.getElementById(id);
-          const form = $('f'), url = $('url'), token = $('token'), cb = $('noArtifacts'), go = $('go');
+          const form = $('f'), url = $('url'), token = $('token'), cb = $('noArtifacts'), go = $('go'), lang = $('lang');
           const busy = $('busy'), elapsed = $('elapsed'), result = $('result'), hist = $('hist'), histCard = $('histCard');
           const history = [];
           const store = (kind, key, value) => { try { kind.setItem(key, value); } catch (e) { } };
@@ -174,6 +186,10 @@ public static class WebServer
           showTokenState();
           token.addEventListener('input', () => { store(sessionStorage, 'aidetect.token', token.value.trim()); showTokenState(); });
           cb.addEventListener('change', () => store(localStorage, 'aidetect.noArtifacts', cb.checked ? '1' : '0'));
+          // Выбранный язык запоминается между открытиями страницы.
+          const savedLang = load(localStorage, 'aidetect.lang');
+          if (savedLang && [...lang.options].some(o => o.value === savedLang)) lang.value = savedLang;
+          lang.addEventListener('change', () => store(localStorage, 'aidetect.lang', lang.value));
 
           let timer = null;
           const setBusy = (on, mr) => {
@@ -194,7 +210,7 @@ public static class WebServer
             histCard.style.display = history.length ? '' : 'none';
             hist.innerHTML = history.map((h, i) =>
               `<li data-i="${i}" class="${i === active ? 'active' : ''}"><span class="p" style="color:${h.p >= 65 ? 'var(--ai)' : h.p > 35 ? 'var(--mid)' : 'var(--human)'}">${h.p}%</span>` +
-              `<span><span class="t">${esc(h.title || h.url)}</span> <span class="muted">— ${esc(h.verdict)}</span><div class="u">${esc(h.url)}</div></span></li>`).join('');
+              `<span><span class="t">${esc(h.title || h.url)}</span> <span class="lg">${esc(h.lang || '')}</span> <span class="muted">— ${esc(h.verdict)}</span><div class="u">${esc(h.url)}</div></span></li>`).join('');
           };
           hist.addEventListener('click', e => {
             const li = e.target.closest('li');
@@ -210,12 +226,12 @@ public static class WebServer
             if (!mr || go.disabled) return;
             setBusy(true, mr);
             try {
-              const body = new URLSearchParams({ url: mr, token: token.value.trim(), noArtifacts: cb.checked ? 'on' : '' });
+              const body = new URLSearchParams({ url: mr, token: token.value.trim(), noArtifacts: cb.checked ? 'on' : '', lang: lang.value });
               const resp = await fetch('/api/analyze', { method: 'POST', body });
               const text = await resp.text();
               if (resp.ok) {
                 result.innerHTML = text;
-                history.unshift({ url: mr, html: text, p: Number(resp.headers.get('X-Probability')), verdict: dec(resp.headers.get('X-Verdict')), title: dec(resp.headers.get('X-Title')) });
+                history.unshift({ url: mr, html: text, p: Number(resp.headers.get('X-Probability')), verdict: dec(resp.headers.get('X-Verdict')), title: dec(resp.headers.get('X-Title')), lang: dec(resp.headers.get('X-Language')) });
                 renderHistory(0);
                 url.value = '';
               } else {

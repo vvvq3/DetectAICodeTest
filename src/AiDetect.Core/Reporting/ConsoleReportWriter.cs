@@ -33,6 +33,15 @@ public sealed class ConsoleReportWriter(bool color = true, bool verbose = false)
 
         meta.Add($"коммитов: {r.Commits}");
         sb.AppendLine(" " + C("2", string.Join(" · ", meta)));
+        if (!string.IsNullOrEmpty(r.LanguageTitle))
+        {
+            sb.AppendLine(" " + C("2", "язык: " + r.LanguageTitle + (r.LanguageAuto ? " (определён автоматически)" : "")));
+        }
+
+        if (!string.IsNullOrEmpty(r.Stack))
+        {
+            sb.AppendLine(" " + C("2", "стек: " + r.Stack));
+        }
         sb.AppendLine(C("2", line));
         sb.AppendLine();
 
@@ -62,7 +71,7 @@ public sealed class ConsoleReportWriter(bool color = true, bool verbose = false)
             sb.AppendLine(C("1;31", "  Главные признаки ИИ:"));
             foreach (var s in ai)
             {
-                AppendSignal(sb, s, "31");
+                AppendSignal(sb, r, s, "31");
             }
 
             sb.AppendLine();
@@ -74,7 +83,7 @@ public sealed class ConsoleReportWriter(bool color = true, bool verbose = false)
             sb.AppendLine(C("1;32", "  Признаки человека:"));
             foreach (var s in human)
             {
-                AppendSignal(sb, s, "32");
+                AppendSignal(sb, r, s, "32");
             }
 
             sb.AppendLine();
@@ -101,11 +110,11 @@ public sealed class ConsoleReportWriter(bool color = true, bool verbose = false)
                 ? C("31", new string('▲', Math.Clamp((int)Math.Round(g.Capped * 2), 1, 16)))
                 : C("32", new string('▼', Math.Clamp((int)Math.Round(-g.Capped * 2), 1, 16)));
             string resistant = GroupInfo.IsMimicryResistant(g.Group) ? C("2", " (устойчив к маскировке)") : "";
-            sb.AppendLine($"    {GroupInfo.Title(g.Group),-30} {g.Capped,5:+0.0;-0.0}  {arrows}{resistant}");
+            sb.AppendLine($"    {Truncate(r.GroupTitle(g.Group), 34),-34} {g.Capped,5:+0.0;-0.0}  {arrows}{resistant}");
         }
 
         sb.AppendLine();
-        sb.AppendLine(C("2", $"  Проанализировано: {r.FilesAnalyzed} C#-файлов из {r.FilesChanged} изменённых; +{r.AddedCodeLines} строк кода, +{r.AddedTestLines} строк тестов; " +
+        sb.AppendLine(C("2", $"  Проанализировано: {r.FilesAnalyzed} {Noun(r)}-файлов из {r.FilesChanged} изменённых; +{r.AddedCodeLines} строк кода, +{r.AddedTestLines} строк тестов; " +
                              $"база проекта: {r.BaselineFiles} файлов."));
         if (r.ExcludedFiles.Count > 0)
         {
@@ -121,9 +130,11 @@ public sealed class ConsoleReportWriter(bool color = true, bool verbose = false)
         return sb.ToString();
     }
 
-    private void AppendSignal(StringBuilder sb, SignalResult s, string colorCode)
+    private static string Noun(AnalysisReport r) => string.IsNullOrEmpty(r.CodeNoun) ? "C#" : r.CodeNoun;
+
+    private void AppendSignal(StringBuilder sb, AnalysisReport r, SignalResult s, string colorCode)
     {
-        sb.AppendLine($"   {C(colorCode, $"{s.Contribution,5:+0.0;-0.0}")}  {s.Title}  {C("2", "[" + GroupInfo.Title(s.Group) + "]")}");
+        sb.AppendLine($"   {C(colorCode, $"{s.Contribution,5:+0.0;-0.0}")}  {s.Title}  {C("2", "[" + r.GroupTitle(s.Group) + "]")}");
         if (!string.IsNullOrEmpty(s.Detail))
         {
             sb.AppendLine("          " + C("2", s.Detail));
