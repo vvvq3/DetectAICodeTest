@@ -3,11 +3,12 @@ using AiDetect.Core.Analysis;
 using AiDetect.Core.Features;
 using AiDetect.Core.Model;
 using AiDetect.Core.Preprocessing;
+using AiDetect.Core.Text;
 
 namespace AiDetect.Core.Signals;
 
 /// <summary>Сигналы уровня MR: прямые артефакты Claude Code, форма диффа, коммиты и ритм работы, описание MR.</summary>
-internal sealed partial class MrSignals(AnalysisContext ctx, SignalBuilder b)
+public sealed partial class MrSignals(AnalysisContext ctx, SignalBuilder b)
 {
     private readonly MergeRequestData _mr = ctx.Mr;
 
@@ -74,7 +75,7 @@ internal sealed partial class MrSignals(AnalysisContext ctx, SignalBuilder b)
                 1, 1, 1.5, $"«{tool.Value}»", [new CodeExample("описание/коммиты", 0, LineAround(allText, tool.Index))]);
         }
 
-        if (_mr.Commits.Any(c => CSharpFeatureExtractor.ContainsEmoji(c.Message)))
+        if (_mr.Commits.Any(c => TextUtil.ContainsEmoji(c.Message)))
         {
             b.Add("art.commitEmoji", SignalGroup.Artifacts, "Эмодзи в сообщениях коммитов",
                 1, 1, 1.0, "эмодзи в коммитах", []);
@@ -139,16 +140,11 @@ internal sealed partial class MrSignals(AnalysisContext ctx, SignalBuilder b)
 
     // ------------------------------------------------------------------ форма MR
 
-    private static readonly Layer[] MeaningfulLayers =
-    [
-        Layer.Controller, Layer.Service, Layer.Handler, Layer.Repository, Layer.Domain, Layer.Contracts, Layer.DependencyInjection,
-        Layer.Validation, Layer.Options, Layer.Mapping, Layer.Middleware, Layer.Migration, Layer.Tests, Layer.Documentation,
-    ];
-
     private void Shape()
     {
         var files = ctx.Files.Where(f => !f.IsDeleted).ToList();
-        var layers = files.Where(f => !f.Excluded || f.Layer == Layer.Migration).Select(f => f.Layer).Where(l => MeaningfulLayers.Contains(l))
+        var meaningful = ctx.Language.MeaningfulLayers;
+        var layers = files.Where(f => !f.Excluded || f.Layer == Layer.Migration).Select(f => f.Layer).Where(l => meaningful.Contains(l))
             .Distinct().ToList();
         int prodLines = ctx.AddedProdLines;
         int testLines = ctx.AddedTestLines;
@@ -160,7 +156,7 @@ internal sealed partial class MrSignals(AnalysisContext ctx, SignalBuilder b)
         b.Add("mr.layers", SignalGroup.MrShape,
             layers.Count >= 4 ? "Связное изменение многих слоёв в одном MR" : "MR затрагивает мало слоёв",
             SignalBuilder.Map(layers.Count, 1.5, 6), 1, 0.4,
-            $"{layers.Count} слоёв: {string.Join(", ", layers.Select(FileClassifier.LayerTitle))}", [], layers.Count);
+            $"{layers.Count} слоёв: {string.Join(", ", layers.Select(CommonFiles.LayerTitle))}", [], layers.Count);
 
         if (prodLines >= 50)
         {
@@ -180,99 +176,25 @@ internal sealed partial class MrSignals(AnalysisContext ctx, SignalBuilder b)
             }
         }
 
-        var docs = files.Where(f => FileClassifier.IsMarkdown(f.Path) && !IsAgentFile(f.Path) && (f.IsNew || f.AddedLines >= 10)).ToList();
+        var docs = files.Where(f => CommonFiles.IsMarkdown(f.Path) && !IsAgentFile(f.Path) && (f.IsNew || f.AddedLines >= 10)).ToList();
         if (docs.Count > 0)
         {
             b.Add("mr.docs", SignalGroup.MrShape, "Markdown-документация как побочный продукт (новые/расширенные .md)",
                 1, 1, 0.6, string.Join(", ", docs.Select(d => $"{d.Path} (+{d.AddedLines})").Take(4)), [], docs.Count);
         }
 
-        var cs = ctx.AnalyzedCs.ToList();
-        if (cs.Count >= 3)
+        var code = ctx.AnalyzedFiles.ToList();
+        if (code.Count >= 3)
         {
-            double newShare = cs.Count(f => f.IsNew) / (double)cs.Count;
+            double newShare = code.Count(f => f.IsNew) / (double)code.Count;
             b.Add("mr.newFiles", SignalGroup.MrShape,
                 newShare >= 0.5 ? "Код в основном в новых файлах — написан целиком" : "В основном правки существующих файлов",
-                SignalBuilder.Map(newShare, 0.15, 0.85), SignalBuilder.Rel(cs.Count, 4), 0.5,
-                $"{cs.Count(f => f.IsNew)} новых из {cs.Count} C#-файлов", [], newShare);
+                SignalBuilder.Map(newShare, 0.15, 0.85), SignalBuilder.Rel(code.Count, 4), 0.5,
+                $"{code.Count(f => f.IsNew)} новых из {code.Count} {ctx.Language.CodeNoun}-файлов", [], newShare);
         }
 
-        // «Полная архитектура на маленькую задачу»: интерфейс + реализация + регистрация DI (+ options/валидатор).
-        var newNames = cs.Where(f => f.IsNew).Select(f => Path.GetFileNameWithoutExtension(f.Path)).ToHashSet(StringComparer.Ordinal);
-        int pairs = newNames.Count(n => n.Length > 1 && n[0] == 'I' && char.IsUpper(n[1]) && newNames.Contains(n[1..]));
-        bool di = cs.Any(f => f.Layer == Layer.DependencyInjection);
-        bool extras = cs.Any(f => f.Layer is Layer.Options or Layer.Validation);
-        if (pairs >= 1 && di)
-        {
-            double score = Math.Min(1, 0.3 + (0.2 * pairs) + (extras ? 0.4 : 0));
-            b.Add("mr.fullArchitecture", SignalGroup.MrShape,
-                "«Полная» архитектура: новый интерфейс + реализация + регистрация в DI" + (extras ? " + options/валидатор" : ""),
-                score, 1, 0.3, $"пар «интерфейс + реализация»: {pairs}", [], pairs);
-        }
-
-        // Единообразие: признаки «ИИ-стиля» одинаково выражены во всех файлах (человек пишет неровно).
-        Uniformity(cs);
-    }
-
-    private void Uniformity(List<FileAnalysis> cs)
-    {
-        var perFile = new List<double>();
-        foreach (var f in cs.Where(f => f.Stats is not null && f.AddedLines >= 25 && !f.IsTest))
-        {
-            var s = f.Stats!;
-            var scores = new List<double>();
-            if (s[K.DocTargets] >= 2)
-            {
-                scores.Add(SignalBuilder.Map(s[K.DocTargetsDocumented] / s[K.DocTargets], 0.05, 0.85));
-            }
-
-            if (s[K.AsyncMethods] >= 2)
-            {
-                scores.Add(SignalBuilder.Map(s[K.AsyncWithCt] / s[K.AsyncMethods], 0.1, 0.85));
-            }
-
-            double nullChecks = s[K.NullPatternChecks] + s[K.NullEqualityChecks];
-            if (nullChecks >= 2)
-            {
-                scores.Add(SignalBuilder.Map(s[K.NullPatternChecks] / nullChecks, 0.15, 0.95));
-            }
-
-            double logs = s[K.LogTemplated] + s[K.LogInterpolated];
-            if (logs >= 2)
-            {
-                scores.Add(SignalBuilder.Map(s[K.LogTemplated] / logs, 0.2, 1.0));
-            }
-
-            if (s[K.CodeLines] >= 30)
-            {
-                double irregular = (s[K.TrailingWhitespace] + s[K.KeywordNoSpace] + s[K.OperatorNoSpace] + s[K.CommaNoSpace]) * 100 / s[K.CodeLines];
-                scores.Add(irregular <= 0.01 ? 0.5 : SignalBuilder.Map(irregular, 3, 0));
-            }
-
-            if (scores.Count >= 2)
-            {
-                perFile.Add(scores.Average());
-            }
-        }
-
-        if (perFile.Count < 3)
-        {
-            return;
-        }
-
-        double mean = perFile.Average();
-        double sd = Math.Sqrt(perFile.Average(v => (v - mean) * (v - mean)));
-        if (mean > 0.2 && sd < 0.3)
-        {
-            b.Add("mr.uniformity", SignalGroup.MrShape, "ИИ-признаки одинаково выражены во всех файлах MR (ровный стиль)",
-                Math.Min(1, mean * 1.5), SignalBuilder.Rel(perFile.Count, 3), 0.3,
-                $"{perFile.Count} файлов, средняя оценка {mean:0.00}, разброс {sd:0.00}", [], sd);
-        }
-        else if (sd >= 0.45)
-        {
-            b.Add("mr.uniformity", SignalGroup.MrShape, "Стиль сильно различается между файлами MR (неровно, как у человека)",
-                -0.6, SignalBuilder.Rel(perFile.Count, 3), 0.3, $"{perFile.Count} файлов, разброс оценок {sd:0.00}", [], sd);
-        }
+        // Признаки формы, зависящие от языка: «полная архитектура», единообразие стиля по файлам.
+        ctx.Language.EvaluateShapeSignals(ctx, b);
     }
 
     // ------------------------------------------------------------------ коммиты
@@ -385,7 +307,7 @@ internal sealed partial class MrSignals(AnalysisContext ctx, SignalBuilder b)
     private void Speed()
     {
         var commits = _mr.Commits
-            .Where(c => c.Additions is not null && (c.AuthoredDate ?? c.CommittedDate) is not null && !c.Title.StartsWith("Merge ", StringComparison.Ordinal))
+            .Where(c => ctx.CommitAdditions(c) is not null && (c.AuthoredDate ?? c.CommittedDate) is not null && !c.Title.StartsWith("Merge ", StringComparison.Ordinal))
             .OrderBy(c => c.AuthoredDate ?? c.CommittedDate)
             .ToList();
         if (commits.Count < 2)
@@ -402,7 +324,7 @@ internal sealed partial class MrSignals(AnalysisContext ctx, SignalBuilder b)
             var prev = (commits[i - 1].AuthoredDate ?? commits[i - 1].CommittedDate)!.Value;
             var cur = (commits[i].AuthoredDate ?? commits[i].CommittedDate)!.Value;
             double gapH = (cur - prev).TotalHours;
-            int add = commits[i].Additions!.Value;
+            int add = ctx.CommitAdditions(commits[i])!.Value;
             bool sameAuthor = string.Equals(commits[i].AuthorEmail, commits[i - 1].AuthorEmail, StringComparison.OrdinalIgnoreCase) ||
                               string.Equals(commits[i].AuthorName, commits[i - 1].AuthorName, StringComparison.OrdinalIgnoreCase);
             if (!sameAuthor || gapH < 2.0 / 60 || gapH > 8 || add < 40)
@@ -427,7 +349,7 @@ internal sealed partial class MrSignals(AnalysisContext ctx, SignalBuilder b)
         b.Add("proc.speed", SignalGroup.Process,
             best >= 250 ? "Очень высокая скорость: сотни строк кода за минуты между коммитами" : "Скорость написания кода в пределах человеческой нормы",
             SignalBuilder.Map(best, 60, 450), SignalBuilder.Rel(commits.Count - 1, 1.5), 1.0,
-            $"коммит {Short(bestCommit.Sha)}: +{bestCommit.Additions} строк через {bestGapMin:0} мин после предыдущего (~{best:0} строк/час)", [], best);
+            $"коммит {Short(bestCommit.Sha)}: +{ctx.CommitAdditions(bestCommit)} строк через {bestGapMin:0} мин после предыдущего (~{best:0} строк/час)", [], best);
     }
 
     // ------------------------------------------------------------------ «готовность с первого раза»
@@ -441,7 +363,7 @@ internal sealed partial class MrSignals(AnalysisContext ctx, SignalBuilder b)
             return;
         }
 
-        var newFiles = ctx.AnalyzedCs.Where(f => f.IsNew && f.AddedLines >= 20).Select(f => f.Path).ToList();
+        var newFiles = ctx.AnalyzedFiles.Where(f => f.IsNew && f.AddedLines >= 20).Select(f => f.Path).ToList();
         if (newFiles.Count < 2)
         {
             return;
@@ -476,7 +398,7 @@ internal sealed partial class MrSignals(AnalysisContext ctx, SignalBuilder b)
             return;
         }
 
-        var commits = _mr.Commits.Where(c => (c.AuthoredDate ?? c.CommittedDate) is not null && c.Additions is not null)
+        var commits = _mr.Commits.Where(c => (c.AuthoredDate ?? c.CommittedDate) is not null && ctx.CommitAdditions(c) is not null)
             .OrderBy(c => c.CommittedDate ?? c.AuthoredDate).ToList();
         var responses = new List<(double Minutes, int Lines)>();
         foreach (var note in reviewNotes)
@@ -490,7 +412,7 @@ internal sealed partial class MrSignals(AnalysisContext ctx, SignalBuilder b)
             double minutes = ((fix.CommittedDate ?? fix.AuthoredDate)!.Value - note.CreatedAt!.Value).TotalMinutes;
             if (minutes <= 24 * 60)
             {
-                responses.Add((minutes, fix.Additions!.Value + (fix.Deletions ?? 0)));
+                responses.Add((minutes, ctx.CommitAdditions(fix)!.Value + (ctx.CommitDeletions(fix) ?? 0)));
             }
         }
 
@@ -557,7 +479,7 @@ internal sealed partial class MrSignals(AnalysisContext ctx, SignalBuilder b)
             notes.Add("markdown-разметка");
         }
 
-        if (CSharpFeatureExtractor.ContainsEmoji(d))
+        if (TextUtil.ContainsEmoji(d))
         {
             s += 0.3;
             notes.Add("эмодзи");

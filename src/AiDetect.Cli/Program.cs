@@ -9,7 +9,8 @@ Console.OutputEncoding = Encoding.UTF8;
 var opts = CliOptions.Parse(args);
 if (opts.ShowVersion)
 {
-    Console.WriteLine($"aidetect {HtmlReportWriter.AppVersion} — детектор ИИ-кода (C#) в мердж-реквестах GitLab");
+    Console.WriteLine($"aidetect {HtmlReportWriter.AppVersion} — детектор ИИ-кода в мердж-реквестах GitLab (" +
+                      string.Join(", ", AppLanguages.Registry.Languages.Select(l => l.Title)) + ")");
     return 0;
 }
 
@@ -36,6 +37,11 @@ catch (SourceException ex)
     Console.Error.WriteLine("Ошибка: " + ex.Message);
     return 2;
 }
+catch (ArgumentException ex)
+{
+    Console.Error.WriteLine("Ошибка: " + ex.Message);
+    return 1;
+}
 
 static async Task<int> BatchAsync(CliOptions o)
 {
@@ -61,7 +67,7 @@ static async Task<int> BatchAsync(CliOptions o)
         try
         {
             var data = await LoadAsync(o, url, _ => { });
-            var report = new MergeRequestAnalyzer().Analyze(data, o.ToAnalyzerOptions());
+            var report = new MergeRequestAnalyzer(AppLanguages.Registry).Analyze(data, o.ToAnalyzerOptions());
             rows.Add((url, report, null));
             if (htmlDir is not null)
             {
@@ -118,7 +124,7 @@ static async Task<int> AnalyzeAsync(CliOptions o)
     }
 
     var analyzerOptions = o.ToAnalyzerOptions();
-    var report = new MergeRequestAnalyzer().Analyze(data, analyzerOptions);
+    var report = new MergeRequestAnalyzer(AppLanguages.Registry).Analyze(data, analyzerOptions);
     if (o.Json)
     {
         Console.WriteLine(JsonReportWriter.Render(report));
@@ -151,7 +157,7 @@ static async Task<MergeRequestData> LoadAsync(CliOptions o, string? target, Acti
 
     if (o.GitRepo is not null)
     {
-        var source = new LocalGitSource(o.GitRepo, o.GitBase ?? "main", o.GitHead ?? "HEAD")
+        var source = new LocalGitSource(o.GitRepo, o.GitBase ?? "main", o.GitHead ?? "HEAD", AppLanguages.Registry.Files)
         {
             Title = o.Title,
             Description = o.Description,
@@ -165,6 +171,6 @@ static async Task<MergeRequestData> LoadAsync(CliOptions o, string? target, Acti
         return await new JsonMergeRequestStore(target).LoadAsync();
     }
 
-    using var gitlab = new GitLabMergeRequestSource(target!, o.Token, o.Insecure, log: log, apiBaseOverride: o.ApiUrl);
+    using var gitlab = new GitLabMergeRequestSource(target!, o.Token, AppLanguages.Registry.Files, o.Insecure, log: log, apiBaseOverride: o.ApiUrl);
     return await gitlab.LoadAsync();
 }

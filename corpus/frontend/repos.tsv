@@ -1,0 +1,24 @@
+# repo	prefix	[subdir]  — фронтенд-репозитории для человеческого корпуса (код до июня 2021)
+excalidraw/excalidraw	excalidraw
+marmelab/react-admin	reactadmin
+mattermost/mattermost-webapp	mattermost
+jitsi/jitsi-meet	jitsi	react/
+getredash/redash	redash	client/
+outline/outline	outline	app/
+JetBrains/ring-ui	ringui
+VKCOM/VKUI	vkui
+PostHog/posthog	posthog	frontend/
+bitwarden/web	bitwarden
+bitwarden/jslib	bwjslib
+DSpace/dspace-angular	dspace
+ever-co/ever-gauzy	gauzy	apps/gauzy/
+Alfresco/alfresco-content-app	alfresco
+SAP/spartacus	spartacus
+Tinkoff/taiga-ui	taiga
+directus/directus	directus	app/
+chatwoot/chatwoot	chatwoot	app/javascript/
+koel/koel	koel	resources/assets/
+owncloud/web	owncloudweb
+hoppscotch/hoppscotch	hoppscotch
+nextcloud/deck	ncdeck	src/
+misskey-dev/misskey	misskey	src/client/

@@ -1,6 +1,7 @@
 using AiDetect.Core.Diff;
 using AiDetect.Core.Preprocessing;
 using AiDetect.Core.Sources;
+using AiDetect.Languages.CSharp;
 
 namespace AiDetect.Tests;
 
@@ -61,7 +62,7 @@ public class DiffAndSourceTests
     [InlineData("src/App/obj/Debug/App.AssemblyInfo.cs", true)]
     [InlineData("src/App/Services/OrderService.cs", false)]
     public void IsGenerated_DetectsGeneratedFiles(string path, bool expected) =>
-        Assert.Equal(expected, FileClassifier.IsGenerated(path, null));
+        Assert.Equal(expected, CSharpFileClassifier.IsGenerated(path, null));
 
     [Theory]
     [InlineData("src/Shop.Api/Controllers/OrdersController.cs", Layer.Controller)]
@@ -70,5 +71,5 @@ public class DiffAndSourceTests
     [InlineData("docs/readme.md", Layer.Documentation)]
     [InlineData("src/Shop.Api/Validators/CreateOrderValidator.cs", Layer.Validation)]
     public void ClassifyLayer_RecognisesCommonLayers(string path, Layer expected) =>
-        Assert.Equal(expected, FileClassifier.ClassifyLayer(path, null));
+        Assert.Equal(expected, CSharpFileClassifier.ClassifyLayer(path, null));
 }

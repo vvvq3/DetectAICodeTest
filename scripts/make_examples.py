@@ -12,7 +12,7 @@ examples = [
 ]
 bodies = []
 for slug, src, project, branch, desc in examples:
-    data = json.load(open(os.path.join(ROOT, 'corpus', src + '.json'), encoding='utf-8'))
+    data = json.load(open(os.path.join(ROOT, 'corpus', 'csharp', src + '.json'), encoding='utf-8'))
     data['Source'] = f'{project} (открытый проект) · тестовый MR · {desc}'
     data['AuthorName'] = 'разработчик'
     data['AuthorUsername'] = ''

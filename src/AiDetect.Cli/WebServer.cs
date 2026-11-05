@@ -55,11 +55,11 @@ public static class WebServer
 
             try
             {
-                using var source = new GitLabMergeRequestSource(url, token, o.Insecure, apiBaseOverride: o.ApiUrl);
+                using var source = new GitLabMergeRequestSource(url, token, AppLanguages.Registry.Files, o.Insecure, apiBaseOverride: o.ApiUrl);
                 var data = await source.LoadAsync(http.RequestAborted);
                 var options = o.ToAnalyzerOptions();
                 options.IgnoreArtifacts = noArtifacts;
-                var report = new MergeRequestAnalyzer().Analyze(data, options);
+                var report = new MergeRequestAnalyzer(AppLanguages.Registry).Analyze(data, options);
 
                 // Краткие сведения для списка проверенных MR (кириллица — в URL-кодировке).
                 http.Response.Headers["X-Probability"] = Math.Round(report.Probability * 100).ToString(CultureInfo.InvariantCulture);

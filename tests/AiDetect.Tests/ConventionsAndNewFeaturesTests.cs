@@ -1,6 +1,7 @@
 using AiDetect.Core.Analysis;
 using AiDetect.Core.Features;
 using AiDetect.Core.Model;
+using AiDetect.Languages.CSharp;
 
 namespace AiDetect.Tests;
 
@@ -21,7 +22,7 @@ public class ConventionsAndNewFeaturesTests
             ],
         };
 
-        var c = ProjectConventions.Detect(repo);
+        var c = CSharpConventions.Detect(repo);
 
         Assert.True(c.StyleCop);
         Assert.True(c.XmlDocRequired);
@@ -33,7 +34,7 @@ public class ConventionsAndNewFeaturesTests
 
     [Fact]
     public void Detect_EmptyRepository_HasNoConventions() =>
-        Assert.False(ProjectConventions.Detect(new RepositoryContext()).Any);
+        Assert.False(CSharpConventions.Detect(new RepositoryContext()).Any);
 
     [Fact]
     public void Extract_CountsExplicitAccessGenericExceptionsAndNesting()
@@ -118,9 +119,9 @@ public class TranslitTests
             }
             """;
 
-        var s = AiDetect.Core.Features.CSharpFeatureExtractor.Extract("A.cs", code, _ => true, false, true);
+        var s = AiDetect.Languages.CSharp.CSharpFeatureExtractor.Extract("A.cs", code, _ => true, false, true);
 
-        Assert.Equal(2, s[AiDetect.Core.Features.K.TranslitIdentifiers]);
-        Assert.Equal(2, s[AiDetect.Core.Features.K.HungarianNames]);
+        Assert.Equal(2, s[AiDetect.Languages.CSharp.K.TranslitIdentifiers]);
+        Assert.Equal(2, s[AiDetect.Languages.CSharp.K.HungarianNames]);
     }
 }

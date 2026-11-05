@@ -2,7 +2,6 @@ using System.Diagnostics;
 using System.Text;
 using AiDetect.Core.Diff;
 using AiDetect.Core.Model;
-using AiDetect.Core.Preprocessing;
 
 namespace AiDetect.Core.Sources;
 
@@ -10,8 +9,9 @@ namespace AiDetect.Core.Sources;
 /// MR из локального git-репозитория: диапазон base..head (как ветка MR относительно целевой).
 /// Нужен для офлайн-проверок и тестов на публичных репозиториях без GitLab.
 /// </summary>
-public sealed class LocalGitSource(string repoPath, string baseRef, string headRef, SourceLimits? limits = null) : IMergeRequestSource
+public sealed class LocalGitSource(string repoPath, string baseRef, string headRef, SourceFilePolicy files, SourceLimits? limits = null) : IMergeRequestSource
 {
+    private const int MaxConfigFiles = 40;
     private readonly SourceLimits _limits = limits ?? new SourceLimits();
 
     public string? Title { get; init; }
@@ -63,13 +63,13 @@ public sealed class LocalGitSource(string repoPath, string baseRef, string headR
             }
 
             change.Diff = StripHeaders(Git("diff", "-M", "-U3", mergeBase, head, "--", change.IsRenamed ? change.OldPath : change.NewPath, change.NewPath));
-            bool interesting = FileClassifier.IsCSharp(change.Path) || FileClassifier.IsMarkdown(change.Path);
+            bool interesting = files.NeedsContent(change.Path);
             if (interesting && !change.IsDeleted)
             {
                 change.NewContent = Show(head, change.NewPath);
             }
 
-            if (interesting && !change.IsNew && FileClassifier.IsCSharp(change.OldPath))
+            if (interesting && !change.IsNew && files.NeedsOldContent(change.OldPath))
             {
                 change.OldContent = Show(mergeBase, change.OldPath);
             }
@@ -84,7 +84,7 @@ public sealed class LocalGitSource(string repoPath, string baseRef, string headR
                 data.Repository.AgentFilesAtHead.Add(name);
             }
 
-            if (Analysis.ProjectConventions.IsRootConfigFile(name) || name.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase))
+            if (files.IsRootConfigFile(name))
             {
                 AddConfig(data, head, name);
             }
@@ -97,6 +97,7 @@ public sealed class LocalGitSource(string repoPath, string baseRef, string headR
 
         data.Repository.GitIgnore = Show(head, ".gitignore");
         LoadBaseline(data, mergeBase);
+        LoadPackageConfigs(data, mergeBase, head);
         return Task.FromResult(data);
     }
 
@@ -130,6 +131,7 @@ public sealed class LocalGitSource(string repoPath, string baseRef, string headR
         {
             int added = 0;
             int removed = 0;
+            commit.FileStats = [];
             foreach (var line in Git("show", "--numstat", "--format=", commit.Sha).Split('\n', StringSplitOptions.RemoveEmptyEntries))
             {
                 var p = line.Split('\t');
@@ -139,10 +141,11 @@ public sealed class LocalGitSource(string repoPath, string baseRef, string headR
                 }
 
                 commit.ChangedPaths.Add(p[2]);
-                if (GitLabMergeRequestSource.IsCodeForSpeed(p[2]) && int.TryParse(p[0], out var ad) && int.TryParse(p[1], out var rm))
+                if (files.IsCodeForSpeed(p[2]) && int.TryParse(p[0], out var ad) && int.TryParse(p[1], out var rm))
                 {
                     added += ad;
                     removed += rm;
+                    commit.FileStats.Add(new CommitFileStat { Path = p[2], Added = ad, Removed = rm });
                 }
             }
 
@@ -156,47 +159,89 @@ public sealed class LocalGitSource(string repoPath, string baseRef, string headR
     private void LoadBaseline(MergeRequestData data, string baseSha)
     {
         var changed = data.Changes.Select(c => c.Path).ToHashSet(StringComparer.Ordinal);
-        var candidates = new List<string>();
-        foreach (var dir in BaselineSelection.CandidateDirectories(data))
+        foreach (var (language, dirs) in files.BaselineDirectories(data))
         {
-            var listing = Git("ls-tree", "--name-only", baseSha, dir.Length == 0 ? "." : dir + "/");
-            foreach (var path in listing.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+            var candidates = new List<string>();
+            foreach (var dir in dirs)
             {
-                if (path.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase))
+                var listing = Git("ls-tree", "--name-only", baseSha, dir.Length == 0 ? "." : dir + "/");
+                foreach (var path in listing.Split('\n', StringSplitOptions.RemoveEmptyEntries))
                 {
-                    AddConfig(data, baseSha, path);
+                    if (language.IsProjectFile(Path.GetFileName(path)))
+                    {
+                        AddConfig(data, baseSha, path);
+                    }
+
+                    if (SourceFilePolicy.IsBaselineCandidate(language, path) && !changed.Contains(path) && !candidates.Contains(path))
+                    {
+                        candidates.Add(path);
+                    }
                 }
 
-                if (BaselineSelection.IsBaselineCandidate(path) && !changed.Contains(path) && !candidates.Contains(path))
+                if (candidates.Count >= _limits.MaxBaselineFiles * 3)
                 {
-                    candidates.Add(path);
+                    break;
                 }
             }
 
-            if (candidates.Count >= _limits.MaxBaselineFiles * 3)
+            int taken = 0;
+            foreach (var path in candidates)
             {
-                break;
+                if (taken >= _limits.MaxBaselineFiles)
+                {
+                    break;
+                }
+
+                var content = Show(baseSha, path);
+                if (content is not null && content.Length <= _limits.MaxBaselineFileBytes)
+                {
+                    data.Repository.BaselineFiles.Add(new SourceFile { Path = path, Content = content });
+                    taken++;
+                }
             }
         }
+    }
 
-        foreach (var path in candidates)
+    /// <summary>Ближайший к изменённым файлам корень пакета (каталог с package.json) и его конфиги (tsconfig, ESLint, Prettier…).</summary>
+    private void LoadPackageConfigs(MergeRequestData data, string baseSha, string head)
+    {
+        var packageDirs = new List<string>();
+        foreach (var (language, ancestors) in files.PackageSearchPaths(data))
         {
-            if (data.Repository.BaselineFiles.Count >= _limits.MaxBaselineFiles)
+            foreach (var dir in ancestors)
             {
-                break;
-            }
+                if (packageDirs.Count >= 3)
+                {
+                    break;
+                }
 
-            var content = Show(baseSha, path);
-            if (content is not null && content.Length <= _limits.MaxBaselineFileBytes)
-            {
-                data.Repository.BaselineFiles.Add(new SourceFile { Path = path, Content = content });
+                if (packageDirs.Contains(dir) || packageDirs.Any(p => dir.StartsWith(p + "/", StringComparison.Ordinal)))
+                {
+                    continue;
+                }
+
+                var rev = Run(["cat-file", "-e", $"{baseSha}:{dir}/{language.PackageMarker}"]).Code == 0 ? baseSha
+                    : Run(["cat-file", "-e", $"{head}:{dir}/{language.PackageMarker}"]).Code == 0 ? head : null;
+                if (rev is null)
+                {
+                    continue;
+                }
+
+                packageDirs.Add(dir);
+                foreach (var path in Git("ls-tree", "--name-only", rev, dir + "/").Split('\n', StringSplitOptions.RemoveEmptyEntries))
+                {
+                    if (language.IsProjectFile(Path.GetFileName(path)) || language.IsRootConfigFile(Path.GetFileName(path)))
+                    {
+                        AddConfig(data, rev, path);
+                    }
+                }
             }
         }
     }
 
     private void AddConfig(MergeRequestData data, string rev, string path)
     {
-        if (data.Repository.ConfigFiles.Count < 12 && data.Repository.ConfigFiles.All(f => f.Path != path) && Show(rev, path) is { } content)
+        if (data.Repository.ConfigFiles.Count < MaxConfigFiles && data.Repository.ConfigFiles.All(f => f.Path != path) && Show(rev, path) is { } content)
         {
             data.Repository.ConfigFiles.Add(new SourceFile { Path = path, Content = content });
         }

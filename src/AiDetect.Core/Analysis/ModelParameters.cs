@@ -29,24 +29,36 @@ public sealed class ModelParameters
 
     public void Save(string path) => File.WriteAllText(path, JsonSerializer.Serialize(this, JsonOptions));
 
-    /// <summary>Ищет weights.json рядом с программой; если нет — значения по умолчанию.</summary>
-    public static ModelParameters LoadDefault()
+    /// <summary>
+    /// Веса языка: ищет weights.{язык}.json рядом с программой (и в model/); для C# также старое имя weights.json.
+    /// Если файла нет — экспертные веса по умолчанию.
+    /// </summary>
+    public static ModelParameters LoadDefault(string languageId = "csharp")
     {
-        foreach (var candidate in new[]
-                 {
-                     Path.Combine(AppContext.BaseDirectory, "weights.json"),
-                     Path.Combine(AppContext.BaseDirectory, "model", "weights.json"),
-                 })
+        var names = new List<string> { $"weights.{languageId}.json" };
+        if (languageId == "csharp")
         {
-            if (File.Exists(candidate))
+            names.Add("weights.json");
+        }
+
+        foreach (var name in names)
+        {
+            foreach (var candidate in new[]
+                     {
+                         Path.Combine(AppContext.BaseDirectory, name),
+                         Path.Combine(AppContext.BaseDirectory, "model", name),
+                     })
             {
-                try
+                if (File.Exists(candidate))
                 {
-                    return Load(candidate);
-                }
-                catch (JsonException)
-                {
-                    // Повреждённый файл весов — работаем на значениях по умолчанию.
+                    try
+                    {
+                        return Load(candidate);
+                    }
+                    catch (JsonException)
+                    {
+                        // Повреждённый файл весов — работаем на значениях по умолчанию.
+                    }
                 }
             }
         }

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # mk_ai.sh start <repo> <base> <name>   → создаёт worktree и печатает путь
 # mk_ai.sh commit <name> <iso-date> <message>  → коммит всех изменений
-# mk_ai.sh finish <name> <category> [title]    → fetch в corpus/<category>/<name>.json и удаление worktree
+# mk_ai.sh finish <name> <category> [title]    → fetch в corpus/<язык>/<category>/<name>.json (язык — CORPUS_LANG, по умолчанию csharp) и удаление worktree
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 S="${AI_WORK_DIR:-/tmp/aidetect-ai-work}"
@@ -22,12 +22,12 @@ case "$1" in
       GIT_AUTHOR_DATE="$d" GIT_COMMITTER_DATE="$d" git -C $wt commit -q -m "$msg" ;;
   finish)
     name=$2; cat=$3; title=${4:-}; wt=$S/$name; repo=$(cat $S/$name.repo); base=$(cat $S/$name.base)
-    mkdir -p $ROOT/corpus/$cat
-    args=(fetch --git $wt --base $base --head HEAD --save $ROOT/corpus/$cat/$name.json -q)
+    mkdir -p $ROOT/corpus/${CORPUS_LANG:-csharp}/$cat
+    args=(fetch --git $wt --base $base --head HEAD --save $ROOT/corpus/${CORPUS_LANG:-csharp}/$cat/$name.json -q)
     [ -n "$title" ] && args+=(--title "$title")
     dotnet $ROOT/.build/aidetect.dll "${args[@]}"
     # сохранить исходники образца для воспроизводимости
-    mkdir -p $ROOT/corpus/ai-src/$name
-    git -C $wt format-patch -q $base..HEAD -o $ROOT/corpus/ai-src/$name
+    mkdir -p $ROOT/corpus/${CORPUS_LANG:-csharp}/ai-src/$name
+    git -C $wt format-patch -q $base..HEAD -o $ROOT/corpus/${CORPUS_LANG:-csharp}/ai-src/$name
     git -C $repo worktree remove --force $wt ;;
 esac

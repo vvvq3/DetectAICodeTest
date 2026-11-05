@@ -46,6 +46,19 @@ public sealed class CommitInfo
 
     /// <summary>Пути файлов, изменённых коммитом (если известны).</summary>
     public List<string> ChangedPaths { get; set; } = [];
+
+    /// <summary>
+    /// Добавленные/удалённые строки по файлам кода (любого поддерживаемого языка). Анализ суммирует только файлы выбранного языка.
+    /// null — старые сохранённые MR, где есть только <see cref="Additions"/>.
+    /// </summary>
+    public List<CommitFileStat>? FileStats { get; set; }
+}
+
+public sealed class CommitFileStat
+{
+    public string Path { get; set; } = "";
+    public int Added { get; set; }
+    public int Removed { get; set; }
 }
 
 public sealed class MrNote
@@ -89,7 +102,10 @@ public sealed class RepositoryContext
     /// </summary>
     public List<SourceFile> BaselineFiles { get; set; } = [];
 
-    /// <summary>Файлы конфигурации стиля (.editorconfig, Directory.Build.props, *.csproj) на момент base.</summary>
+    /// <summary>
+    /// Файлы конфигурации и проектов (.editorconfig, Directory.Build.props, *.csproj, package.json, tsconfig.json, конфиги ESLint/Prettier,
+    /// angular.json) из корня репозитория и из каталогов изменённых файлов.
+    /// </summary>
     public List<SourceFile> ConfigFiles { get; set; } = [];
 }
 

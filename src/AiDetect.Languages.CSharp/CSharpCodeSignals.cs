@@ -1,13 +1,14 @@
 using AiDetect.Core.Analysis;
 using AiDetect.Core.Features;
+using AiDetect.Core.Signals;
 
-namespace AiDetect.Core.Signals;
+namespace AiDetect.Languages.CSharp;
 
 /// <summary>
 /// Сигналы по самому коду (стилометрия на Roslyn) с поправкой на норму проекта.
 /// Каждый признак: доля/плотность → свидетельство e ∈ [−1, 1] между «типично для человека» и «типично для Claude».
 /// </summary>
-internal sealed class CodeSignals(AnalysisContext ctx, SignalBuilder b)
+internal sealed class CSharpCodeSignals(AnalysisContext ctx, SignalBuilder b)
 {
     private readonly CodeStats _a = ctx.Added;
     private readonly CodeStats? _base = ctx.Baseline;

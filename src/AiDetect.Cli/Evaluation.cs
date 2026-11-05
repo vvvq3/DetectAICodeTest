@@ -17,7 +17,8 @@ public static class Evaluation
         }
 
         var options = o.ToAnalyzerOptions();
-        var scored = CorpusEvaluator.Score(items, options);
+        options.Language = CorpusLanguage(o, root);
+        var scored = CorpusEvaluator.Score(items, options, AppLanguages.Registry);
         Console.WriteLine($"{"Категория",-16} {"MR",-44} {"P(ИИ)",6}  главные признаки");
         foreach (var s in scored.OrderBy(s => s.Item.Category).ThenByDescending(s => s.Probability))
         {
@@ -59,8 +60,8 @@ public static class Evaluation
         }
 
         var start = o.WeightsPath is not null ? ModelParameters.Load(o.WeightsPath) : new ModelParameters();
-        var options = new AnalyzerOptions { IgnoreArtifacts = true, Parameters = start };
-        var scored = CorpusEvaluator.Score(items, options);
+        var options = new AnalyzerOptions { IgnoreArtifacts = true, Parameters = start, Language = CorpusLanguage(o, root) };
+        var scored = CorpusEvaluator.Score(items, options, AppLanguages.Registry);
         var samples = Calibrator.BuildSamples(scored);
         var prior = Calibrator.DefaultWeights(scored);
 
@@ -79,6 +80,18 @@ public static class Evaluation
         }
 
         return 0;
+    }
+
+    /// <summary>Язык корпуса: --lang или имя каталога (corpus/frontend → frontend), иначе автоопределение по каждому MR.</summary>
+    private static string CorpusLanguage(CliOptions o, string root)
+    {
+        if (o.LanguageGiven)
+        {
+            return o.Language;
+        }
+
+        var name = Path.GetFileName(Path.GetFullPath(root).TrimEnd('/', '\\'));
+        return AppLanguages.Registry.Find(name)?.Id ?? o.Language;
     }
 
     private static void PrintMetrics(string title, List<(int Label, double P)> scored)

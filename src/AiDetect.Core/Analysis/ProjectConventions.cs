@@ -4,91 +4,62 @@ using AiDetect.Core.Model;
 namespace AiDetect.Core.Analysis;
 
 /// <summary>
-/// Конвенции проекта, которые делают «ИИ-подобные» признаки обязательными для всех (и людей тоже):
-/// StyleCop / обязательный XML-doc, правила .editorconfig, Conventional Commits, шаблоны описания MR.
+/// Конвенции проекта, которые делают «ИИ-подобные» признаки обязательными для всех (и людей тоже).
+/// Общая часть: Conventional Commits (commitlint) и шаблоны описания MR. Языки добавляют свои конвенции
+/// (StyleCop и XML-doc для C#, ESLint/Prettier/tsconfig для фронтенда) и свои множители признаков.
 /// Найденные конвенции ослабляют соответствующие признаки — это снижает ложные срабатывания на дисциплинированных командах.
 /// </summary>
-public sealed partial class ProjectConventions
+public partial class ProjectConventions
 {
-    public bool StyleCop { get; private init; }
-    public bool XmlDocRequired { get; private init; }
-    public bool EditorConfigStyleRules { get; private init; }
-    public bool FileScopedNamespacesEnforced { get; private init; }
-    public bool ConventionalCommits { get; private init; }
-    public List<string> MrTemplateHeadings { get; private init; } = [];
-    public List<string> Notes { get; private init; } = [];
+    public bool ConventionalCommits { get; init; }
 
-    public bool Any => StyleCop || XmlDocRequired || EditorConfigStyleRules || ConventionalCommits || MrTemplateHeadings.Count > 0;
+    public List<string> MrTemplateHeadings { get; init; } = [];
+
+    /// <summary>Найденные конвенции для отчёта («StyleCop», «Prettier»…).</summary>
+    public List<string> Notes { get; init; } = [];
+
+    public virtual bool Any => ConventionalCommits || MrTemplateHeadings.Count > 0 || Notes.Count > 0;
+
+    /// <summary>Множитель веса признака (1 — без поправки, 0 — признак выключен конвенцией).</summary>
+    public virtual double Factor(string signalId) => ConventionalCommits && signalId == "proc.commitStyle" ? 0.4 : 1.0;
 
     [GeneratedRegex(@"^#{1,4}\s+(.+?)\s*$", RegexOptions.Multiline)]
     private static partial Regex HeadingRegex();
 
+    /// <summary>Только общие конвенции (без языковых).</summary>
     public static ProjectConventions Detect(RepositoryContext repo)
     {
-        bool styleCop = false, xmlDoc = false, editorStyle = false, fileScoped = false, conventional = false;
-        var headings = new List<string>();
+        var (conventional, headings) = DetectCommon(repo);
         var notes = new List<string>();
+        AddCommonNotes(notes, conventional, headings);
+        return new ProjectConventions { ConventionalCommits = conventional, MrTemplateHeadings = headings, Notes = notes };
+    }
+
+    /// <summary>Conventional Commits (commitlint, commitizen, semantic-release) и заголовки шаблонов описания MR.</summary>
+    public static (bool Conventional, List<string> Headings) DetectCommon(RepositoryContext repo)
+    {
+        bool conventional = false;
+        var headings = new List<string>();
         foreach (var f in repo.ConfigFiles)
         {
             var name = Path.GetFileName(f.Path).ToLowerInvariant();
-            var c = f.Content;
-            if (name.EndsWith(".csproj") || name.EndsWith(".props") || name.EndsWith(".targets") || name == "stylecop.json")
-            {
-                if (c.Contains("StyleCop.Analyzers", StringComparison.OrdinalIgnoreCase) || name == "stylecop.json")
-                {
-                    styleCop = true;
-                }
-
-                if (Regex.IsMatch(c, @"<GenerateDocumentationFile>\s*true", RegexOptions.IgnoreCase) ||
-                    Regex.IsMatch(c, @"<DocumentationFile>", RegexOptions.IgnoreCase))
-                {
-                    xmlDoc = true;
-                }
-            }
-            else if (name == ".editorconfig")
-            {
-                if (Regex.IsMatch(c, @"^\s*(dotnet_style_|csharp_style_|csharp_prefer_|dotnet_diagnostic\.)", RegexOptions.Multiline))
-                {
-                    editorStyle = true;
-                }
-
-                if (Regex.IsMatch(c, @"csharp_style_namespace_declarations\s*=\s*file_scoped", RegexOptions.IgnoreCase))
-                {
-                    fileScoped = true;
-                }
-
-                if (Regex.IsMatch(c, @"dotnet_diagnostic\.(SA1600|SA1611|SA1615|CS1591)\.severity\s*=\s*(warning|error)", RegexOptions.IgnoreCase))
-                {
-                    xmlDoc = true;
-                }
-            }
-            else if (name.StartsWith(".commitlintrc") || name.StartsWith("commitlint.config") || name == ".czrc" || name == ".versionrc" ||
-                     name == ".releaserc" || name.StartsWith(".releaserc"))
+            var normalized = f.Path.Replace('\\', '/');
+            if (IsCommitConventionFile(name))
             {
                 conventional = true;
             }
-            else if (f.Path.Replace('\\', '/').Contains("merge_request_templates/", StringComparison.OrdinalIgnoreCase) ||
-                     f.Path.Replace('\\', '/').Contains("pull_request_template", StringComparison.OrdinalIgnoreCase))
+            else if (normalized.Contains("merge_request_templates/", StringComparison.OrdinalIgnoreCase) ||
+                     normalized.Contains("pull_request_template", StringComparison.OrdinalIgnoreCase))
             {
-                headings.AddRange(HeadingRegex().Matches(c).Select(m => Normalize(m.Groups[1].Value)));
+                headings.AddRange(HeadingRegex().Matches(f.Content).Select(m => Normalize(m.Groups[1].Value)));
             }
         }
 
-        if (styleCop)
-        {
-            notes.Add("StyleCop");
-        }
+        return (conventional, headings.Distinct().ToList());
+    }
 
-        if (xmlDoc)
-        {
-            notes.Add("обязательный XML-doc");
-        }
-
-        if (editorStyle)
-        {
-            notes.Add(".editorconfig со стилевыми правилами");
-        }
-
+    public static void AddCommonNotes(List<string> notes, bool conventional, List<string> headings)
+    {
         if (conventional)
         {
             notes.Add("Conventional Commits (commitlint)");
@@ -98,29 +69,19 @@ public sealed partial class ProjectConventions
         {
             notes.Add("шаблон описания MR");
         }
-
-        return new ProjectConventions
-        {
-            StyleCop = styleCop,
-            XmlDocRequired = xmlDoc || styleCop,
-            EditorConfigStyleRules = editorStyle,
-            FileScopedNamespacesEnforced = fileScoped,
-            ConventionalCommits = conventional,
-            MrTemplateHeadings = headings.Distinct().ToList(),
-            Notes = notes,
-        };
     }
+
+    private static bool IsCommitConventionFile(string name) =>
+        name.StartsWith(".commitlintrc", StringComparison.Ordinal) || name.StartsWith("commitlint.config", StringComparison.Ordinal) ||
+        name == ".czrc" || name == ".versionrc" || name.StartsWith(".releaserc", StringComparison.Ordinal);
 
     public static string Normalize(string heading) =>
         Regex.Replace(heading.ToLowerInvariant(), @"[^\p{L}\p{N} ]", "").Trim();
 
-    /// <summary>Пути конфигурационных файлов, которые стоит загрузить из корня репозитория.</summary>
-    public static bool IsRootConfigFile(string name)
+    /// <summary>Общие для всех языков файлы конфигурации в корне репозитория.</summary>
+    public static bool IsCommonRootConfigFile(string name)
     {
         var n = name.ToLowerInvariant();
-        return n is "directory.build.props" or "directory.packages.props" or "directory.build.targets" or ".editorconfig" or "stylecop.json"
-                   or ".czrc" or ".versionrc" or ".releaserc" ||
-               n.StartsWith(".commitlintrc", StringComparison.Ordinal) || n.StartsWith("commitlint.config", StringComparison.Ordinal) ||
-               n.StartsWith(".releaserc", StringComparison.Ordinal);
+        return n is ".editorconfig" || IsCommitConventionFile(n);
     }
 }

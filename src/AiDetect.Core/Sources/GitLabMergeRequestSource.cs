@@ -24,17 +24,22 @@ public sealed partial class GitLabMergeRequestSource : IMergeRequestSource, IDis
 {
     private readonly GitLabMrUrl _url;
     private readonly HttpClient _http;
+    private const int MaxConfigFiles = 40;
     private readonly SourceLimits _limits;
+    private readonly SourceFilePolicy _files;
     private readonly Action<string>? _log;
 
-    public GitLabMergeRequestSource(string mrUrl, string? token, bool insecure = false, SourceLimits? limits = null, Action<string>? log = null, string? apiBaseOverride = null)
-        : this(mrUrl, token, CreateHandler(insecure), limits, log, apiBaseOverride)
+    public GitLabMergeRequestSource(string mrUrl, string? token, SourceFilePolicy files, bool insecure = false, SourceLimits? limits = null, Action<string>? log = null,
+        string? apiBaseOverride = null)
+        : this(mrUrl, token, files, CreateHandler(insecure), limits, log, apiBaseOverride)
     {
     }
 
     /// <summary>Конструктор с собственным HTTP-обработчиком (для тестов).</summary>
-    internal GitLabMergeRequestSource(string mrUrl, string? token, HttpMessageHandler handler, SourceLimits? limits = null, Action<string>? log = null, string? apiBaseOverride = null)
+    internal GitLabMergeRequestSource(string mrUrl, string? token, SourceFilePolicy files, HttpMessageHandler handler, SourceLimits? limits = null, Action<string>? log = null,
+        string? apiBaseOverride = null)
     {
+        _files = files;
         _url = ParseUrl(mrUrl);
         if (!string.IsNullOrWhiteSpace(apiBaseOverride))
         {
@@ -201,7 +206,7 @@ public sealed partial class GitLabMergeRequestSource : IMergeRequestSource, IDis
     private async Task LoadContentsAsync(MergeRequestData data, CancellationToken ct)
     {
         int i = 0;
-        var relevant = data.Changes.Where(c => FileClassifier.IsCSharp(c.Path) || c.Path.EndsWith(".md", StringComparison.OrdinalIgnoreCase)).ToList();
+        var relevant = data.Changes.Where(c => _files.NeedsContent(c.Path)).ToList();
         _log?.Invoke($"Загружаю содержимое {relevant.Count} файлов…");
         await Parallel.ForEachAsync(relevant, new ParallelOptions { MaxDegreeOfParallelism = Parallelism, CancellationToken = ct }, async (change, token) =>
         {
@@ -223,7 +228,7 @@ public sealed partial class GitLabMergeRequestSource : IMergeRequestSource, IDis
                 change.NewContent = await GetRawFileAsync(change.NewPath, data.HeadSha, ct);
             }
 
-            if (!change.IsNew && data.BaseSha is not null && FileClassifier.IsCSharp(change.OldPath))
+            if (!change.IsNew && data.BaseSha is not null && _files.NeedsOldContent(change.OldPath))
             {
                 change.OldContent = await GetRawFileAsync(change.OldPath, data.BaseSha, ct);
             }
@@ -260,20 +265,24 @@ public sealed partial class GitLabMergeRequestSource : IMergeRequestSource, IDis
                 var diffs = await GetPagedAsync($"/projects/{_url.EncodedProject}/repository/commits/{commit.Sha}/diff", ct);
                 int added = 0;
                 int removed = 0;
+                var fileStats = new List<CommitFileStat>();
                 foreach (var d in diffs)
                 {
                     var path = Str(d, "new_path");
                     commit.ChangedPaths.Add(path);
-                    if (!IsCodeForSpeed(path))
+                    if (!_files.IsCodeForSpeed(path))
                     {
                         continue;
                     }
 
                     var stats = UnifiedDiff.Parse(Str(d, "diff"));
-                    added += stats.AddedText.Count(l => l.Trim().Length > 0);
+                    int fileAdded = stats.AddedText.Count(l => l.Trim().Length > 0);
+                    added += fileAdded;
                     removed += stats.Removed;
+                    fileStats.Add(new CommitFileStat { Path = path, Added = fileAdded, Removed = stats.Removed });
                 }
 
+                commit.FileStats = fileStats;
                 commit.Additions = added;
                 commit.Deletions = removed;
             }
@@ -283,9 +292,6 @@ public sealed partial class GitLabMergeRequestSource : IMergeRequestSource, IDis
             }
         }
     }
-
-    internal static bool IsCodeForSpeed(string path) =>
-        FileClassifier.IsCSharp(path) && !FileClassifier.IsGenerated(path, null);
 
     private async Task LoadRepositoryContextAsync(MergeRequestData data, CancellationToken ct)
     {
@@ -305,7 +311,7 @@ public sealed partial class GitLabMergeRequestSource : IMergeRequestSource, IDis
                         data.Repository.AgentFilesAtHead.Add(name);
                     }
 
-                    if (Str(e, "type") == "blob" && (Analysis.ProjectConventions.IsRootConfigFile(name) || name.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase)))
+                    if (Str(e, "type") == "blob" && _files.IsRootConfigFile(name))
                     {
                         configPaths.Add(name);
                     }
@@ -332,7 +338,7 @@ public sealed partial class GitLabMergeRequestSource : IMergeRequestSource, IDis
                 }
 
                 data.Repository.GitIgnore = await GetRawFileAsync(".gitignore", head, ct);
-                foreach (var path in configPaths.Take(10))
+                foreach (var path in configPaths.Take(25))
                 {
                     if (await GetRawFileAsync(path, head, ct) is { } content)
                     {
@@ -353,61 +359,123 @@ public sealed partial class GitLabMergeRequestSource : IMergeRequestSource, IDis
         }
 
         var changed = data.Changes.Select(c => c.Path).ToHashSet(StringComparer.Ordinal);
-        var candidates = new List<string>();
-        var projectFiles = new List<string>();
-        foreach (var dir in BaselineSelection.CandidateDirectories(data))
+        var listings = new Dictionary<string, List<(string Path, string Type)>>(StringComparer.Ordinal);
+
+        async Task<List<(string Path, string Type)>?> ListAsync(string dir, string reference)
         {
-            if (candidates.Count >= _limits.MaxBaselineFiles * 3)
+            var key = reference + ":" + dir;
+            if (listings.TryGetValue(key, out var cached))
             {
-                break;
+                return cached;
             }
 
             try
             {
-                var query = $"/projects/{_url.EncodedProject}/repository/tree?ref={Uri.EscapeDataString(baseRef)}" +
+                var query = $"/projects/{_url.EncodedProject}/repository/tree?ref={Uri.EscapeDataString(reference)}" +
                             (dir.Length > 0 ? $"&path={Uri.EscapeDataString(dir)}" : "");
-                foreach (var e in await GetPagedAsync(query, ct, maxPages: 2))
+                var entries = (await GetPagedAsync(query, ct, maxPages: 2)).Select(e => (Str(e, "path"), Str(e, "type"))).ToList();
+                listings[key] = entries;
+                return entries;
+            }
+            catch (SourceException)
+            {
+                // Каталога могло не быть на base (новый модуль).
+                return null;
+            }
+        }
+
+        foreach (var (language, dirs) in _files.BaselineDirectories(data))
+        {
+            var candidates = new List<string>();
+            var projectFiles = new List<string>();
+            foreach (var dir in dirs)
+            {
+                if (candidates.Count >= _limits.MaxBaselineFiles * 3)
                 {
-                    var path = Str(e, "path");
-                    if (Str(e, "type") == "blob" && path.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase) && projectFiles.Count < 3 && !projectFiles.Contains(path))
+                    break;
+                }
+
+                foreach (var (path, type) in await ListAsync(dir, baseRef) ?? [])
+                {
+                    if (type == "blob" && language.IsProjectFile(Path.GetFileName(path)) && projectFiles.Count < 3 && !projectFiles.Contains(path))
                     {
                         projectFiles.Add(path);
                     }
 
-                    if (Str(e, "type") == "blob" && BaselineSelection.IsBaselineCandidate(path) && !changed.Contains(path) && !candidates.Contains(path))
+                    if (type == "blob" && SourceFilePolicy.IsBaselineCandidate(language, path) && !changed.Contains(path) && !candidates.Contains(path))
                     {
                         candidates.Add(path);
                     }
                 }
             }
-            catch (SourceException)
+
+            foreach (var path in projectFiles)
             {
-                // Каталога могло не быть на base (новый модуль) — пробуем следующий.
+                await AddConfigAsync(data, path, baseRef, ct);
+            }
+
+            // Ближайшие к изменённым файлам каталоги идут первыми; загружаем параллельно и сохраняем исходный порядок.
+            var picked = candidates.Take(_limits.MaxBaselineFiles + 4).ToList();
+            var loaded = new string?[picked.Count];
+            await Parallel.ForEachAsync(Enumerable.Range(0, picked.Count), new ParallelOptions { MaxDegreeOfParallelism = Parallelism, CancellationToken = ct }, async (idx, token) =>
+            {
+                loaded[idx] = await GetRawFileAsync(picked[idx], baseRef, token);
+            });
+
+            int taken = 0;
+            for (int idx = 0; idx < picked.Count && taken < _limits.MaxBaselineFiles; idx++)
+            {
+                if (loaded[idx] is { } content && content.Length <= _limits.MaxBaselineFileBytes)
+                {
+                    data.Repository.BaselineFiles.Add(new SourceFile { Path = picked[idx], Content = content });
+                    taken++;
+                }
             }
         }
 
-        foreach (var path in projectFiles)
+        // Корень пакета (каталог с package.json) ближе всего к изменённым файлам и его конфиги (tsconfig, ESLint, Prettier…).
+        var packageDirs = new List<string>();
+        foreach (var (language, ancestors) in _files.PackageSearchPaths(data))
         {
-            if (data.Repository.ConfigFiles.All(f => f.Path != path) && await GetRawFileAsync(path, baseRef, ct) is { } content)
+            foreach (var dir in ancestors.Take(8))
             {
-                data.Repository.ConfigFiles.Add(new SourceFile { Path = path, Content = content });
+                if (packageDirs.Count >= 3 || packageDirs.Contains(dir) || packageDirs.Any(p => dir.StartsWith(p + "/", StringComparison.Ordinal)))
+                {
+                    continue;
+                }
+
+                var entries = await ListAsync(dir, baseRef);
+                var reference = baseRef;
+                if (entries is null && data.HeadSha is not null)
+                {
+                    entries = await ListAsync(dir, data.HeadSha);
+                    reference = data.HeadSha;
+                }
+
+                if (entries is null || !entries.Any(e => e.Type == "blob" && Path.GetFileName(e.Path) == language.PackageMarker))
+                {
+                    continue;
+                }
+
+                packageDirs.Add(dir);
+                foreach (var (path, type) in entries)
+                {
+                    var name = Path.GetFileName(path);
+                    if (type == "blob" && (language.IsProjectFile(name) || language.IsRootConfigFile(name)))
+                    {
+                        await AddConfigAsync(data, path, reference, ct);
+                    }
+                }
             }
         }
+    }
 
-        // Ближайшие к изменённым файлам каталоги идут первыми; загружаем параллельно и сохраняем исходный порядок.
-        var picked = candidates.Take(_limits.MaxBaselineFiles + 4).ToList();
-        var loaded = new string?[picked.Count];
-        await Parallel.ForEachAsync(Enumerable.Range(0, picked.Count), new ParallelOptions { MaxDegreeOfParallelism = Parallelism, CancellationToken = ct }, async (idx, token) =>
+    private async Task AddConfigAsync(MergeRequestData data, string path, string reference, CancellationToken ct)
+    {
+        if (data.Repository.ConfigFiles.Count < MaxConfigFiles && data.Repository.ConfigFiles.All(f => f.Path != path) &&
+            await GetRawFileAsync(path, reference, ct) is { } content)
         {
-            loaded[idx] = await GetRawFileAsync(picked[idx], baseRef, token);
-        });
-
-        for (int idx = 0; idx < picked.Count && data.Repository.BaselineFiles.Count < _limits.MaxBaselineFiles; idx++)
-        {
-            if (loaded[idx] is { } content && content.Length <= _limits.MaxBaselineFileBytes)
-            {
-                data.Repository.BaselineFiles.Add(new SourceFile { Path = picked[idx], Content = content });
-            }
+            data.Repository.ConfigFiles.Add(new SourceFile { Path = path, Content = content });
         }
     }
 

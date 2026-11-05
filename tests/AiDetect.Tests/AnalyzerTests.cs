@@ -1,6 +1,7 @@
 using AiDetect.Core.Analysis;
 using AiDetect.Core.Model;
 using AiDetect.Core.Signals;
+using AiDetect.Languages.CSharp;
 
 namespace AiDetect.Tests;
 
@@ -53,7 +54,7 @@ public class AnalyzerTests
     {
         var mr = BuildMr("ai", "feat(discounts): add discount code support", "- Add entity\n- Add service\n- Add tests");
 
-        var report = new MergeRequestAnalyzer().Analyze(mr, new AnalyzerOptions { Parameters = new ModelParameters() });
+        var report = new MergeRequestAnalyzer(TestLanguages.Registry).Analyze(mr, new AnalyzerOptions { Parameters = new ModelParameters() });
 
         Assert.True(report.Probability > 0.85, $"P = {report.Probability:0.00}");
         Assert.Contains(report.TopAiSignals(10), s => s.Group == SignalGroup.Async);
@@ -64,7 +65,7 @@ public class AnalyzerTests
     {
         var mr = BuildMr("human", "добавил скидки", "");
 
-        var report = new MergeRequestAnalyzer().Analyze(mr, new AnalyzerOptions { Parameters = new ModelParameters() });
+        var report = new MergeRequestAnalyzer(TestLanguages.Registry).Analyze(mr, new AnalyzerOptions { Parameters = new ModelParameters() });
 
         Assert.True(report.Probability < 0.15, $"P = {report.Probability:0.00}");
         Assert.Contains(report.TopHumanSignals(10), s => s.Group == SignalGroup.HumanHabits);
@@ -75,8 +76,8 @@ public class AnalyzerTests
     {
         var mr = BuildMr("human", "добавил скидки", "Co-Authored-By: Claude <noreply@anthropic.com>");
 
-        var withArtifacts = new MergeRequestAnalyzer().Analyze(mr, new AnalyzerOptions { Parameters = new ModelParameters() });
-        var codeOnly = new MergeRequestAnalyzer().Analyze(mr, new AnalyzerOptions { Parameters = new ModelParameters(), IgnoreArtifacts = true });
+        var withArtifacts = new MergeRequestAnalyzer(TestLanguages.Registry).Analyze(mr, new AnalyzerOptions { Parameters = new ModelParameters() });
+        var codeOnly = new MergeRequestAnalyzer(TestLanguages.Registry).Analyze(mr, new AnalyzerOptions { Parameters = new ModelParameters(), IgnoreArtifacts = true });
 
         Assert.True(withArtifacts.ArtifactsFound);
         Assert.True(withArtifacts.Probability > codeOnly.Probability + 0.3);
@@ -106,7 +107,7 @@ public class AnalyzerTests
         mr.Commits.Add(new CommitInfo { Sha = "1", Title = "feat: code", Message = "feat: code", AuthorName = "Dev", ChangedPaths = newFiles.Take(3).ToList() });
         mr.Commits.Add(new CommitInfo { Sha = "2", Title = "test: tests", Message = "test: tests", AuthorName = "Dev", ChangedPaths = newFiles.Skip(3).ToList() });
 
-        var report = new MergeRequestAnalyzer().Analyze(mr, new AnalyzerOptions { Parameters = new ModelParameters() });
+        var report = new MergeRequestAnalyzer(TestLanguages.Registry).Analyze(mr, new AnalyzerOptions { Parameters = new ModelParameters() });
 
         var growth = Assert.Single(report.Signals, s => s.Id == "proc.fileGrowth");
         Assert.True(growth.Evidence > 0.5);
@@ -121,7 +122,7 @@ public class EdgeCaseTests
         var mr = new MergeRequestData { Title = "docs", HasMrMetadata = false };
         mr.Changes.Add(new FileChange { OldPath = "README.md", NewPath = "README.md", Diff = "@@ -1,1 +1,2 @@\n a\n+b\n", NewContent = "a\nb\n" });
 
-        var report = new MergeRequestAnalyzer().Analyze(mr, new AnalyzerOptions { Parameters = new ModelParameters() });
+        var report = new MergeRequestAnalyzer(TestLanguages.Registry).Analyze(mr, new AnalyzerOptions { Parameters = new ModelParameters() });
 
         Assert.InRange(report.Probability, 0, 1);
         Assert.Contains(report.Warnings, w => w.Contains("Мало добавленного"));
@@ -133,7 +134,7 @@ public class EdgeCaseTests
         var mr = new MergeRequestData { Title = "cleanup" };
         mr.Changes.Add(new FileChange { OldPath = "A.cs", NewPath = "A.cs", IsDeleted = true, Diff = "@@ -1,2 +0,0 @@\n-class A {}\n-\n" });
 
-        var report = new MergeRequestAnalyzer().Analyze(mr, new AnalyzerOptions { Parameters = new ModelParameters() });
+        var report = new MergeRequestAnalyzer(TestLanguages.Registry).Analyze(mr, new AnalyzerOptions { Parameters = new ModelParameters() });
 
         Assert.Equal(0, report.FilesAnalyzed);
     }
@@ -141,7 +142,7 @@ public class EdgeCaseTests
     [Fact]
     public void EmptyMr_DoesNotCrash()
     {
-        var report = new MergeRequestAnalyzer().Analyze(new MergeRequestData(), new AnalyzerOptions { Parameters = new ModelParameters() });
+        var report = new MergeRequestAnalyzer(TestLanguages.Registry).Analyze(new MergeRequestData(), new AnalyzerOptions { Parameters = new ModelParameters() });
 
         Assert.InRange(report.Probability, 0, 1);
     }
@@ -153,7 +154,7 @@ public class EdgeCaseTests
         const string code = "public class A { public void M( { var x = ; } ";
         mr.Changes.Add(new FileChange { OldPath = "A.cs", NewPath = "A.cs", IsNew = true, NewContent = code, Diff = "@@ -0,0 +1,1 @@\n+" + code + "\n" });
 
-        var report = new MergeRequestAnalyzer().Analyze(mr, new AnalyzerOptions { Parameters = new ModelParameters() });
+        var report = new MergeRequestAnalyzer(TestLanguages.Registry).Analyze(mr, new AnalyzerOptions { Parameters = new ModelParameters() });
 
         Assert.Equal(1, report.FilesAnalyzed);
     }

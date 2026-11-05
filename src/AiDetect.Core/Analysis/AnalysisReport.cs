@@ -46,6 +46,28 @@ public sealed class AnalysisReport
     /// <summary>Оценка по отдельным файлам (только признаки кода), самые «ИИ-подобные» первыми.</summary>
     public List<FileScore> FileScores { get; init; } = [];
 
+    /// <summary>Язык анализа: «csharp», «frontend».</summary>
+    public string LanguageId { get; init; } = "";
+
+    /// <summary>Название языка: «C# (.NET)».</summary>
+    public string LanguageTitle { get; init; } = "";
+
+    /// <summary>Короткое имя языка для текстов: «C#», «JS/TS».</summary>
+    public string CodeNoun { get; init; } = "";
+
+    /// <summary>Язык определён автоматически по файлам MR.</summary>
+    public bool LanguageAuto { get; init; }
+
+    /// <summary>Стек проекта: «TypeScript 4.1 · React 17 · Jest».</summary>
+    public string Stack { get; init; } = "";
+
+    public List<string> StackTags { get; init; } = [];
+
+    /// <summary>Названия групп сигналов для языка анализа.</summary>
+    public Dictionary<SignalGroup, string> GroupTitles { get; init; } = [];
+
+    public string GroupTitle(SignalGroup group) => GroupTitles.TryGetValue(group, out var t) ? t : GroupInfo.Title(group);
+
     public IEnumerable<SignalResult> TopAiSignals(int n) =>
         Signals.Where(s => s.Contribution > 0.05).OrderByDescending(s => s.Contribution).Take(n);
 

@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using AiDetect.Core.Sources;
+using AiDetect.Languages.CSharp;
 
 namespace AiDetect.Tests;
 
@@ -88,7 +89,7 @@ public class GitLabSourceTests
     public async Task LoadAsync_ReadsMrCommitsChangesAndRepositoryContext(bool supportsDiffs)
     {
         var fake = CreateServer(supportsDiffs);
-        using var source = new GitLabMergeRequestSource(Url, "token", fake);
+        using var source = new GitLabMergeRequestSource(Url, "token", TestLanguages.Registry.Files, fake);
 
         var mr = await source.LoadAsync();
 
@@ -108,7 +109,7 @@ public class GitLabSourceTests
     {
         var fake = CreateServer(supportsDiffs: true);
         fake.TooManyRequestsLeft = 2;
-        using var source = new GitLabMergeRequestSource(Url, "token", fake);
+        using var source = new GitLabMergeRequestSource(Url, "token", TestLanguages.Registry.Files, fake);
 
         var mr = await source.LoadAsync();
 
@@ -119,7 +120,7 @@ public class GitLabSourceTests
     public async Task LoadAsync_UnknownMr_GivesClearError()
     {
         var fake = new FakeGitLab();
-        using var source = new GitLabMergeRequestSource(Url, "token", fake);
+        using var source = new GitLabMergeRequestSource(Url, "token", TestLanguages.Registry.Files, fake);
 
         var ex = await Assert.ThrowsAsync<SourceException>(() => source.LoadAsync());
 
@@ -131,7 +132,7 @@ public class GitLabSourceTests
     {
         var fake = new FakeGitLab();
         fake.Routes[$"{Api}/merge_requests/7"] = () => new HttpResponseMessage(HttpStatusCode.Unauthorized);
-        using var source = new GitLabMergeRequestSource(Url, null, fake);
+        using var source = new GitLabMergeRequestSource(Url, null, TestLanguages.Registry.Files, fake);
 
         var ex = await Assert.ThrowsAsync<SourceException>(() => source.LoadAsync());
 

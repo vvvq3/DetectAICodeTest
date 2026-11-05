@@ -1,4 +1,5 @@
 using AiDetect.Core.Features;
+using AiDetect.Languages.CSharp;
 
 namespace AiDetect.Tests;
 
@@ -180,5 +181,5 @@ public class CommentedCodeTests
     [InlineData("return null;", true)]
     [InlineData("foreach (var x in items) Console.WriteLine(x);", true)]
     public void LooksLikeCode_DistinguishesFormulasFromCode(string body, bool expected) =>
-        Assert.Equal(expected, AiDetect.Core.Features.CSharpFeatureExtractor.LooksLikeCode(body));
+        Assert.Equal(expected, AiDetect.Languages.CSharp.CSharpFeatureExtractor.LooksLikeCode(body));
 }

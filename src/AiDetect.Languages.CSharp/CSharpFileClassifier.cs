@@ -1,30 +1,10 @@
 using System.Text.RegularExpressions;
+using AiDetect.Core.Preprocessing;
 
-namespace AiDetect.Core.Preprocessing;
+namespace AiDetect.Languages.CSharp;
 
-/// <summary>Архитектурный слой, к которому относится файл. Нужен для признака «связный многослойный дифф».</summary>
-public enum Layer
-{
-    Other,
-    Controller,
-    Service,
-    Handler,
-    Repository,
-    Domain,
-    Contracts,
-    DependencyInjection,
-    Validation,
-    Options,
-    Mapping,
-    Middleware,
-    Migration,
-    Tests,
-    Documentation,
-    Configuration,
-    BuildProject,
-}
-
-public static partial class FileClassifier
+/// <summary>Классификация C#-файлов: сгенерированное, тесты, слои.</summary>
+public static partial class CSharpFileClassifier
 {
     private static readonly string[] GeneratedSuffixes =
     [
@@ -33,7 +13,7 @@ public static partial class FileClassifier
 
     public static bool IsCSharp(string path) => path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase);
 
-    public static bool IsMarkdown(string path) => path.EndsWith(".md", StringComparison.OrdinalIgnoreCase);
+    public static bool IsMarkdown(string path) => CommonFiles.IsMarkdown(path);
 
     /// <summary>Сгенерированный или служебный код, который исключается из анализа (по рекомендации исследования).</summary>
     public static bool IsGenerated(string path, string? content)
@@ -197,26 +177,7 @@ public static partial class FileClassifier
         return Layer.Other;
     }
 
-    public static string LayerTitle(Layer layer) => layer switch
-    {
-        Layer.Controller => "контроллеры/эндпоинты",
-        Layer.Service => "сервисы",
-        Layer.Handler => "обработчики/команды",
-        Layer.Repository => "доступ к данным",
-        Layer.Domain => "доменные модели",
-        Layer.Contracts => "DTO/контракты",
-        Layer.DependencyInjection => "регистрация DI",
-        Layer.Validation => "валидация",
-        Layer.Options => "настройки/options",
-        Layer.Mapping => "маппинг",
-        Layer.Middleware => "middleware/фильтры",
-        Layer.Migration => "миграции",
-        Layer.Tests => "тесты",
-        Layer.Documentation => "документация",
-        Layer.Configuration => "конфигурация",
-        Layer.BuildProject => "проектные файлы",
-        _ => "прочее",
-    };
+    public static string LayerTitle(Layer layer) => CommonFiles.LayerTitle(layer);
 
     private static string Normalize(string path) => path.Replace('\\', '/').ToLowerInvariant();
 }

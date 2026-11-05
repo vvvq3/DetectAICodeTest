@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
-# Полный цикл оценки на корпусе: сборка → (опционально) перезагрузка корпуса → калибровка → отчёт.
-#   scripts/evaluate.sh            — оценка и калибровка на текущем corpus/
-#   scripts/evaluate.sh --refresh  — сначала перезагрузить JSON корпуса из исходных git-репозиториев
+# Полный цикл оценки на корпусе языка: сборка → калибровка → отчёт.
+#   scripts/evaluate.sh                 — C# (corpus/csharp → model/weights.csharp.json)
+#   scripts/evaluate.sh frontend        — фронтенд (corpus/frontend → model/weights.frontend.json)
+#   scripts/evaluate.sh frontend --refresh — сначала пересобрать JSON корпуса из git-репозиториев
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
+LANG_ID="${1:-csharp}"
 DOTNET="${DOTNET:-dotnet}"
 "$DOTNET" build src/AiDetect.Cli -c Release -o .build -v q --nologo >/dev/null
-if [ "${1:-}" = "--refresh" ]; then
-  python3 scripts/refresh_corpus.py
+if [ "${2:-}" = "--refresh" ]; then
+  python3 scripts/rebuild_corpus.py --lang "$LANG_ID"
 fi
-"$DOTNET" .build/aidetect.dll calibrate corpus --lambda "${LAMBDA:-16}" -o model/weights.json --no-color
+"$DOTNET" .build/aidetect.dll calibrate "corpus/$LANG_ID" --lang "$LANG_ID" --lambda "${LAMBDA:-16}" -o "model/weights.$LANG_ID.json" --no-color
 "$DOTNET" build src/AiDetect.Cli -c Release -o .build -v q --nologo >/dev/null
-"$DOTNET" .build/aidetect.dll eval corpus --no-color -v
+"$DOTNET" .build/aidetect.dll eval "corpus/$LANG_ID" --lang "$LANG_ID" --no-color -v

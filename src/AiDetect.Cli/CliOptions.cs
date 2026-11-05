@@ -35,6 +35,11 @@ public sealed class CliOptions
     public bool Balanced { get; private set; }
     public bool OpenBrowser { get; private set; } = true;
 
+    /// <summary>Язык анализа: auto (по файлам MR), csharp, frontend (и псевдонимы: cs, js, ts…).</summary>
+    public string Language { get; private set; } = Environment.GetEnvironmentVariable("AIDETECT_LANG") ?? "auto";
+
+    public bool LanguageGiven { get; private set; }
+
     public static CliOptions Parse(string[] args)
     {
         var o = new CliOptions();
@@ -135,6 +140,10 @@ public sealed class CliOptions
                 case "--no-browser":
                     o.OpenBrowser = false;
                     break;
+                case "--lang" or "--language" or "-l":
+                    o.Language = Next();
+                    o.LanguageGiven = true;
+                    break;
                 default:
                     if (a.StartsWith('-'))
                     {
@@ -153,10 +162,12 @@ public sealed class CliOptions
     {
         IgnoreArtifacts = NoArtifacts,
         Parameters = WeightsPath is not null ? ModelParameters.Load(WeightsPath) : null,
+        Language = Language,
     };
 
     public const string HelpText = """
-        aidetect — определяет, написан ли C#-мердж-реквест человеком или Claude Code. Работает локально.
+        aidetect — определяет, написан ли мердж-реквест человеком или Claude Code. Языки: C# (.NET) и
+        JavaScript/TypeScript (фронтенд: React, Angular, Vue). Работает локально, код никуда не отправляется.
 
         Использование:
           aidetect <ссылка на MR>                      анализ MR из GitLab
@@ -168,9 +179,11 @@ public sealed class CliOptions
           aidetect --load mr.json                      анализ сохранённого MR
           aidetect fetch <ссылка> --save mr.json       только скачать MR в JSON (без анализа)
           aidetect eval <каталог корпуса>              точность на размеченном корпусе (human/, ai/)
-          aidetect calibrate <каталог корпуса> -o weights.json   подбор весов на своих размеченных MR
+          aidetect calibrate <каталог корпуса> -o weights.frontend.json --lang frontend
+                                                       подбор весов языка на своих размеченных MR
 
         Параметры:
+          --lang <язык>       auto (по умолчанию — по файлам MR), csharp, frontend (псевдонимы: cs, js, ts, react…)
           --token <токен>     GitLab Personal Access Token (read_api). По умолчанию из GITLAB_TOKEN
           --insecure, -k      не проверять TLS-сертификат GitLab (самоподписанный)
           --api-url <url>     явный адрес API, если GitLab установлен в подкаталоге (https://host/gitlab/api/v4)

@@ -37,9 +37,9 @@ public static class CorpusEvaluator
         return items;
     }
 
-    public static List<ScoredItem> Score(IEnumerable<CorpusItem> items, AnalyzerOptions options)
+    public static List<ScoredItem> Score(IEnumerable<CorpusItem> items, AnalyzerOptions options, Languages.LanguageRegistry registry)
     {
-        var analyzer = new MergeRequestAnalyzer();
+        var analyzer = new MergeRequestAnalyzer(registry);
         return items.Select(i =>
         {
             var report = analyzer.Analyze(i.Data, options);
