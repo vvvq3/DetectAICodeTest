@@ -44,6 +44,14 @@ GitLab → аватар → **Edit profile → Access Tokens** → *Add new toke
 - GitLab в подкаталоге (`https://host/gitlab/...`) — `--api-url https://host/gitlab/api/v4`;
 - сервер за VPN — достаточно, чтобы VPN был включён на компьютере.
 
+## Примеры отчётов
+
+Три MR из тестового корпуса, написанные Claude Code в открытых проектах ([PDF со всеми тремя](docs/examples/examples.pdf), HTML-версии — в [docs/examples](docs/examples)):
+
+| eShopOnContainers — 98% | bitwarden/server — 93% | eShopOnWeb, «в стиле проекта» — 72% |
+|---|---|---|
+| ![](docs/examples/01-eshop-catalog-reviews.png) | ![](docs/examples/02-bitwarden-folder-cleanup.png) | ![](docs/examples/03-eshopweb-wishlist-project-style.png) |
+
 ## Что показывает отчёт
 
 ```

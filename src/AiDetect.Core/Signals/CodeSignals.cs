@@ -76,7 +76,7 @@ internal sealed class CodeSignals(AnalysisContext ctx, SignalBuilder b)
         if (_a[K.InheritDoc] >= 2)
         {
             b.Add("doc.inheritdoc", SignalGroup.Documentation, "Реализации помечены /// <inheritdoc />",
-                1, SignalBuilder.Rel(_a[K.InheritDoc], 2), 0.4, $"{_a[K.InheritDoc]:0} раз", [], _a[K.InheritDoc]);
+                1, SignalBuilder.Rel(_a[K.InheritDoc], 2), 0.4, SignalBuilder.Times(_a[K.InheritDoc]), [], _a[K.InheritDoc]);
         }
     }
 
@@ -316,7 +316,7 @@ internal sealed class CodeSignals(AnalysisContext ctx, SignalBuilder b)
                 b.Add("api.nameof", SignalGroup.ModernSyntax,
                     nameofDensity >= 0.8 ? "Частое использование nameof(...)" : "nameof почти не используется",
                     SignalBuilder.Map(nameofDensity, 0.05, 1.5), SignalBuilder.Rel(lines, 100), 0.5,
-                    $"{_a[K.Nameof]:0} раз на {lines:0} строк", [], nameofDensity);
+                    $"{SignalBuilder.Times(_a[K.Nameof])} на {lines:0} строк", [], nameofDensity);
             }
         }
     }
@@ -372,7 +372,7 @@ internal sealed class CodeSignals(AnalysisContext ctx, SignalBuilder b)
         if (_a[K.ConfigureAwaitFalse] >= 2)
         {
             b.Add("async.configureAwait", SignalGroup.Async, "ConfigureAwait(false) на await-вызовах",
-                0.7, SignalBuilder.Rel(_a[K.ConfigureAwaitFalse], 3), 0.3, $"{_a[K.ConfigureAwaitFalse]:0} раз", [], _a[K.ConfigureAwaitFalse]);
+                0.7, SignalBuilder.Rel(_a[K.ConfigureAwaitFalse], 3), 0.3, SignalBuilder.Times(_a[K.ConfigureAwaitFalse]), [], _a[K.ConfigureAwaitFalse]);
         }
     }
 
@@ -521,7 +521,7 @@ internal sealed class CodeSignals(AnalysisContext ctx, SignalBuilder b)
         if (_a[K.OptionsSectionName] >= 1 && (_base is null || _base[K.OptionsSectionName] == 0))
         {
             b.Add("idiom.sectionName", SignalGroup.Structure, "Options-класс с константой SectionName (типовой шаблон агента)",
-                1, 1, 0.4, $"{_a[K.OptionsSectionName]:0} раз", _a.GetExamples(K.OptionsSectionName), _a[K.OptionsSectionName]);
+                1, 1, 0.4, SignalBuilder.Times(_a[K.OptionsSectionName]), _a.GetExamples(K.OptionsSectionName), _a[K.OptionsSectionName]);
         }
 
         if (_a[K.ControllerActions] >= 2)
@@ -539,7 +539,7 @@ internal sealed class CodeSignals(AnalysisContext ctx, SignalBuilder b)
         if (_a[K.AsNoTracking] >= 1 && (_base is null || _base[K.AsNoTracking] == 0))
         {
             b.Add("idiom.asNoTracking", SignalGroup.Structure, "AsNoTracking() в запросах на чтение (в остальном коде проекта не используется)",
-                0.8, SignalBuilder.Rel(_a[K.AsNoTracking], 1), 0.3, $"{_a[K.AsNoTracking]:0} раз", [], _a[K.AsNoTracking]);
+                0.8, SignalBuilder.Rel(_a[K.AsNoTracking], 1), 0.3, SignalBuilder.Times(_a[K.AsNoTracking]), [], _a[K.AsNoTracking]);
         }
 
         if (lines >= 80)
@@ -648,7 +648,7 @@ internal sealed class CodeSignals(AnalysisContext ctx, SignalBuilder b)
             double? baseKr = _base is not null && _base[K.CodeLines] >= 100 ? _base[K.KAndRBraces] * 100 / _base[K.CodeLines] : null;
             double ek = SignalBuilder.AdjustForBaseline(-Math.Min(1, kr / 2), baseKr is { } bk ? -Math.Min(1, bk / 2) : null, 0.8);
             b.Add("fmt.kAndR", SignalGroup.Formatting, "Открывающая скобка на той же строке (K&R/Java-стиль) — нетипично для Claude в C#",
-                ek, SignalBuilder.Rel(_a[K.KAndRBraces], 2), 0.6, $"{_a[K.KAndRBraces]:0} раз", _a.GetExamples(K.KAndRBraces), kr);
+                ek, SignalBuilder.Rel(_a[K.KAndRBraces], 2), 0.6, SignalBuilder.Times(_a[K.KAndRBraces]), _a.GetExamples(K.KAndRBraces), kr);
         }
 
         if (_a[K.TabIndent] >= 5 && _a[K.TabIndent] / lines > 0.3)
@@ -684,7 +684,7 @@ internal sealed class CodeSignals(AnalysisContext ctx, SignalBuilder b)
         if (_a[K.TestExampleData] >= 1)
         {
             b.Add("test.exampleData", SignalGroup.Tests, "Типовые тестовые данные (test@example.com, John Doe)",
-                1, SignalBuilder.Rel(_a[K.TestExampleData], 2), 0.4, $"{_a[K.TestExampleData]:0} раз", _a.GetExamples(K.TestExampleData), _a[K.TestExampleData]);
+                1, SignalBuilder.Rel(_a[K.TestExampleData], 2), 0.4, SignalBuilder.Times(_a[K.TestExampleData]), _a.GetExamples(K.TestExampleData), _a[K.TestExampleData]);
         }
 
         if (_a[K.TestNameLower] >= 1 && _a[K.TestMethods] >= 1)

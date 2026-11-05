@@ -27,6 +27,16 @@ internal sealed class SignalBuilder(AnalysisContext ctx, ModelParameters paramet
     /// <summary>Надёжность по числу наблюдений: n/(n+k).</summary>
     public static double Rel(double n, double k) => n <= 0 ? 0 : n / (n + k);
 
+    /// <summary>«1 раз», «3 раза», «5 раз».</summary>
+    public static string Times(double count)
+    {
+        long n = (long)Math.Round(count);
+        long mod100 = n % 100;
+        long mod10 = n % 10;
+        string word = mod100 is >= 11 and <= 14 ? "раз" : mod10 is >= 2 and <= 4 ? "раза" : "раз";
+        return $"{n} {word}";
+    }
+
     public static string Pct(double v) => (v * 100).ToString("0", CultureInfo.InvariantCulture) + "%";
 
     /// <summary>

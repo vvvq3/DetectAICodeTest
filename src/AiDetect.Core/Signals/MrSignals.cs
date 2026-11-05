@@ -207,7 +207,7 @@ internal sealed partial class MrSignals(AnalysisContext ctx, SignalBuilder b)
             double score = Math.Min(1, 0.3 + (0.2 * pairs) + (extras ? 0.4 : 0));
             b.Add("mr.fullArchitecture", SignalGroup.MrShape,
                 "«Полная» архитектура: новый интерфейс + реализация + регистрация в DI" + (extras ? " + options/валидатор" : ""),
-                score, 1, 0.3, $"{pairs} пар интерфейс/реализация", [], pairs);
+                score, 1, 0.3, $"пар «интерфейс + реализация»: {pairs}", [], pairs);
         }
 
         // Единообразие: признаки «ИИ-стиля» одинаково выражены во всех файлах (человек пишет неровно).
