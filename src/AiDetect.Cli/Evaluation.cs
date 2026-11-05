@@ -68,16 +68,31 @@ public static class Evaluation
         }
 
         var start = o.WeightsPath is not null ? ModelParameters.Load(o.WeightsPath) : new ModelParameters();
+        if (o.Temperature is { } temperature)
+        {
+            start.Temperature = temperature;
+        }
         var options = new AnalyzerOptions { IgnoreArtifacts = true, Parameters = start, Language = CorpusLanguage(o, root) };
         var scored = CorpusEvaluator.Score(items, options, AppLanguages.Registry);
         var samples = Calibrator.BuildSamples(scored);
         var prior = Calibrator.DefaultWeights(scored);
 
         PrintMetrics("До калибровки (экспертные веса)", scored.Select(s => (s.Item.Label, s.Probability)).ToList());
-        var cv = Calibrator.CrossValidate(samples, prior, start, lambda: o.Lambda, balanced: o.Balanced);
-        PrintMetrics($"После калибровки (lambda={o.Lambda}, {(o.Balanced ? "с балансировкой классов" : "консервативно, без балансировки")}), 5-кратная перекрёстная проверка", cv);
+        var cv = Calibrator.CrossValidate(samples, prior, start, lambda: o.Lambda, balanced: o.Balanced, targetFpr: o.TargetFpr);
+        PrintMetrics($"После калибровки (lambda={o.Lambda}, {(o.Balanced ? "с балансировкой классов" : "консервативно, без балансировки")}" +
+                     (o.TargetFpr > 0 ? $", цель ложных «ИИ» ≤ {o.TargetFpr:P0}" : "") + "), 5-кратная перекрёстная проверка", cv);
+        foreach (var t in new[] { 0.65, 0.85 })
+        {
+            var m = CorpusEvaluator.Metrics(cv, t);
+            Console.WriteLine($"  порог {t * 100:0}%: ложные «ИИ» на человеческом коде={m.Fpr * 100:0}%, найдено ИИ={m.Tpr * 100:0}%");
+        }
 
         var fitted = Calibrator.Fit(samples, prior, start, o.Lambda, balanced: o.Balanced);
+        if (o.TargetFpr > 0)
+        {
+            fitted = Calibrator.ApplyTargetFpr(fitted, samples, prior, o.TargetFpr);
+            Console.WriteLine($"Смещение после поправки на долю ложных «ИИ» ≤ {o.TargetFpr:P0}: {fitted.Bias:0.00}");
+        }
         var outPath = o.OutPath ?? "weights.json";
         fitted.Save(outPath);
         Console.WriteLine($"Веса сохранены в {Path.GetFullPath(outPath)}. Использование: --weights {outPath} (или положите weights.json рядом с программой).");

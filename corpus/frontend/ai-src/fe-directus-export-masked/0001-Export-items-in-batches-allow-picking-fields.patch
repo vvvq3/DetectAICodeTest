@@ -1,0 +1,288 @@
+From 2ff6d5a3f6e708fa6b3401917283c4f7948fc367 Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Thu, 5 Nov 2026 22:28:05 +0000
+Subject: [PATCH] Export items in batches, allow picking fields
+
+---
+ app/src/lang/translations/en-US.yaml          |   2 +
+ .../modules/collections/routes/collection.vue |   1 +
+ .../export-sidebar-detail.vue                 | 197 +++++++++++++++---
+ 3 files changed, 175 insertions(+), 25 deletions(-)
+
+diff --git a/app/src/lang/translations/en-US.yaml b/app/src/lang/translations/en-US.yaml
+index 59ffd57a42..7688fed7a3 100644
+--- a/app/src/lang/translations/en-US.yaml
++++ b/app/src/lang/translations/en-US.yaml
+@@ -220,6 +220,8 @@ export_data: Export Data
+ format: Format
+ use_current_filters_settings: Use Current Filters & Settings
+ export_collection: 'Export {collection}'
++exporting_items: 'Exporting items {done}/{total}'
++export_items_success: 'No Items Exported | One Item Exported | {count} Items Exported'
+ last_page: Last Page
+ last_access: Last Access
+ fill_template: Fill with Template Value
+diff --git a/app/src/modules/collections/routes/collection.vue b/app/src/modules/collections/routes/collection.vue
+index c25b6b5471..90c62840a6 100644
+--- a/app/src/modules/collections/routes/collection.vue
++++ b/app/src/modules/collections/routes/collection.vue
+@@ -232,6 +232,7 @@
+ 			<portal-target name="sidebar" />
+ 			<export-sidebar-detail
+ 				:layout-query="layoutQuery"
++				:filters="filters"
+ 				:search-query="searchQuery"
+ 				:collection="currentCollection"
+ 			/>
+diff --git a/app/src/views/private/components/export-sidebar-detail/export-sidebar-detail.vue b/app/src/views/private/components/export-sidebar-detail/export-sidebar-detail.vue
+index 55f3935402..bd32f09b96 100644
+--- a/app/src/views/private/components/export-sidebar-detail/export-sidebar-detail.vue
++++ b/app/src/views/private/components/export-sidebar-detail/export-sidebar-detail.vue
+@@ -15,23 +15,48 @@
+ 						},
+ 					]"
+ 					v-model="format"
++					:disabled="exporting"
+ 				/>
+-				<v-checkbox v-model="useFilters" :label="$t('use_current_filters_settings')" />
++				<v-checkbox v-model="useFilters" :label="$t('use_current_filters_settings')" :disabled="exporting" />
+ 			</div>
+ 
+ 			<div class="field full">
+-				<v-button full-width @click="exportData">
++				<p class="type-label">{{ $t('select_fields') }}</p>
++				<v-select
++					v-model="fields"
++					:items="availableFields"
++					item-text="name"
++					item-value="field"
++					:disabled="exporting"
++					:close-on-content-click="false"
++					multiple
++				/>
++			</div>
++
++			<div class="field full">
++				<v-button full-width @click="exportData" :loading="exporting" :disabled="!fields || fields.length === 0">
+ 					{{ $t('export_collection', { collection: collection.name }) }}
+ 				</v-button>
++
++				<div class="progress" v-if="exporting">
++					<v-progress-linear :indeterminate="totalCount === null" :value="progress" rounded />
++					<p class="type-text">{{ $t('exporting_items', { done: exportedCount, total: totalCount || 0 }) }}</p>
++				</div>
+ 			</div>
+ 		</div>
+ 	</sidebar-detail>
+ </template>
+ 
+ <script lang="ts">
+-import { defineComponent, ref, PropType } from '@vue/composition-api';
+-import { Collection } from '@/types';
++import { defineComponent, ref, computed, watch, PropType } from '@vue/composition-api';
++import { Collection, Filter } from '@/types';
+ import api from '@/api';
++import i18n from '@/lang';
++import useCollection from '@/composables/use-collection';
++import filtersToQuery from '@/utils/filters-to-query';
++import { getEndpoint } from '@/utils/get-endpoint';
++import { notify } from '@/utils/notify';
++import { unexpectedError } from '@/utils/unexpected-error';
+ 
+ export default defineComponent({
+ 	props: {
+@@ -39,6 +64,10 @@ export default defineComponent({
+ 			type: Object,
+ 			default: () => ({}),
+ 		},
++		filters: {
++			type: Array as PropType<Filter[]>,
++			default: () => [],
++		},
+ 		searchQuery: {
+ 			type: String,
+ 			default: null,
+@@ -52,36 +81,145 @@ export default defineComponent({
+ 		const format = ref('csv');
+ 		const useFilters = ref(true);
+ 
+-		return { format, useFilters, exportData };
++		const collectionKey = computed(() => props.collection.collection);
++		const { fields: fieldsInCollection, primaryKeyField } = useCollection(collectionKey);
+ 
+-		function exportData() {
+-			const url = `/items/${props.collection.collection}`;
++		const { availableFields, fields } = useFields();
++		const { exporting, exportedCount, totalCount, progress, exportData } = useExport();
+ 
+-			let params: Record<string, any> = {
+-				access_token: api.defaults.headers.Authorization.substring(7),
+-			};
++		return { format, useFilters, availableFields, fields, exporting, exportedCount, totalCount, progress, exportData };
+ 
+-			if (format.value === 'csv') {
+-				params.export = 'csv';
+-			} else {
+-				params.export = 'json';
+-			}
++		function useFields() {
++			const availableFields = computed(() => {
++				return fieldsInCollection.value.filter((field) => field.meta?.special?.includes('no-data') !== true);
++			});
++
++			const fields = ref<string[] | null>(null);
++
++			watch(
++				collectionKey,
++				() => {
++					fields.value = availableFields.value.map(({ field }) => field);
++				},
++				{ immediate: true }
++			);
++
++			return { availableFields, fields };
++		}
++
++		function useExport() {
++			const exporting = ref(false);
++			const exportedCount = ref(0);
++			const totalCount = ref<number | null>(null);
++
++			const progress = computed(() => {
++				if (!totalCount.value) return 0;
++				return Math.round((exportedCount.value / totalCount.value) * 100);
++			});
++
++			return { exporting, exportedCount, totalCount, progress, exportData };
++
++			async function exportData() {
++				if (!fields.value || fields.value.length === 0) return;
++
++				const endpoint = getEndpoint(collectionKey.value);
++				const fieldsToExport = fields.value;
+ 
+-			if (useFilters.value === true) {
+-				params = {
+-					...params,
+-					...props.layoutQuery,
++				let params: Record<string, any> = {
++					fields: fieldsToExport,
++					sort: primaryKeyField.value.field,
+ 				};
+ 
+-				if (props.searchQuery) {
+-					params.search = props.searchQuery;
++				if (useFilters.value === true) {
++					params = {
++						...params,
++						...filtersToQuery(props.filters),
++						sort: props.layoutQuery?.sort || primaryKeyField.value.field,
++						search: props.searchQuery,
++					};
++				}
++
++				exporting.value = true;
++				exportedCount.value = 0;
++				totalCount.value = null;
++
++				try {
++					const countResponse = await api.get(endpoint, {
++						params: {
++							...params,
++							fields: primaryKeyField.value.field,
++							limit: 0,
++							meta: 'filter_count',
++						},
++					});
++
++					const total = countResponse.data.meta.filter_count as number;
++					totalCount.value = total;
++
++					const items: Record<string, any>[] = [];
++					let page = 1;
++
++					while (items.length < total) {
++						const response = await api.get(endpoint, {
++							params: {
++								...params,
++								limit: 500,
++								page,
++							},
++						});
++
++						if (response.data.data.length === 0) break;
++
++						items.push(...response.data.data);
++						exportedCount.value = items.length;
++						page++;
++					}
++
++					if (format.value === 'csv') {
++						download(toCSV(items, fieldsToExport), 'text/csv');
++					} else {
++						download(JSON.stringify(items, null, '\t'), 'application/json');
++					}
++
++					notify({
++						title: i18n.tc('export_items_success', items.length, { count: items.length }),
++						type: 'success',
++					});
++				} catch (err) {
++					unexpectedError(err);
++				} finally {
++					exporting.value = false;
+ 				}
+ 			}
+ 
+-			const qs = Object.keys(params)
+-				.map((key) => `${key}=${params[key]}`)
+-				.join('&');
+-			window.open(`${url}?${qs}`);
++			function toCSV(items: Record<string, any>[], fields: string[]) {
++				const rows = items.map((item) => fields.map((field) => toCSVValue(item[field])).join(','));
++				return [fields.join(','), ...rows].join('\n');
++			}
++
++			function toCSVValue(value: any) {
++				if (value === null || value === undefined) return '';
++
++				const stringValue = typeof value === 'object' ? JSON.stringify(value) : String(value);
++
++				if (/[",\r\n]/.test(stringValue)) {
++					return `"${stringValue.replace(/"/g, '""')}"`;
++				}
++
++				return stringValue;
++			}
++
++			function download(content: string, type: string) {
++				const link = document.createElement('a');
++				link.href = URL.createObjectURL(new Blob([content], { type }));
++				link.download = `${collectionKey.value}.${format.value}`;
++
++				document.body.appendChild(link);
++				link.click();
++				document.body.removeChild(link);
++
++				URL.revokeObjectURL(link.href);
++			}
+ 		}
+ 	},
+ });
+@@ -103,4 +241,13 @@ export default defineComponent({
+ .v-checkbox {
+ 	margin-top: 8px;
+ }
++
++.progress {
++	margin-top: 12px;
++
++	.type-text {
++		margin-top: 4px;
++		color: var(--foreground-subdued);
++	}
++}
+ </style>
+-- 
+2.43.0
+

@@ -1,0 +1,784 @@
+{
+  "Source": "/root/aidetect-corpus-repos/VKCOM/VKUI 88658fa9436987f41895f01c99a6fb5edf241481..ff5ec6733164af3894c85390a28485f66dd84d36",
+  "Title": "chore: add more codemods (#6340)",
+  "Description": "",
+  "HasMrMetadata": false,
+  "AuthorName": "Victoria Zhizhonkova",
+  "AuthorUsername": "",
+  "SourceBranch": "",
+  "TargetBranch": "88658fa9436987f41895f01c99a6fb5edf241481",
+  "CreatedAt": "2023-12-29T15:50:38+07:00",
+  "MergedAt": null,
+  "BaseSha": "88658fa9436987f41895f01c99a6fb5edf241481",
+  "HeadSha": "ff5ec6733164af3894c85390a28485f66dd84d36",
+  "Commits": [
+    {
+      "Sha": "ff5ec6733164af3894c85390a28485f66dd84d36",
+      "Title": "chore: add more codemods (#6340)",
+      "Message": "chore: add more codemods (#6340)\n\n* chore: ass more codemods\r\n\r\n* feat(codemodes/config-provider): support `tokensClassNames`\r\n\r\n* chore: refactor + add panel/modal header codmods\r\n\r\n---------\r\n\r\nCo-authored-by: Inomdzhon Mirdzhamolov <i.mirdzhamolov@vk.team>",
+      "AuthorName": "Victoria Zhizhonkova",
+      "AuthorEmail": "indarklight@gmail.com",
+      "AuthoredDate": "2023-12-29T15:50:38+07:00",
+      "CommittedDate": "2023-12-29T15:50:38+07:00",
+      "Additions": 438,
+      "Deletions": 36,
+      "ChangedPaths": [
+        "packages/codemods/src/codemod-helpers.ts",
+        "packages/codemods/src/transforms/__testfixtures__/card-scroll/basic.input.tsx",
+        "packages/codemods/src/transforms/__testfixtures__/config-provider/basic.input.tsx",
+        "packages/codemods/src/transforms/__testfixtures__/gallery/basic.input.tsx",
+        "packages/codemods/src/transforms/__testfixtures__/image-base/basic.input.tsx",
+        "packages/codemods/src/transforms/__testfixtures__/modal-page-header/basic.input.tsx",
+        "packages/codemods/src/transforms/__testfixtures__/panel-header/basic.input.tsx",
+        "packages/codemods/src/transforms/__testfixtures__/placeholder/basic.input.tsx",
+        "packages/codemods/src/transforms/__testfixtures__/popout-wrapper/basic.input.tsx",
+        "packages/codemods/src/transforms/__testfixtures__/select/basic.input.tsx",
+        "packages/codemods/src/transforms/__testfixtures__/tabbar/basic.input.tsx",
+        "packages/codemods/src/transforms/__tests__/__snapshots__/card-scroll.ts.snap",
+        "packages/codemods/src/transforms/__tests__/__snapshots__/config-provider.ts.snap",
+        "packages/codemods/src/transforms/__tests__/__snapshots__/gallery.ts.snap",
+        "packages/codemods/src/transforms/__tests__/__snapshots__/image-base.ts.snap",
+        "packages/codemods/src/transforms/__tests__/__snapshots__/modal-page-header.ts.snap",
+        "packages/codemods/src/transforms/__tests__/__snapshots__/panel-header.ts.snap",
+        "packages/codemods/src/transforms/__tests__/__snapshots__/placeholder.ts.snap",
+        "packages/codemods/src/transforms/__tests__/__snapshots__/popout-wrapper.ts.snap",
+        "packages/codemods/src/transforms/__tests__/__snapshots__/select.ts.snap",
+        "packages/codemods/src/transforms/__tests__/__snapshots__/tabbar.ts.snap",
+        "packages/codemods/src/transforms/__tests__/card-scroll.ts",
+        "packages/codemods/src/transforms/__tests__/gallery.ts",
+        "packages/codemods/src/transforms/__tests__/image-base.ts",
+        "packages/codemods/src/transforms/__tests__/panel-header.ts",
+        "packages/codemods/src/transforms/__tests__/placeholder.ts",
+        "packages/codemods/src/transforms/__tests__/popout-wrapper.ts",
+        "packages/codemods/src/transforms/__tests__/select.ts",
+        "packages/codemods/src/transforms/__tests__/tabbar.ts",
+        "packages/codemods/src/transforms/action-sheet-item.ts",
+        "packages/codemods/src/transforms/card-scroll.ts",
+        "packages/codemods/src/transforms/config-provider.ts",
+        "packages/codemods/src/transforms/gallery.ts",
+        "packages/codemods/src/transforms/image-base.ts",
+        "packages/codemods/src/transforms/modal-page-header.ts",
+        "packages/codemods/src/transforms/panel-header.ts",
+        "packages/codemods/src/transforms/placeholder.ts",
+        "packages/codemods/src/transforms/popout-wrapper.ts",
+        "packages/codemods/src/transforms/select.ts",
+        "packages/codemods/src/transforms/tabbar.ts",
+        "styleguide/pages/migration_v6.md"
+      ],
+      "FileStats": [
+        {
+          "Path": "packages/codemods/src/codemod-helpers.ts",
+          "Added": 34,
+          "Removed": 0
+        },
+        {
+          "Path": "packages/codemods/src/transforms/__testfixtures__/card-scroll/basic.input.tsx",
+          "Added": 12,
+          "Removed": 0
+        },
+        {
+          "Path": "packages/codemods/src/transforms/__testfixtures__/config-provider/basic.input.tsx",
+          "Added": 3,
+          "Removed": 0
+        },
+        {
+          "Path": "packages/codemods/src/transforms/__testfixtures__/gallery/basic.input.tsx",
+          "Added": 11,
+          "Removed": 0
+        },
+        {
+          "Path": "packages/codemods/src/transforms/__testfixtures__/image-base/basic.input.tsx",
+          "Added": 12,
+          "Removed": 0
+        },
+        {
+          "Path": "packages/codemods/src/transforms/__testfixtures__/modal-page-header/basic.input.tsx",
+          "Added": 2,
+          "Removed": 0
+        },
+        {
+          "Path": "packages/codemods/src/transforms/__testfixtures__/panel-header/basic.input.tsx",
+          "Added": 13,
+          "Removed": 0
+        },
+        {
+          "Path": "packages/codemods/src/transforms/__testfixtures__/placeholder/basic.input.tsx",
+          "Added": 12,
+          "Removed": 0
+        },
+        {
+          "Path": "packages/codemods/src/transforms/__testfixtures__/popout-wrapper/basic.input.tsx",
+          "Added": 11,
+          "Removed": 0
+        },
+        {
+          "Path": "packages/codemods/src/transforms/__testfixtures__/select/basic.input.tsx",
+          "Added": 12,
+          "Removed": 0
+        },
+        {
+          "Path": "packages/codemods/src/transforms/__testfixtures__/tabbar/basic.input.tsx",
+          "Added": 11,
+          "Removed": 0
+        },
+        {
+          "Path": "packages/codemods/src/transforms/__tests__/card-scroll.ts",
+          "Added": 12,
+          "Removed": 0
+        },
+        {
+          "Path": "packages/codemods/src/transforms/__tests__/gallery.ts",
+          "Added": 12,
+          "Removed": 0
+        },
+        {
+          "Path": "packages/codemods/src/transforms/__tests__/image-base.ts",
+          "Added": 12,
+          "Removed": 0
+        },
+        {
+          "Path": "packages/codemods/src/transforms/__tests__/panel-header.ts",
+          "Added": 12,
+          "Removed": 0
+        },
+        {
+          "Path": "packages/codemods/src/transforms/__tests__/placeholder.ts",
+          "Added": 12,
+          "Removed": 0
+        },
+        {
+          "Path": "packages/codemods/src/transforms/__tests__/popout-wrapper.ts",
+          "Added": 12,
+          "Removed": 0
+        },
+        {
+          "Path": "packages/codemods/src/transforms/__tests__/select.ts",
+          "Added": 12,
+          "Removed": 0
+        },
+        {
+          "Path": "packages/codemods/src/transforms/__tests__/tabbar.ts",
+          "Added": 12,
+          "Removed": 0
+        },
+        {
+          "Path": "packages/codemods/src/transforms/action-sheet-item.ts",
+          "Added": 2,
+          "Removed": 24
+        },
+        {
+          "Path": "packages/codemods/src/transforms/card-scroll.ts",
+          "Added": 16,
+          "Removed": 0
+        },
+        {
+          "Path": "packages/codemods/src/transforms/config-provider.ts",
+          "Added": 46,
+          "Removed": 2
+        },
+        {
+          "Path": "packages/codemods/src/transforms/gallery.ts",
+          "Added": 16,
+          "Removed": 0
+        },
+        {
+          "Path": "packages/codemods/src/transforms/image-base.ts",
+          "Added": 20,
+          "Removed": 0
+        },
+        {
+          "Path": "packages/codemods/src/transforms/modal-page-header.ts",
+          "Added": 6,
+          "Removed": 4
+        },
+        {
+          "Path": "packages/codemods/src/transforms/panel-header.ts",
+          "Added": 44,
+          "Removed": 0
+        },
+        {
+          "Path": "packages/codemods/src/transforms/placeholder.ts",
+          "Added": 16,
+          "Removed": 0
+        },
+        {
+          "Path": "packages/codemods/src/transforms/popout-wrapper.ts",
+          "Added": 7,
+          "Removed": 6
+        },
+        {
+          "Path": "packages/codemods/src/transforms/select.ts",
+          "Added": 20,
+          "Removed": 0
+        },
+        {
+          "Path": "packages/codemods/src/transforms/tabbar.ts",
+          "Added": 16,
+          "Removed": 0
+        }
+      ]
+    }
+  ],
+  "Changes": [
+    {
+      "OldPath": "packages/codemods/src/codemod-helpers.ts",
+      "NewPath": "packages/codemods/src/codemod-helpers.ts",
+      "IsNew": false,
+      "IsDeleted": false,
+      "IsRenamed": false,
+      "Diff": "@@ -59,6 +59,40 @@ export function renameProp(\n     });\n }\n \n+export function swapBooleanValue(\n+  api: API,\n+  source: Collection,\n+  componentName: string,\n+  previousPropName: string,\n+  currentPropName: string,\n+) {\n+  const j = api.jscodeshift;\n+  source\n+    .find(\n+      j.JSXOpeningElement,\n+      (element) => element.name.type === 'JSXIdentifier' && element.name.name === componentName,\n+    )\n+    .find(j.JSXAttribute, (attribute) => attribute.name.name === previousPropName)\n+    .forEach((attribute) => {\n+      const node = attribute.node;\n+\n+      if (!node.value) {\n+        j(attribute).remove();\n+      } else if (\n+        node.value.type === 'JSXExpressionContainer' &&\n+        node.value.expression.type === 'BooleanLiteral'\n+      ) {\n+        if (node.value.expression.value) {\n+          j(attribute).remove();\n+        } else {\n+          j(attribute).replaceWith(j.jsxAttribute(j.jsxIdentifier(currentPropName)));\n+        }\n+      } else {\n+        report(api, `Manual changes required for ${componentName}'s ${previousPropName} prop.`);\n+      }\n+    });\n+}\n+\n interface AttributeManipulatorAPI {\n   keyTo?: string | ((k?: string) => string);\n   reportText?: string | (() => string);\n",
+      "OldContent": "import type {\n  API,\n  Collection,\n  FileInfo,\n  JSCodeshift,\n  JSXAttribute,\n  JSXIdentifier,\n} from 'jscodeshift';\nimport { report } from './report';\n\nexport function getImportInfo(\n  j: JSCodeshift,\n  file: FileInfo,\n  componentName: string,\n  alias: string,\n) {\n  const source = j(file.source);\n\n  let localImportName = componentName;\n\n  const componentImport = source\n    .find(j.ImportDeclaration)\n    .filter((path) => path.node.source.value === alias)\n    .find(j.ImportSpecifier, { imported: { name: componentName } });\n\n  componentImport.forEach((path) => {\n    if (path.node.local && path.node.local.name !== path.node.imported.name) {\n      localImportName = path.node.local.name;\n    }\n  });\n\n  return { localName: localImportName };\n}\n\nexport function renameProp(\n  j: JSCodeshift,\n  source: Collection,\n  componentName: string,\n  renameMap: { [x: string]: string },\n) {\n  const from = Object.keys(renameMap);\n  return source\n    .find(j.JSXOpeningElement)\n    .filter(\n      (path) => path.value.name.type === 'JSXIdentifier' && path.value.name.name === componentName,\n    )\n    .find(j.JSXAttribute)\n    .filter((attribute) => {\n      const attributeName = attribute.node.name.name;\n      return typeof attributeName === 'string' ? from.includes(attributeName) : false;\n    })\n    .forEach((attribute) => {\n      j(attribute).replaceWith(\n        j.jsxAttribute(\n          j.jsxIdentifier(renameMap[attribute.node.name.name as string]),\n          attribute.node.value,\n        ),\n      );\n    });\n}\n\ninterface AttributeManipulatorAPI {\n  keyTo?: string | ((k?: string) => string);\n  reportText?: string | (() => string);\n  valueTo?(v: JSXAttribute['value'], api: API): JSXAttribute['value'];\n  action?: 'rename' | 'remove';\n}\n\nexport type AttributeManipulator = Record<string, AttributeManipulatorAPI>;\n\nexport const createAttributeManipulator = (\n  props: Record<string, AttributeManipulatorAPI>,\n  api: API,\n) => {\n  const map = new Map<string, AttributeManipulatorAPI>(Object.entries(props));\n\n  return {\n    has(attributeKey: string | JSXIdentifier) {\n      return typeof attributeKey === 'string' ? map.has(attributeKey) : false;\n    },\n    getReplacers(attributeKeyProp: string | JSXIdentifier) {\n      const attributeKey = typeof attributeKeyProp === 'string' ? attributeKeyProp : '';\n      const found = map.get(attributeKey);\n\n      if (found && found.reportText) {\n        const text = typeof found.reportText === 'function' ? found.reportText() : found.reportText;\n\n        report(api, text);\n      }\n\n      return {\n        action: found && found.action,\n        keyTo() {\n          if (!found || !found.keyTo) {\n            return attributeKey;\n          }\n          if (typeof found.keyTo === 'string') {\n            return found.keyTo;\n          }\n          return found.keyTo(attributeKey);\n        },\n        valueTo(attributeKeyValue: JSXAttribute['value']) {\n          if (!found || !found.valueTo) {\n            return attributeKeyValue;\n          }\n          if (typeof found.valueTo === 'string') {\n            return found.valueTo;\n          }\n          return found.valueTo(attributeKeyValue, api);\n        },\n      };\n    },\n  };\n};\n",
+      "NewContent": "import type {\n  API,\n  Collection,\n  FileInfo,\n  JSCodeshift,\n  JSXAttribute,\n  JSXIdentifier,\n} from 'jscodeshift';\nimport { report } from './report';\n\nexport function getImportInfo(\n  j: JSCodeshift,\n  file: FileInfo,\n  componentName: string,\n  alias: string,\n) {\n  const source = j(file.source);\n\n  let localImportName = componentName;\n\n  const componentImport = source\n    .find(j.ImportDeclaration)\n    .filter((path) => path.node.source.value === alias)\n    .find(j.ImportSpecifier, { imported: { name: componentName } });\n\n  componentImport.forEach((path) => {\n    if (path.node.local && path.node.local.name !== path.node.imported.name) {\n      localImportName = path.node.local.name;\n    }\n  });\n\n  return { localName: localImportName };\n}\n\nexport function renameProp(\n  j: JSCodeshift,\n  source: Collection,\n  componentName: string,\n  renameMap: { [x: string]: string },\n) {\n  const from = Object.keys(renameMap);\n  return source\n    .find(j.JSXOpeningElement)\n    .filter(\n      (path) => path.value.name.type === 'JSXIdentifier' && path.value.name.name === componentName,\n    )\n    .find(j.JSXAttribute)\n    .filter((attribute) => {\n      const attributeName = attribute.node.name.name;\n      return typeof attributeName === 'string' ? from.includes(attributeName) : false;\n    })\n    .forEach((attribute) => {\n      j(attribute).replaceWith(\n        j.jsxAttribute(\n          j.jsxIdentifier(renameMap[attribute.node.name.name as string]),\n          attribute.node.value,\n        ),\n      );\n    });\n}\n\nexport function swapBooleanValue(\n  api: API,\n  source: Collection,\n  componentName: string,\n  previousPropName: string,\n  currentPropName: string,\n) {\n  const j = api.jscodeshift;\n  source\n    .find(\n      j.JSXOpeningElement,\n      (element) => element.name.type === 'JSXIdentifier' && element.name.name === componentName,\n    )\n    .find(j.JSXAttribute, (attribute) => attribute.name.name === previousPropName)\n    .forEach((attribute) => {\n      const node = attribute.node;\n\n      if (!node.value) {\n        j(attribute).remove();\n      } else if (\n        node.value.type === 'JSXExpressionContainer' &&\n        node.value.expression.type === 'BooleanLiteral'\n      ) {\n        if (node.value.expression.value) {\n          j(attribute).remove();\n        } else {\n          j(attribute).replaceWith(j.jsxAttribute(j.jsxIdentifier(currentPropName)));\n        }\n      } else {\n        report(api, `Manual changes required for ${componentName}'s ${previousPropName} prop.`);\n      }\n    });\n}\n\ninterface AttributeManipulatorAPI {\n  keyTo?: string | ((k?: string) => string);\n  reportText?: string | (() => string);\n  valueTo?(v: JSXAttribute['value'], api: API): JSXAttribute['value'];\n  action?: 'rename' | 'remove';\n}\n\nexport type AttributeManipulator = Record<string, AttributeManipulatorAPI>;\n\nexport const createAttributeManipulator = (\n  props: Record<string, AttributeManipulatorAPI>,\n  api: API,\n) => {\n  const map = new Map<string, AttributeManipulatorAPI>(Object.entries(props));\n\n  return {\n    has(attributeKey: string | JSXIdentifier) {\n      return typeof attributeKey === 'string' ? map.has(attributeKey) : false;\n    },\n    getReplacers(attributeKeyProp: string | JSXIdentifier) {\n      const attributeKey = typeof attributeKeyProp === 'string' ? attributeKeyProp : '';\n      const found = map.get(attributeKey);\n\n      if (found && found.reportText) {\n        const text = typeof found.reportText === 'function' ? found.reportText() : found.reportText;\n\n        report(api, text);\n      }\n\n      return {\n        action: found && found.action,\n        keyTo() {\n          if (!found || !found.keyTo) {\n            return attributeKey;\n          }\n          if (typeof found.keyTo === 'string') {\n            return found.keyTo;\n          }\n          return found.keyTo(attributeKey);\n        },\n        valueTo(attributeKeyValue: JSXAttribute['value']) {\n          if (!found || !found.valueTo) {\n            return attributeKeyValue;\n          }\n          if (typeof found.valueTo === 'string') {\n            return found.valueTo;\n          }\n          return found.valueTo(attributeKeyValue, api);\n        },\n      };\n    },\n  };\n};\n",
+      "Path": "packages/codemods/src/codemod-helpers.ts"
+    },
+    {
+      "OldPath": "packages/codemods/src/transforms/__testfixtures__/card-scroll/basic.input.tsx",
+      "NewPath": "packages/codemods/src/transforms/__testfixtures__/card-scroll/basic.input.tsx",
+      "IsNew": true,
+      "IsDeleted": false,
+      "IsRenamed": false,
+      "Diff": "@@ -0,0 +1,12 @@\n+import { CardScroll } from '@vkontakte/vkui';\n+import React from 'react';\n+\n+const App = () => {\n+  return (\n+    <React.Fragment>\n+      <CardScroll withSpaces>{cards}</CardScroll>\n+      <CardScroll withSpaces={false}>{cards}</CardScroll>\n+      <CardScroll withSpaces={withSpaces}>{cards}</CardScroll>\n+    </React.Fragment>\n+  );\n+};\n",
+      "OldContent": null,
+      "NewContent": "import { CardScroll } from '@vkontakte/vkui';\nimport React from 'react';\n\nconst App = () => {\n  return (\n    <React.Fragment>\n      <CardScroll withSpaces>{cards}</CardScroll>\n      <CardScroll withSpaces={false}>{cards}</CardScroll>\n      <CardScroll withSpaces={withSpaces}>{cards}</CardScroll>\n    </React.Fragment>\n  );\n};\n",
+      "Path": "packages/codemods/src/transforms/__testfixtures__/card-scroll/basic.input.tsx"
+    },
+    {
+      "OldPath": "packages/codemods/src/transforms/__testfixtures__/config-provider/basic.input.tsx",
+      "NewPath": "packages/codemods/src/transforms/__testfixtures__/config-provider/basic.input.tsx",
+      "IsNew": false,
+      "IsDeleted": false,
+      "IsRenamed": false,
+      "Diff": "@@ -29,6 +29,9 @@ const App = () => {\n       <ConfigProvider {...configProviderProps}>\n         <App />\n       </ConfigProvider>\n+      <ConfigProvider platform=\"someAnotherPlatform\">\n+        <App />\n+      </ConfigProvider>\n     </React.Fragment>\n   );\n };\n",
+      "OldContent": "import { ConfigProvider } from '@vkontakte/vkui';\nimport React from 'react';\nimport '@vkontakte/vkui/dist/vkui.css';\n\nconst App = () => {\n  return (\n    <React.Fragment>\n      <ConfigProvider webviewType={WebviewType.INTERNAL} platform=\"ios\">\n        <App />\n      </ConfigProvider>\n      <ConfigProvider platform=\"ios\" webviewType={WebviewType.VKAPPS}>\n        <App />\n      </ConfigProvider>\n      <ConfigProvider isWebView webviewType=\"internal\">\n        <App />\n      </ConfigProvider>\n      <ConfigProvider webviewType=\"vkapps\" boolValue>\n        <App />\n      </ConfigProvider>\n      <ConfigProvider webviewType={webviewType} boolValue>\n        <App />\n      </ConfigProvider>\n      <ConfigProvider webviewType={'internal' as WebviewType} boolValue>\n        <App />\n      </ConfigProvider>\n      <ConfigProvider webviewType={'vkapps' as WebviewType} boolValue>\n        <App />\n      </ConfigProvider>\n      <ConfigProvider {...configProviderProps}>\n        <App />\n      </ConfigProvider>\n    </React.Fragment>\n  );\n};\n",
+      "NewContent": "import { ConfigProvider } from '@vkontakte/vkui';\nimport React from 'react';\nimport '@vkontakte/vkui/dist/vkui.css';\n\nconst App = () => {\n  return (\n    <React.Fragment>\n      <ConfigProvider webviewType={WebviewType.INTERNAL} platform=\"ios\">\n        <App />\n      </ConfigProvider>\n      <ConfigProvider platform=\"ios\" webviewType={WebviewType.VKAPPS}>\n        <App />\n      </ConfigProvider>\n      <ConfigProvider isWebView webviewType=\"internal\">\n        <App />\n      </ConfigProvider>\n      <ConfigProvider webviewType=\"vkapps\" boolValue>\n        <App />\n      </ConfigProvider>\n      <ConfigProvider webviewType={webviewType} boolValue>\n        <App />\n      </ConfigProvider>\n      <ConfigProvider webviewType={'internal' as WebviewType} boolValue>\n        <App />\n      </ConfigProvider>\n      <ConfigProvider webviewType={'vkapps' as WebviewType} boolValue>\n        <App />\n      </ConfigProvider>\n      <ConfigProvider {...configProviderProps}>\n        <App />\n      </ConfigProvider>\n      <ConfigProvider platform=\"someAnotherPlatform\">\n        <App />\n      </ConfigProvider>\n    </React.Fragment>\n  );\n};\n",
+      "Path": "packages/codemods/src/transforms/__testfixtures__/config-provider/basic.input.tsx"
+    },
+    {
+      "OldPath": "packages/codemods/src/transforms/__testfixtures__/gallery/basic.input.tsx",
+      "NewPath": "packages/codemods/src/transforms/__testfixtures__/gallery/basic.input.tsx",
+      "IsNew": true,
+      "IsDeleted": false,
+      "IsRenamed": false,
+      "Diff": "@@ -0,0 +1,11 @@\n+import { Gallery } from '@vkontakte/vkui';\n+import React from 'react';\n+\n+const App = () => {\n+  return (\n+    <React.Fragment>\n+      <Gallery isDraggable>{slides}</Gallery>\n+      <Gallery isDraggable={false}>{slides}</Gallery>\n+    </React.Fragment>\n+  );\n+};\n",
+      "OldContent": null,
+      "NewContent": "import { Gallery } from '@vkontakte/vkui';\nimport React from 'react';\n\nconst App = () => {\n  return (\n    <React.Fragment>\n      <Gallery isDraggable>{slides}</Gallery>\n      <Gallery isDraggable={false}>{slides}</Gallery>\n    </React.Fragment>\n  );\n};\n",
+      "Path": "packages/codemods/src/transforms/__testfixtures__/gallery/basic.input.tsx"
+    },
+    {
+      "OldPath": "packages/codemods/src/transforms/__testfixtures__/image-base/basic.input.tsx",
+      "NewPath": "packages/codemods/src/transforms/__testfixtures__/image-base/basic.input.tsx",
+      "IsNew": true,
+      "IsDeleted": false,
+      "IsRenamed": false,
+      "Diff": "@@ -0,0 +1,12 @@\n+import { Image, ImageBase, Avatar as VKUIAvatar } from '@vkontakte/vkui';\n+import React from 'react';\n+\n+const App = () => {\n+  return (\n+    <React.Fragment>\n+      <Image src=\"image.svg\" withBorder></Image>\n+      <ImageBase withBorder={false} src=\"image.svg\"></ImageBase>\n+      <VKUIAvatar withBorder={true} />\n+    </React.Fragment>\n+  );\n+};\n\\ No newline at end of file\n",
+      "OldContent": null,
+      "NewContent": "import { Image, ImageBase, Avatar as VKUIAvatar } from '@vkontakte/vkui';\nimport React from 'react';\n\nconst App = () => {\n  return (\n    <React.Fragment>\n      <Image src=\"image.svg\" withBorder></Image>\n      <ImageBase withBorder={false} src=\"image.svg\"></ImageBase>\n      <VKUIAvatar withBorder={true} />\n    </React.Fragment>\n  );\n};",
+      "Path": "packages/codemods/src/transforms/__testfixtures__/image-base/basic.input.tsx"
+    },
+    {
+      "OldPath": "packages/codemods/src/transforms/__testfixtures__/modal-page-header/basic.input.tsx",
+      "NewPath": "packages/codemods/src/transforms/__testfixtures__/modal-page-header/basic.input.tsx",
+      "IsNew": false,
+      "IsDeleted": false,
+      "IsRenamed": false,
+      "Diff": "@@ -7,6 +7,8 @@ const App = () => {\n     <React.Fragment>\n       <ModalPageHeader getRef={ref2}>...</ModalPageHeader>\n       <ModalPageHeader getRef={ref1} getRootRef={ref1} boolValue>...</ModalPageHeader>\n+      <ModalPageHeader separator>...</ModalPageHeader>\n+      <ModalPageHeader separator={false}>...</ModalPageHeader>\n     </React.Fragment>\n   );\n };\n",
+      "OldContent": "import { ModalPageHeader } from '@vkontakte/vkui';\nimport React from 'react';\nimport '@vkontakte/vkui/dist/vkui.css';\n\nconst App = () => {\n  return (\n    <React.Fragment>\n      <ModalPageHeader getRef={ref2}>...</ModalPageHeader>\n      <ModalPageHeader getRef={ref1} getRootRef={ref1} boolValue>...</ModalPageHeader>\n    </React.Fragment>\n  );\n};\n",
+      "NewContent": "import { ModalPageHeader } from '@vkontakte/vkui';\nimport React from 'react';\nimport '@vkontakte/vkui/dist/vkui.css';\n\nconst App = () => {\n  return (\n    <React.Fragment>\n      <ModalPageHeader getRef={ref2}>...</ModalPageHeader>\n      <ModalPageHeader getRef={ref1} getRootRef={ref1} boolValue>...</ModalPageHeader>\n      <ModalPageHeader separator>...</ModalPageHeader>\n      <ModalPageHeader separator={false}>...</ModalPageHeader>\n    </React.Fragment>\n  );\n};\n",
+      "Path": "packages/codemods/src/transforms/__testfixtures__/modal-page-header/basic.input.tsx"
+    },
+    {
+      "OldPath": "packages/codemods/src/transforms/__testfixtures__/panel-header/basic.input.tsx",
+      "NewPath": "packages/codemods/src/transforms/__testfixtures__/panel-header/basic.input.tsx",
+      "IsNew": true,
+      "IsDeleted": false,
+      "IsRenamed": false,
+      "Diff": "@@ -0,0 +1,13 @@\n+import { PanelHeader } from '@vkontakte/vkui';\n+import React from 'react';\n+\n+const App = () => {\n+  return (\n+    <React.Fragment>\n+      <PanelHeader visor>PanelHeader</PanelHeader>\n+      <PanelHeader visor={false}>PanelHeader</PanelHeader>\n+      <PanelHeader separator>PanelHeader</PanelHeader>\n+      <PanelHeader separator={false}>PanelHeader</PanelHeader>\n+    </React.Fragment>\n+  );\n+};\n",
+      "OldContent": null,
+      "NewContent": "import { PanelHeader } from '@vkontakte/vkui';\nimport React from 'react';\n\nconst App = () => {\n  return (\n    <React.Fragment>\n      <PanelHeader visor>PanelHeader</PanelHeader>\n      <PanelHeader visor={false}>PanelHeader</PanelHeader>\n      <PanelHeader separator>PanelHeader</PanelHeader>\n      <PanelHeader separator={false}>PanelHeader</PanelHeader>\n    </React.Fragment>\n  );\n};\n",
+      "Path": "packages/codemods/src/transforms/__testfixtures__/panel-header/basic.input.tsx"
+    },
+    {
+      "OldPath": "packages/codemods/src/transforms/__testfixtures__/placeholder/basic.input.tsx",
+      "NewPath": "packages/codemods/src/transforms/__testfixtures__/placeholder/basic.input.tsx",
+      "IsNew": true,
+      "IsDeleted": false,
+      "IsRenamed": false,
+      "Diff": "@@ -0,0 +1,12 @@\n+import { Placeholder } from '@vkontakte/vkui';\n+import React from 'react';\n+\n+const App = () => {\n+  return (\n+    <React.Fragment>\n+      <Placeholder withPadding>Placeholder</Placeholder>\n+      <Placeholder withPadding={true}>Placeholder</Placeholder>\n+      <Placeholder withPadding={false}>Placeholder</Placeholder>\n+    </React.Fragment>\n+  );\n+};\n",
+      "OldContent": null,
+      "NewContent": "import { Placeholder } from '@vkontakte/vkui';\nimport React from 'react';\n\nconst App = () => {\n  return (\n    <React.Fragment>\n      <Placeholder withPadding>Placeholder</Placeholder>\n      <Placeholder withPadding={true}>Placeholder</Placeholder>\n      <Placeholder withPadding={false}>Placeholder</Placeholder>\n    </React.Fragment>\n  );\n};\n",
+      "Path": "packages/codemods/src/transforms/__testfixtures__/placeholder/basic.input.tsx"
+    },
+    {
+      "OldPath": "packages/codemods/src/transforms/__testfixtures__/popout-wrapper/basic.input.tsx",
+      "NewPath": "packages/codemods/src/transforms/__testfixtures__/popout-wrapper/basic.input.tsx",
+      "IsNew": true,
+      "IsDeleted": false,
+      "IsRenamed": false,
+      "Diff": "@@ -0,0 +1,11 @@\n+import { PopoutWrapper } from '@vkontakte/vkui';\n+import React from 'react';\n+\n+const App = () => {\n+  return (\n+    <React.Fragment>\n+      <PopoutWrapper hasMask />\n+      <PopoutWrapper hasMask={false} />\n+    </React.Fragment>\n+  );\n+};\n",
+      "OldContent": null,
+      "NewContent": "import { PopoutWrapper } from '@vkontakte/vkui';\nimport React from 'react';\n\nconst App = () => {\n  return (\n    <React.Fragment>\n      <PopoutWrapper hasMask />\n      <PopoutWrapper hasMask={false} />\n    </React.Fragment>\n  );\n};\n",
+      "Path": "packages/codemods/src/transforms/__testfixtures__/popout-wrapper/basic.input.tsx"
+    },
+    {
+      "OldPath": "packages/codemods/src/transforms/__testfixtures__/select/basic.input.tsx",
+      "NewPath": "packages/codemods/src/transforms/__testfixtures__/select/basic.input.tsx",
+      "IsNew": true,
+      "IsDeleted": false,
+      "IsRenamed": false,
+      "Diff": "@@ -0,0 +1,12 @@\n+import { ChipsSelect, CustomSelect, Select as VKUISelect } from '@vkontakte/vkui';\n+import React from 'react';\n+\n+const App = () => {\n+  return (\n+    <React.Fragment>\n+      <VKUISelect fixDropdownWidth options={options} />\n+      <CustomSelect fixDropdownWidth={false} options={options} />\n+      <ChipsSelect fixDropdownWidth={true} options={options} />\n+    </React.Fragment>\n+  );\n+};\n",
+      "OldContent": null,
+      "NewContent": "import { ChipsSelect, CustomSelect, Select as VKUISelect } from '@vkontakte/vkui';\nimport React from 'react';\n\nconst App = () => {\n  return (\n    <React.Fragment>\n      <VKUISelect fixDropdownWidth options={options} />\n      <CustomSelect fixDropdownWidth={false} options={options} />\n      <ChipsSelect fixDropdownWidth={true} options={options} />\n    </React.Fragment>\n  );\n};\n",
+      "Path": "packages/codemods/src/transforms/__testfixtures__/select/basic.input.tsx"
+    },
+    {
+      "OldPath": "packages/codemods/src/transforms/__testfixtures__/tabbar/basic.input.tsx",
+      "NewPath": "packages/codemods/src/transforms/__testfixtures__/tabbar/basic.input.tsx",
+      "IsNew": true,
+      "IsDeleted": false,
+      "IsRenamed": false,
+      "Diff": "@@ -0,0 +1,11 @@\n+import { Tabbar } from '@vkontakte/vkui';\n+import React from 'react';\n+\n+const App = () => {\n+  return (\n+    <React.Fragment>\n+      <Tabbar shadow />\n+      <Tabbar shadow={false} />\n+    </React.Fragment>\n+  );\n+};\n",
+      "OldContent": null,
+      "NewContent": "import { Tabbar } from '@vkontakte/vkui';\nimport React from 'react';\n\nconst App = () => {\n  return (\n    <React.Fragment>\n      <Tabbar shadow />\n      <Tabbar shadow={false} />\n    </React.Fragment>\n  );\n};\n",
+      "Path": "packages/codemods/src/transforms/__testfixtures__/tabbar/basic.input.tsx"
+    },
+    {
+      "OldPath": "packages/codemods/src/transforms/__tests__/__snapshots__/card-scroll.ts.snap",
+      "NewPath": "packages/codemods/src/transforms/__tests__/__snapshots__/card-scroll.ts.snap",
+      "IsNew": true,
+      "IsDeleted": false,
+      "IsRenamed": false,
+      "Diff": "@@ -0,0 +1,16 @@\n+// Jest Snapshot v1, https://goo.gl/fbAQLP\n+\n+exports[`card-scroll transforms correctly 1`] = `\n+\"import { CardScroll } from '@vkontakte/vkui';\n+import React from 'react';\n+\n+const App = () => {\n+  return (\n+    <React.Fragment>\n+      <CardScroll>{cards}</CardScroll>\n+      <CardScroll noSpaces>{cards}</CardScroll>\n+      <CardScroll withSpaces={withSpaces}>{cards}</CardScroll>\n+    </React.Fragment>\n+  );\n+};\"\n+`;\n",
+      "OldContent": null,
+      "NewContent": null,
+      "Path": "packages/codemods/src/transforms/__tests__/__snapshots__/card-scroll.ts.snap"
+    },
+    {
+      "OldPath": "packages/codemods/src/transforms/__tests__/__snapshots__/config-provider.ts.snap",
+      "NewPath": "packages/codemods/src/transforms/__tests__/__snapshots__/config-provider.ts.snap",
+      "IsNew": false,
+      "IsDeleted": false,
+      "IsRenamed": false,
+      "Diff": "@@ -32,6 +32,12 @@ const App = () => {\n       <ConfigProvider {...configProviderProps}>\n         <App />\n       </ConfigProvider>\n+      <ConfigProvider tokensClassNames={{\n+        light: \"vkui--someAnotherPlatform--light\",\n+        dark: \"vkui--someAnotherPlatform--dark\"\n+      }}>\n+        <App />\n+      </ConfigProvider>\n     </React.Fragment>\n   );\n };\"\n",
+      "OldContent": null,
+      "NewContent": null,
+      "Path": "packages/codemods/src/transforms/__tests__/__snapshots__/config-provider.ts.snap"
+    },
+    {
+      "OldPath": "packages/codemods/src/transforms/__tests__/__snapshots__/gallery.ts.snap",
+      "NewPath": "packages/codemods/src/transforms/__tests__/__snapshots__/gallery.ts.snap",
+      "IsNew": true,
+      "IsDeleted": false,
+      "IsRenamed": false,
+      "Diff": "@@ -0,0 +1,15 @@\n+// Jest Snapshot v1, https://goo.gl/fbAQLP\n+\n+exports[`gallery transforms correctly 1`] = `\n+\"import { Gallery } from '@vkontakte/vkui';\n+import React from 'react';\n+\n+const App = () => {\n+  return (\n+    <React.Fragment>\n+      <Gallery>{slides}</Gallery>\n+      <Gallery dragDisabled>{slides}</Gallery>\n+    </React.Fragment>\n+  );\n+};\"\n+`;\n",
+      "OldContent": null,
+      "NewContent": null,
+      "Path": "packages/codemods/src/transforms/__tests__/__snapshots__/gallery.ts.snap"
+    },
+    {
+      "OldPath": "packages/codemods/src/transforms/__tests__/__snapshots__/image-base.ts.snap",
+      "NewPath": "packages/codemods/src/transforms/__tests__/__snapshots__/image-base.ts.snap",
+      "IsNew": true,
+      "IsDeleted": false,
+      "IsRenamed": false,
+      "Diff": "@@ -0,0 +1,16 @@\n+// Jest Snapshot v1, https://goo.gl/fbAQLP\n+\n+exports[`image-base transforms correctly 1`] = `\n+\"import { Image, ImageBase, Avatar as VKUIAvatar } from '@vkontakte/vkui';\n+import React from 'react';\n+\n+const App = () => {\n+  return (\n+    <React.Fragment>\n+      <Image src=\"image.svg\"></Image>\n+      <ImageBase noBorder src=\"image.svg\"></ImageBase>\n+      <VKUIAvatar />\n+    </React.Fragment>\n+  );\n+};\"\n+`;\n",
+      "OldContent": null,
+      "NewContent": null,
+      "Path": "packages/codemods/src/transforms/__tests__/__snapshots__/image-base.ts.snap"
+    },
+    {
+      "OldPath": "packages/codemods/src/transforms/__tests__/__snapshots__/modal-page-header.ts.snap",
+      "NewPath": "packages/codemods/src/transforms/__tests__/__snapshots__/modal-page-header.ts.snap",
+      "IsNew": false,
+      "IsDeleted": false,
+      "IsRenamed": false,
+      "Diff": "@@ -10,6 +10,8 @@ const App = () => {\n     <React.Fragment>\n       <ModalPageHeader getRootRef={ref2}>...</ModalPageHeader>\n       <ModalPageHeader getRootRef={ref1} boolValue>...</ModalPageHeader>\n+      <ModalPageHeader>...</ModalPageHeader>\n+      <ModalPageHeader noSeparator>...</ModalPageHeader>\n     </React.Fragment>\n   );\n };\"\n",
+      "OldContent": null,
+      "NewContent": null,
+      "Path": "packages/codemods/src/transforms/__tests__/__snapshots__/modal-page-header.ts.snap"
+    },
+    {
+      "OldPath": "packages/codemods/src/transforms/__tests__/__snapshots__/panel-header.ts.snap",
+      "NewPath": "packages/codemods/src/transforms/__tests__/__snapshots__/panel-header.ts.snap",
+      "IsNew": true,
+      "IsDeleted": false,
+      "IsRenamed": false,
+      "Diff": "@@ -0,0 +1,17 @@\n+// Jest Snapshot v1, https://goo.gl/fbAQLP\n+\n+exports[`panel-header transforms correctly 1`] = `\n+\"import { PanelHeader } from '@vkontakte/vkui';\n+import React from 'react';\n+\n+const App = () => {\n+  return (\n+    <React.Fragment>\n+      <PanelHeader>PanelHeader</PanelHeader>\n+      <PanelHeader float>PanelHeader</PanelHeader>\n+      <PanelHeader>PanelHeader</PanelHeader>\n+      <PanelHeader delimiter=\"none\">PanelHeader</PanelHeader>\n+    </React.Fragment>\n+  );\n+};\"\n+`;\n",
+      "OldContent": null,
+      "NewContent": null,
+      "Path": "packages/codemods/src/transforms/__tests__/__snapshots__/panel-header.ts.snap"
+    },
+    {
+      "OldPath": "packages/codemods/src/transforms/__tests__/__snapshots__/placeholder.ts.snap",
+      "NewPath": "packages/codemods/src/transforms/__tests__/__snapshots__/placeholder.ts.snap",
+      "IsNew": true,
+      "IsDeleted": false,
+      "IsRenamed": false,
+      "Diff": "@@ -0,0 +1,16 @@\n+// Jest Snapshot v1, https://goo.gl/fbAQLP\n+\n+exports[`placeholder transforms correctly 1`] = `\n+\"import { Placeholder } from '@vkontakte/vkui';\n+import React from 'react';\n+\n+const App = () => {\n+  return (\n+    <React.Fragment>\n+      <Placeholder>Placeholder</Placeholder>\n+      <Placeholder>Placeholder</Placeholder>\n+      <Placeholder noPadding>Placeholder</Placeholder>\n+    </React.Fragment>\n+  );\n+};\"\n+`;\n",
+      "OldContent": null,
+      "NewContent": null,
+      "Path": "packages/codemods/src/transforms/__tests__/__snapshots__/placeholder.ts.snap"
+    },
+    {
+      "OldPath": "packages/codemods/src/transforms/__tests__/__snapshots__/popout-wrapper.ts.snap",
+      "NewPath": "packages/codemods/src/transforms/__tests__/__snapshots__/popout-wrapper.ts.snap",
+      "IsNew": true,
+      "IsDeleted": false,
+      "IsRenamed": false,
+      "Diff": "@@ -0,0 +1,15 @@\n+// Jest Snapshot v1, https://goo.gl/fbAQLP\n+\n+exports[`popout-wrapper transforms correctly 1`] = `\n+\"import { PopoutWrapper } from '@vkontakte/vkui';\n+import React from 'react';\n+\n+const App = () => {\n+  return (\n+    <React.Fragment>\n+      <PopoutWrapper />\n+      <PopoutWrapper noBackground />\n+    </React.Fragment>\n+  );\n+};\"\n+`;\n",
+      "OldContent": null,
+      "NewContent": null,
+      "Path": "packages/codemods/src/transforms/__tests__/__snapshots__/popout-wrapper.ts.snap"
+    },
+    {
+      "OldPath": "packages/codemods/src/transforms/__tests__/__snapshots__/select.ts.snap",
+      "NewPath": "packages/codemods/src/transforms/__tests__/__snapshots__/select.ts.snap",
+      "IsNew": true,
+      "IsDeleted": false,
+      "IsRenamed": false,
+      "Diff": "@@ -0,0 +1,16 @@\n+// Jest Snapshot v1, https://goo.gl/fbAQLP\n+\n+exports[`select transforms correctly 1`] = `\n+\"import { ChipsSelect, CustomSelect, Select as VKUISelect } from '@vkontakte/vkui';\n+import React from 'react';\n+\n+const App = () => {\n+  return (\n+    <React.Fragment>\n+      <VKUISelect options={options} />\n+      <CustomSelect dropdownAutoWidth options={options} />\n+      <ChipsSelect options={options} />\n+    </React.Fragment>\n+  );\n+};\"\n+`;\n",
+      "OldContent": null,
+      "NewContent": null,
+      "Path": "packages/codemods/src/transforms/__tests__/__snapshots__/select.ts.snap"
+    },
+    {
+      "OldPath": "packages/codemods/src/transforms/__tests__/__snapshots__/tabbar.ts.snap",
+      "NewPath": "packages/codemods/src/transforms/__tests__/__snapshots__/tabbar.ts.snap",
+      "IsNew": true,
+      "IsDeleted": false,
+      "IsRenamed": false,
+      "Diff": "@@ -0,0 +1,15 @@\n+// Jest Snapshot v1, https://goo.gl/fbAQLP\n+\n+exports[`tabbar transforms correctly 1`] = `\n+\"import { Tabbar } from '@vkontakte/vkui';\n+import React from 'react';\n+\n+const App = () => {\n+  return (\n+    <React.Fragment>\n+      <Tabbar />\n+      <Tabbar plain />\n+    </React.Fragment>\n+  );\n+};\"\n+`;\n",
+      "OldContent": null,
+      "NewContent": null,
+      "Path": "packages/codemods/src/transforms/__tests__/__snapshots__/tabbar.ts.snap"
+    },
+    {
+      "OldPath": "packages/codemods/src/transforms/__tests__/card-scroll.ts",
+      "NewPath": "packages/codemods/src/transforms/__tests__/card-scroll.ts",
+      "IsNew": true,
+      "IsDeleted": false,
+      "IsRenamed": false,
+      "Diff": "@@ -0,0 +1,12 @@\n+jest.autoMockOff();\n+\n+import { defineSnapshotTestFromFixture } from '../../testHelpers/testHelper';\n+\n+const name = 'card-scroll';\n+const fixtures = ['basic'] as const;\n+\n+describe(name, () => {\n+  fixtures.forEach((test) =>\n+    defineSnapshotTestFromFixture(__dirname, name, global.TRANSFORM_OPTIONS, `${name}/${test}`),\n+  );\n+});\n",
+      "OldContent": null,
+      "NewContent": "jest.autoMockOff();\n\nimport { defineSnapshotTestFromFixture } from '../../testHelpers/testHelper';\n\nconst name = 'card-scroll';\nconst fixtures = ['basic'] as const;\n\ndescribe(name, () => {\n  fixtures.forEach((test) =>\n    defineSnapshotTestFromFixture(__dirname, name, global.TRANSFORM_OPTIONS, `${name}/${test}`),\n  );\n});\n",
+      "Path": "packages/codemods/src/transforms/__tests__/card-scroll.ts"
+    },
+    {
+      "OldPath": "packages/codemods/src/transforms/__tests__/gallery.ts",
+      "NewPath": "packages/codemods/src/transforms/__tests__/gallery.ts",
+      "IsNew": true,
+      "IsDeleted": false,
+      "IsRenamed": false,
+      "Diff": "@@ -0,0 +1,12 @@\n+jest.autoMockOff();\n+\n+import { defineSnapshotTestFromFixture } from '../../testHelpers/testHelper';\n+\n+const name = 'gallery';\n+const fixtures = ['basic'] as const;\n+\n+describe(name, () => {\n+  fixtures.forEach((test) =>\n+    defineSnapshotTestFromFixture(__dirname, name, global.TRANSFORM_OPTIONS, `${name}/${test}`),\n+  );\n+});\n",
+      "OldContent": null,
+      "NewContent": "jest.autoMockOff();\n\nimport { defineSnapshotTestFromFixture } from '../../testHelpers/testHelper';\n\nconst name = 'gallery';\nconst fixtures = ['basic'] as const;\n\ndescribe(name, () => {\n  fixtures.forEach((test) =>\n    defineSnapshotTestFromFixture(__dirname, name, global.TRANSFORM_OPTIONS, `${name}/${test}`),\n  );\n});\n",
+      "Path": "packages/codemods/src/transforms/__tests__/gallery.ts"
+    },
+    {
+      "OldPath": "packages/codemods/src/transforms/__tests__/image-base.ts",
+      "NewPath": "packages/codemods/src/transforms/__tests__/image-base.ts",
+      "IsNew": true,
+      "IsDeleted": false,
+      "IsRenamed": false,
+      "Diff": "@@ -0,0 +1,12 @@\n+jest.autoMockOff();\n+\n+import { defineSnapshotTestFromFixture } from '../../testHelpers/testHelper';\n+\n+const name = 'image-base';\n+const fixtures = ['basic'] as const;\n+\n+describe(name, () => {\n+  fixtures.forEach((test) =>\n+    defineSnapshotTestFromFixture(__dirname, name, global.TRANSFORM_OPTIONS, `${name}/${test}`),\n+  );\n+});\n",
+      "OldContent": null,
+      "NewContent": "jest.autoMockOff();\n\nimport { defineSnapshotTestFromFixture } from '../../testHelpers/testHelper';\n\nconst name = 'image-base';\nconst fixtures = ['basic'] as const;\n\ndescribe(name, () => {\n  fixtures.forEach((test) =>\n    defineSnapshotTestFromFixture(__dirname, name, global.TRANSFORM_OPTIONS, `${name}/${test}`),\n  );\n});\n",
+      "Path": "packages/codemods/src/transforms/__tests__/image-base.ts"
+    },
+    {
+      "OldPath": "packages/codemods/src/transforms/__tests__/panel-header.ts",
+      "NewPath": "packages/codemods/src/transforms/__tests__/panel-header.ts",
+      "IsNew": true,
+      "IsDeleted": false,
+      "IsRenamed": false,
+      "Diff": "@@ -0,0 +1,12 @@\n+jest.autoMockOff();\n+\n+import { defineSnapshotTestFromFixture } from '../../testHelpers/testHelper';\n+\n+const name = 'panel-header';\n+const fixtures = ['basic'] as const;\n+\n+describe(name, () => {\n+  fixtures.forEach((test) =>\n+    defineSnapshotTestFromFixture(__dirname, name, global.TRANSFORM_OPTIONS, `${name}/${test}`),\n+  );\n+});\n",
+      "OldContent": null,
+      "NewContent": "jest.autoMockOff();\n\nimport { defineSnapshotTestFromFixture } from '../../testHelpers/testHelper';\n\nconst name = 'panel-header';\nconst fixtures = ['basic'] as const;\n\ndescribe(name, () => {\n  fixtures.forEach((test) =>\n    defineSnapshotTestFromFixture(__dirname, name, global.TRANSFORM_OPTIONS, `${name}/${test}`),\n  );\n});\n",
+      "Path": "packages/codemods/src/transforms/__tests__/panel-header.ts"
+    },
+    {
+      "OldPath": "packages/codemods/src/transforms/__tests__/placeholder.ts",
+      "NewPath": "packages/codemods/src/transforms/__tests__/placeholder.ts",
+      "IsNew": true,
+      "IsDeleted": false,
+      "IsRenamed": false,
+      "Diff": "@@ -0,0 +1,12 @@\n+jest.autoMockOff();\n+\n+import { defineSnapshotTestFromFixture } from '../../testHelpers/testHelper';\n+\n+const name = 'placeholder';\n+const fixtures = ['basic'] as const;\n+\n+describe(name, () => {\n+  fixtures.forEach((test) =>\n+    defineSnapshotTestFromFixture(__dirname, name, global.TRANSFORM_OPTIONS, `${name}/${test}`),\n+  );\n+});\n",
+      "OldContent": null,
+      "NewContent": "jest.autoMockOff();\n\nimport { defineSnapshotTestFromFixture } from '../../testHelpers/testHelper';\n\nconst name = 'placeholder';\nconst fixtures = ['basic'] as const;\n\ndescribe(name, () => {\n  fixtures.forEach((test) =>\n    defineSnapshotTestFromFixture(__dirname, name, global.TRANSFORM_OPTIONS, `${name}/${test}`),\n  );\n});\n",
+      "Path": "packages/codemods/src/transforms/__tests__/placeholder.ts"
+    },
+    {
+      "OldPath": "packages/codemods/src/transforms/__tests__/popout-wrapper.ts",
+      "NewPath": "packages/codemods/src/transforms/__tests__/popout-wrapper.ts",
+      "IsNew": true,
+      "IsDeleted": false,
+      "IsRenamed": false,
+      "Diff": "@@ -0,0 +1,12 @@\n+jest.autoMockOff();\n+\n+import { defineSnapshotTestFromFixture } from '../../testHelpers/testHelper';\n+\n+const name = 'popout-wrapper';\n+const fixtures = ['basic'] as const;\n+\n+describe(name, () => {\n+  fixtures.forEach((test) =>\n+    defineSnapshotTestFromFixture(__dirname, name, global.TRANSFORM_OPTIONS, `${name}/${test}`),\n+  );\n+});\n",
+      "OldContent": null,
+      "NewContent": "jest.autoMockOff();\n\nimport { defineSnapshotTestFromFixture } from '../../testHelpers/testHelper';\n\nconst name = 'popout-wrapper';\nconst fixtures = ['basic'] as const;\n\ndescribe(name, () => {\n  fixtures.forEach((test) =>\n    defineSnapshotTestFromFixture(__dirname, name, global.TRANSFORM_OPTIONS, `${name}/${test}`),\n  );\n});\n",
+      "Path": "packages/codemods/src/transforms/__tests__/popout-wrapper.ts"
+    },
+    {
+      "OldPath": "packages/codemods/src/transforms/__tests__/select.ts",
+      "NewPath": "packages/codemods/src/transforms/__tests__/select.ts",
+      "IsNew": true,
+      "IsDeleted": false,
+      "IsRenamed": false,
+      "Diff": "@@ -0,0 +1,12 @@\n+jest.autoMockOff();\n+\n+import { defineSnapshotTestFromFixture } from '../../testHelpers/testHelper';\n+\n+const name = 'select';\n+const fixtures = ['basic'] as const;\n+\n+describe(name, () => {\n+  fixtures.forEach((test) =>\n+    defineSnapshotTestFromFixture(__dirname, name, global.TRANSFORM_OPTIONS, `${name}/${test}`),\n+  );\n+});\n",
+      "OldContent": null,
+      "NewContent": "jest.autoMockOff();\n\nimport { defineSnapshotTestFromFixture } from '../../testHelpers/testHelper';\n\nconst name = 'select';\nconst fixtures = ['basic'] as const;\n\ndescribe(name, () => {\n  fixtures.forEach((test) =>\n    defineSnapshotTestFromFixture(__dirname, name, global.TRANSFORM_OPTIONS, `${name}/${test}`),\n  );\n});\n",
+      "Path": "packages/codemods/src/transforms/__tests__/select.ts"
+    },
+    {
+      "OldPath": "packages/codemods/src/transforms/__tests__/tabbar.ts",
+      "NewPath": "packages/codemods/src/transforms/__tests__/tabbar.ts",
+      "IsNew": true,
+      "IsDeleted": false,
+      "IsRenamed": false,
+      "Diff": "@@ -0,0 +1,12 @@\n+jest.autoMockOff();\n+\n+import { defineSnapshotTestFromFixture } from '../../testHelpers/testHelper';\n+\n+const name = 'tabbar';\n+const fixtures = ['basic'] as const;\n+\n+describe(name, () => {\n+  fixtures.forEach((test) =>\n+    defineSnapshotTestFromFixture(__dirname, name, global.TRANSFORM_OPTIONS, `${name}/${test}`),\n+  );\n+});\n",
+      "OldContent": null,
+      "NewContent": "jest.autoMockOff();\n\nimport { defineSnapshotTestFromFixture } from '../../testHelpers/testHelper';\n\nconst name = 'tabbar';\nconst fixtures = ['basic'] as const;\n\ndescribe(name, () => {\n  fixtures.forEach((test) =>\n    defineSnapshotTestFromFixture(__dirname, name, global.TRANSFORM_OPTIONS, `${name}/${test}`),\n  );\n});\n",
+      "Path": "packages/codemods/src/transforms/__tests__/tabbar.ts"
+    },
+    {
+      "OldPath": "packages/codemods/src/transforms/action-sheet-item.ts",
+      "NewPath": "packages/codemods/src/transforms/action-sheet-item.ts",
+      "IsNew": false,
+      "IsDeleted": false,
+      "IsRenamed": false,
+      "Diff": "@@ -1,5 +1,5 @@\n import { API, FileInfo } from 'jscodeshift';\n-import { getImportInfo } from '../codemod-helpers';\n+import { getImportInfo, swapBooleanValue } from '../codemod-helpers';\n import { JSCodeShiftOptions } from '../types';\n \n export const parser = 'tsx';\n@@ -10,29 +10,7 @@ export default function transformer(file: FileInfo, api: API, options: JSCodeShi\n   const source = j(file.source);\n   const { localName } = getImportInfo(j, file, 'ActionSheetItem', alias);\n \n-  source\n-    .find(j.JSXOpeningElement)\n-    .filter(\n-      (path) => path.value.name.type === 'JSXIdentifier' && path.value.name.name === localName,\n-    )\n-    .find(j.JSXAttribute)\n-    .filter((attribute) => attribute.node.name.name === 'autoClose')\n-    .forEach((attribute) => {\n-      const node = attribute.node;\n-\n-      if (!node.value) {\n-        j(attribute).remove();\n-      } else if (\n-        node.value.type === 'JSXExpressionContainer' &&\n-        node.value.expression.type === 'BooleanLiteral'\n-      ) {\n-        if (node.value.expression.value) {\n-          j(attribute).remove();\n-        } else {\n-          j(attribute).replaceWith(j.jsxAttribute(j.jsxIdentifier('autoCloseDisabled')));\n-        }\n-      }\n-    });\n+  swapBooleanValue(api, source, localName, 'autoClose', 'autoCloseDisabled');\n \n   return source.toSource();\n }\n",
+      "OldContent": "import { API, FileInfo } from 'jscodeshift';\nimport { getImportInfo } from '../codemod-helpers';\nimport { JSCodeShiftOptions } from '../types';\n\nexport const parser = 'tsx';\n\nexport default function transformer(file: FileInfo, api: API, options: JSCodeShiftOptions) {\n  const { alias } = options;\n  const j = api.jscodeshift;\n  const source = j(file.source);\n  const { localName } = getImportInfo(j, file, 'ActionSheetItem', alias);\n\n  source\n    .find(j.JSXOpeningElement)\n    .filter(\n      (path) => path.value.name.type === 'JSXIdentifier' && path.value.name.name === localName,\n    )\n    .find(j.JSXAttribute)\n    .filter((attribute) => attribute.node.name.name === 'autoClose')\n    .forEach((attribute) => {\n      const node = attribute.node;\n\n      if (!node.value) {\n        j(attribute).remove();\n      } else if (\n        node.value.type === 'JSXExpressionContainer' &&\n        node.value.expression.type === 'BooleanLiteral'\n      ) {\n        if (node.value.expression.value) {\n          j(attribute).remove();\n        } else {\n          j(attribute).replaceWith(j.jsxAttribute(j.jsxIdentifier('autoCloseDisabled')));\n        }\n      }\n    });\n\n  return source.toSource();\n}\n",
+      "NewContent": "import { API, FileInfo } from 'jscodeshift';\nimport { getImportInfo, swapBooleanValue } from '../codemod-helpers';\nimport { JSCodeShiftOptions } from '../types';\n\nexport const parser = 'tsx';\n\nexport default function transformer(file: FileInfo, api: API, options: JSCodeShiftOptions) {\n  const { alias } = options;\n  const j = api.jscodeshift;\n  const source = j(file.source);\n  const { localName } = getImportInfo(j, file, 'ActionSheetItem', alias);\n\n  swapBooleanValue(api, source, localName, 'autoClose', 'autoCloseDisabled');\n\n  return source.toSource();\n}\n",
+      "Path": "packages/codemods/src/transforms/action-sheet-item.ts"
+    },
+    {
+      "OldPath": "packages/codemods/src/transforms/card-scroll.ts",
+      "NewPath": "packages/codemods/src/transforms/card-scroll.ts",
+      "IsNew": true,
+      "IsDeleted": false,
+      "IsRenamed": false,
+      "Diff": "@@ -0,0 +1,16 @@\n+import { API, FileInfo } from 'jscodeshift';\n+import { getImportInfo, swapBooleanValue } from '../codemod-helpers';\n+import { JSCodeShiftOptions } from '../types';\n+\n+export const parser = 'tsx';\n+\n+export default function transformer(file: FileInfo, api: API, options: JSCodeShiftOptions) {\n+  const { alias } = options;\n+  const j = api.jscodeshift;\n+  const source = j(file.source);\n+  const { localName } = getImportInfo(j, file, 'CardScroll', alias);\n+\n+  swapBooleanValue(api, source, localName, 'withSpaces', 'noSpaces');\n+\n+  return source.toSource();\n+}\n",
+      "OldContent": null,
+      "NewContent": "import { API, FileInfo } from 'jscodeshift';\nimport { getImportInfo, swapBooleanValue } from '../codemod-helpers';\nimport { JSCodeShiftOptions } from '../types';\n\nexport const parser = 'tsx';\n\nexport default function transformer(file: FileInfo, api: API, options: JSCodeShiftOptions) {\n  const { alias } = options;\n  const j = api.jscodeshift;\n  const source = j(file.source);\n  const { localName } = getImportInfo(j, file, 'CardScroll', alias);\n\n  swapBooleanValue(api, source, localName, 'withSpaces', 'noSpaces');\n\n  return source.toSource();\n}\n",
+      "Path": "packages/codemods/src/transforms/card-scroll.ts"
+    },
+    {
+      "OldPath": "packages/codemods/src/transforms/config-provider.ts",
+      "NewPath": "packages/codemods/src/transforms/config-provider.ts",
+      "IsNew": false,
+      "IsDeleted": false,
+      "IsRenamed": false,
+      "Diff": "@@ -2,6 +2,13 @@ import { API, FileInfo } from 'jscodeshift';\n import { getImportInfo } from '../codemod-helpers';\n import { JSCodeShiftOptions } from '../types';\n \n+const ALLOWED_PLATFORM_LIST = ['android', 'ios', 'vkcom'];\n+\n+const wrapUnknownPlatformToVKUITokensClassName = (\n+  unknownPlatform: string,\n+  appearance: 'light' | 'dark',\n+) => `vkui--${unknownPlatform}--${appearance}`;\n+\n export const parser = 'tsx';\n \n export default function transformer(file: FileInfo, api: API, options: JSCodeShiftOptions) {\n@@ -11,12 +18,14 @@ export default function transformer(file: FileInfo, api: API, options: JSCodeShi\n   let changed = false;\n   const { localName } = getImportInfo(j, file, 'ConfigProvider', alias);\n \n-  source\n+  const attributes = source\n     .find(j.JSXOpeningElement)\n     .filter(\n       (path) => path.value.name.type === 'JSXIdentifier' && path.value.name.name === localName,\n     )\n-    .find(j.JSXAttribute)\n+    .find(j.JSXAttribute);\n+\n+  attributes\n     .filter((attribute) => attribute.node.name.name === 'webviewType')\n     .forEach((attribute) => {\n       const node = attribute.node.value;\n@@ -65,6 +74,41 @@ export default function transformer(file: FileInfo, api: API, options: JSCodeShi\n       }\n     });\n \n+  attributes\n+    .filter((attribute) => attribute.node.name.name === 'platform')\n+    .forEach((attribute) => {\n+      const node = attribute.node.value;\n+\n+      if (!node) {\n+        return;\n+      }\n+\n+      if (\n+        (node.type === 'Literal' || node.type === 'StringLiteral') &&\n+        typeof node.value === 'string'\n+      ) {\n+        if (!ALLOWED_PLATFORM_LIST.includes(node.value)) {\n+          j(attribute).replaceWith(\n+            j.jsxAttribute(\n+              j.jsxIdentifier('tokensClassNames'),\n+              j.jsxExpressionContainer(\n+                j.objectExpression([\n+                  j.objectProperty(\n+                    j.jsxIdentifier('light'),\n+                    j.stringLiteral(wrapUnknownPlatformToVKUITokensClassName(node.value, 'light')),\n+                  ),\n+                  j.objectProperty(\n+                    j.jsxIdentifier('dark'),\n+                    j.stringLiteral(wrapUnknownPlatformToVKUITokensClassName(node.value, 'dark')),\n+                  ),\n+                ]),\n+              ),\n+            ),\n+          );\n+        }\n+      }\n+    });\n+\n   if (changed) {\n     source\n       .find(j.ImportDeclaration)\n",
+      "OldContent": "import { API, FileInfo } from 'jscodeshift';\nimport { getImportInfo } from '../codemod-helpers';\nimport { JSCodeShiftOptions } from '../types';\n\nexport const parser = 'tsx';\n\nexport default function transformer(file: FileInfo, api: API, options: JSCodeShiftOptions) {\n  const { alias } = options;\n  const j = api.jscodeshift;\n  const source = j(file.source);\n  let changed = false;\n  const { localName } = getImportInfo(j, file, 'ConfigProvider', alias);\n\n  source\n    .find(j.JSXOpeningElement)\n    .filter(\n      (path) => path.value.name.type === 'JSXIdentifier' && path.value.name.name === localName,\n    )\n    .find(j.JSXAttribute)\n    .filter((attribute) => attribute.node.name.name === 'webviewType')\n    .forEach((attribute) => {\n      const node = attribute.node.value;\n\n      if (node) {\n        if (node.type === 'JSXExpressionContainer' && node.expression.type === 'MemberExpression') {\n          const property = node.expression.property;\n          if (property.type === 'Identifier') {\n            if (property.name === 'INTERNAL') {\n              j(attribute).remove();\n              changed = true;\n            }\n            if (property.name === 'VKAPPS') {\n              j(attribute).replaceWith(\n                j.jsxAttribute(j.jsxIdentifier('hasCustomPanelHeaderAfter')),\n              );\n              changed = true;\n            }\n          }\n        }\n        if (node.type === 'JSXExpressionContainer' && node.expression.type === 'TSAsExpression') {\n          const expression = node.expression.expression;\n          if (expression.type === 'Literal' || expression.type === 'StringLiteral') {\n            if (expression.value === 'internal') {\n              j(attribute).remove();\n              changed = true;\n            }\n            if (expression.value === 'vkapps') {\n              j(attribute).replaceWith(\n                j.jsxAttribute(j.jsxIdentifier('hasCustomPanelHeaderAfter')),\n              );\n              changed = true;\n            }\n          }\n        }\n        if (node.type === 'Literal' || node.type === 'StringLiteral') {\n          if (node.value === 'internal') {\n            j(attribute).remove();\n            changed = true;\n          }\n          if (node.value === 'vkapps') {\n            j(attribute).replaceWith(j.jsxAttribute(j.jsxIdentifier('hasCustomPanelHeaderAfter')));\n            changed = true;\n          }\n        }\n      }\n    });\n\n  if (changed) {\n    source\n      .find(j.ImportDeclaration)\n      .filter((path) => path.node.source.value === alias)\n      .find(j.ImportSpecifier)\n      .filter((path) => path.node.imported.name === 'WebviewType')\n      .remove();\n  }\n\n  return source.toSource();\n}\n",
+      "NewContent": "import { API, FileInfo } from 'jscodeshift';\nimport { getImportInfo } from '../codemod-helpers';\nimport { JSCodeShiftOptions } from '../types';\n\nconst ALLOWED_PLATFORM_LIST = ['android', 'ios', 'vkcom'];\n\nconst wrapUnknownPlatformToVKUITokensClassName = (\n  unknownPlatform: string,\n  appearance: 'light' | 'dark',\n) => `vkui--${unknownPlatform}--${appearance}`;\n\nexport const parser = 'tsx';\n\nexport default function transformer(file: FileInfo, api: API, options: JSCodeShiftOptions) {\n  const { alias } = options;\n  const j = api.jscodeshift;\n  const source = j(file.source);\n  let changed = false;\n  const { localName } = getImportInfo(j, file, 'ConfigProvider', alias);\n\n  const attributes = source\n    .find(j.JSXOpeningElement)\n    .filter(\n      (path) => path.value.name.type === 'JSXIdentifier' && path.value.name.name === localName,\n    )\n    .find(j.JSXAttribute);\n\n  attributes\n    .filter((attribute) => attribute.node.name.name === 'webviewType')\n    .forEach((attribute) => {\n      const node = attribute.node.value;\n\n      if (node) {\n        if (node.type === 'JSXExpressionContainer' && node.expression.type === 'MemberExpression') {\n          const property = node.expression.property;\n          if (property.type === 'Identifier') {\n            if (property.name === 'INTERNAL') {\n              j(attribute).remove();\n              changed = true;\n            }\n            if (property.name === 'VKAPPS') {\n              j(attribute).replaceWith(\n                j.jsxAttribute(j.jsxIdentifier('hasCustomPanelHeaderAfter')),\n              );\n              changed = true;\n            }\n          }\n        }\n        if (node.type === 'JSXExpressionContainer' && node.expression.type === 'TSAsExpression') {\n          const expression = node.expression.expression;\n          if (expression.type === 'Literal' || expression.type === 'StringLiteral') {\n            if (expression.value === 'internal') {\n              j(attribute).remove();\n              changed = true;\n            }\n            if (expression.value === 'vkapps') {\n              j(attribute).replaceWith(\n                j.jsxAttribute(j.jsxIdentifier('hasCustomPanelHeaderAfter')),\n              );\n              changed = true;\n            }\n          }\n        }\n        if (node.type === 'Literal' || node.type === 'StringLiteral') {\n          if (node.value === 'internal') {\n            j(attribute).remove();\n            changed = true;\n          }\n          if (node.value === 'vkapps') {\n            j(attribute).replaceWith(j.jsxAttribute(j.jsxIdentifier('hasCustomPanelHeaderAfter')));\n            changed = true;\n          }\n        }\n      }\n    });\n\n  attributes\n    .filter((attribute) => attribute.node.name.name === 'platform')\n    .forEach((attribute) => {\n      const node = attribute.node.value;\n\n      if (!node) {\n        return;\n      }\n\n      if (\n        (node.type === 'Literal' || node.type === 'StringLiteral') &&\n        typeof node.value === 'string'\n      ) {\n        if (!ALLOWED_PLATFORM_LIST.includes(node.value)) {\n          j(attribute).replaceWith(\n            j.jsxAttribute(\n              j.jsxIdentifier('tokensClassNames'),\n              j.jsxExpressionContainer(\n                j.objectExpression([\n                  j.objectProperty(\n                    j.jsxIdentifier('light'),\n                    j.stringLiteral(wrapUnknownPlatformToVKUITokensClassName(node.value, 'light')),\n                  ),\n                  j.objectProperty(\n                    j.jsxIdentifier('dark'),\n                    j.stringLiteral(wrapUnknownPlatformToVKUITokensClassName(node.value, 'dark')),\n                  ),\n                ]),\n              ),\n            ),\n          );\n        }\n      }\n    });\n\n  if (changed) {\n    source\n      .find(j.ImportDeclaration)\n      .filter((path) => path.node.source.value === alias)\n      .find(j.ImportSpecifier)\n      .filter((path) => path.node.imported.name === 'WebviewType')\n      .remove();\n  }\n\n  return source.toSource();\n}\n",
+      "Path": "packages/codemods/src/transforms/config-provider.ts"
+    },
+    {
+      "OldPath": "packages/codemods/src/transforms/gallery.ts",
+      "NewPath": "packages/codemods/src/transforms/gallery.ts",
+      "IsNew": true,
+      "IsDeleted": false,
+      "IsRenamed": false,
+      "Diff": "@@ -0,0 +1,16 @@\n+import { API, FileInfo } from 'jscodeshift';\n+import { getImportInfo, swapBooleanValue } from '../codemod-helpers';\n+import { JSCodeShiftOptions } from '../types';\n+\n+export const parser = 'tsx';\n+\n+export default function transformer(file: FileInfo, api: API, options: JSCodeShiftOptions) {\n+  const { alias } = options;\n+  const j = api.jscodeshift;\n+  const source = j(file.source);\n+  const { localName } = getImportInfo(j, file, 'Gallery', alias);\n+\n+  swapBooleanValue(api, source, localName, 'isDraggable', 'dragDisabled');\n+\n+  return source.toSource();\n+}\n",
+      "OldContent": null,
+      "NewContent": "import { API, FileInfo } from 'jscodeshift';\nimport { getImportInfo, swapBooleanValue } from '../codemod-helpers';\nimport { JSCodeShiftOptions } from '../types';\n\nexport const parser = 'tsx';\n\nexport default function transformer(file: FileInfo, api: API, options: JSCodeShiftOptions) {\n  const { alias } = options;\n  const j = api.jscodeshift;\n  const source = j(file.source);\n  const { localName } = getImportInfo(j, file, 'Gallery', alias);\n\n  swapBooleanValue(api, source, localName, 'isDraggable', 'dragDisabled');\n\n  return source.toSource();\n}\n",
+      "Path": "packages/codemods/src/transforms/gallery.ts"
+    },
+    {
+      "OldPath": "packages/codemods/src/transforms/image-base.ts",
+      "NewPath": "packages/codemods/src/transforms/image-base.ts",
+      "IsNew": true,
+      "IsDeleted": false,
+      "IsRenamed": false,
+      "Diff": "@@ -0,0 +1,20 @@\n+import { API, FileInfo } from 'jscodeshift';\n+import { getImportInfo, swapBooleanValue } from '../codemod-helpers';\n+import { JSCodeShiftOptions } from '../types';\n+\n+export const parser = 'tsx';\n+\n+export default function transformer(file: FileInfo, api: API, options: JSCodeShiftOptions) {\n+  const { alias } = options;\n+  const j = api.jscodeshift;\n+  const source = j(file.source);\n+  const { localName: imageBaseLocalName } = getImportInfo(j, file, 'ImageBase', alias);\n+  const { localName: imageLocalName } = getImportInfo(j, file, 'Image', alias);\n+  const { localName: avatarLocalName } = getImportInfo(j, file, 'Avatar', alias);\n+\n+  swapBooleanValue(api, source, imageBaseLocalName, 'withBorder', 'noBorder');\n+  swapBooleanValue(api, source, imageLocalName, 'withBorder', 'noBorder');\n+  swapBooleanValue(api, source, avatarLocalName, 'withBorder', 'noBorder');\n+\n+  return source.toSource();\n+}\n",
+      "OldContent": null,
+      "NewContent": "import { API, FileInfo } from 'jscodeshift';\nimport { getImportInfo, swapBooleanValue } from '../codemod-helpers';\nimport { JSCodeShiftOptions } from '../types';\n\nexport const parser = 'tsx';\n\nexport default function transformer(file: FileInfo, api: API, options: JSCodeShiftOptions) {\n  const { alias } = options;\n  const j = api.jscodeshift;\n  const source = j(file.source);\n  const { localName: imageBaseLocalName } = getImportInfo(j, file, 'ImageBase', alias);\n  const { localName: imageLocalName } = getImportInfo(j, file, 'Image', alias);\n  const { localName: avatarLocalName } = getImportInfo(j, file, 'Avatar', alias);\n\n  swapBooleanValue(api, source, imageBaseLocalName, 'withBorder', 'noBorder');\n  swapBooleanValue(api, source, imageLocalName, 'withBorder', 'noBorder');\n  swapBooleanValue(api, source, avatarLocalName, 'withBorder', 'noBorder');\n\n  return source.toSource();\n}\n",
+      "Path": "packages/codemods/src/transforms/image-base.ts"
+    },
+    {
+      "OldPath": "packages/codemods/src/transforms/modal-page-header.ts",
+      "NewPath": "packages/codemods/src/transforms/modal-page-header.ts",
+      "IsNew": false,
+      "IsDeleted": false,
+      "IsRenamed": false,
+      "Diff": "@@ -1,5 +1,5 @@\n import { API, FileInfo } from 'jscodeshift';\n-import { getImportInfo } from '../codemod-helpers';\n+import { getImportInfo, swapBooleanValue } from '../codemod-helpers';\n import { JSCodeShiftOptions } from '../types';\n \n export const parser = 'tsx';\n@@ -11,9 +11,9 @@ export default function transformer(file: FileInfo, api: API, options: JSCodeShi\n   const { localName } = getImportInfo(j, file, 'ModalPageHeader', alias);\n \n   source\n-    .find(j.JSXOpeningElement)\n-    .filter(\n-      (path) => path.value.name.type === 'JSXIdentifier' && path.value.name.name === localName,\n+    .find(\n+      j.JSXOpeningElement,\n+      (element) => element.name.type === 'JSXIdentifier' && element.name.name === localName,\n     )\n     .forEach((element) => {\n       const attributes = element.value.attributes;\n@@ -39,5 +39,7 @@ export default function transformer(file: FileInfo, api: API, options: JSCodeShi\n       }\n     });\n \n+  swapBooleanValue(api, source, localName, 'separator', 'noSeparator');\n+\n   return source.toSource();\n }\n",
+      "OldContent": "import { API, FileInfo } from 'jscodeshift';\nimport { getImportInfo } from '../codemod-helpers';\nimport { JSCodeShiftOptions } from '../types';\n\nexport const parser = 'tsx';\n\nexport default function transformer(file: FileInfo, api: API, options: JSCodeShiftOptions) {\n  const { alias } = options;\n  const j = api.jscodeshift;\n  const source = j(file.source);\n  const { localName } = getImportInfo(j, file, 'ModalPageHeader', alias);\n\n  source\n    .find(j.JSXOpeningElement)\n    .filter(\n      (path) => path.value.name.type === 'JSXIdentifier' && path.value.name.name === localName,\n    )\n    .forEach((element) => {\n      const attributes = element.value.attributes;\n\n      if (attributes) {\n        const getRefIndex = attributes.findIndex(\n          (attribute) => attribute.type === 'JSXAttribute' && attribute.name.name === 'getRef',\n        );\n        const getRootRefIndex = attributes.findIndex(\n          (attribute) => attribute.type === 'JSXAttribute' && attribute.name.name === 'getRootRef',\n        );\n\n        if (getRefIndex !== -1 && getRootRefIndex === -1) {\n          const attribute = attributes[getRefIndex];\n          if (attribute.type === 'JSXAttribute') {\n            attribute.name.name = 'getRootRef';\n          }\n        }\n\n        if (getRootRefIndex !== -1 && getRefIndex !== -1) {\n          attributes.splice(getRefIndex, 1);\n        }\n      }\n    });\n\n  return source.toSource();\n}\n",
+      "NewContent": "import { API, FileInfo } from 'jscodeshift';\nimport { getImportInfo, swapBooleanValue } from '../codemod-helpers';\nimport { JSCodeShiftOptions } from '../types';\n\nexport const parser = 'tsx';\n\nexport default function transformer(file: FileInfo, api: API, options: JSCodeShiftOptions) {\n  const { alias } = options;\n  const j = api.jscodeshift;\n  const source = j(file.source);\n  const { localName } = getImportInfo(j, file, 'ModalPageHeader', alias);\n\n  source\n    .find(\n      j.JSXOpeningElement,\n      (element) => element.name.type === 'JSXIdentifier' && element.name.name === localName,\n    )\n    .forEach((element) => {\n      const attributes = element.value.attributes;\n\n      if (attributes) {\n        const getRefIndex = attributes.findIndex(\n          (attribute) => attribute.type === 'JSXAttribute' && attribute.name.name === 'getRef',\n        );\n        const getRootRefIndex = attributes.findIndex(\n          (attribute) => attribute.type === 'JSXAttribute' && attribute.name.name === 'getRootRef',\n        );\n\n        if (getRefIndex !== -1 && getRootRefIndex === -1) {\n          const attribute = attributes[getRefIndex];\n          if (attribute.type === 'JSXAttribute') {\n            attribute.name.name = 'getRootRef';\n          }\n        }\n\n        if (getRootRefIndex !== -1 && getRefIndex !== -1) {\n          attributes.splice(getRefIndex, 1);\n        }\n      }\n    });\n\n  swapBooleanValue(api, source, localName, 'separator', 'noSeparator');\n\n  return source.toSource();\n}\n",
+      "Path": "packages/codemods/src/transforms/modal-page-header.ts"
+    },
+    {
+      "OldPath": "packages/codemods/src/transforms/panel-header.ts",
+      "NewPath": "packages/codemods/src/transforms/panel-header.ts",
+      "IsNew": true,
+      "IsDeleted": false,
+      "IsRenamed": false,
+      "Diff": "@@ -0,0 +1,44 @@\n+import { API, FileInfo } from 'jscodeshift';\n+import { getImportInfo, swapBooleanValue } from '../codemod-helpers';\n+import { report } from '../report';\n+import { JSCodeShiftOptions } from '../types';\n+\n+export const parser = 'tsx';\n+\n+export default function transformer(file: FileInfo, api: API, options: JSCodeShiftOptions) {\n+  const { alias } = options;\n+  const j = api.jscodeshift;\n+  const source = j(file.source);\n+  const { localName } = getImportInfo(j, file, 'PanelHeader', alias);\n+\n+  swapBooleanValue(api, source, localName, 'visor', 'float');\n+\n+  source\n+    .find(\n+      j.JSXOpeningElement,\n+      (element) => element.name.type === 'JSXIdentifier' && element.name.name === localName,\n+    )\n+    .find(j.JSXAttribute, (attribute) => attribute.name.name === 'separator')\n+    .forEach((attribute) => {\n+      const node = attribute.node;\n+\n+      if (!node.value) {\n+        j(attribute).remove();\n+      } else if (\n+        node.value.type === 'JSXExpressionContainer' &&\n+        node.value.expression.type === 'BooleanLiteral'\n+      ) {\n+        if (node.value.expression.value) {\n+          j(attribute).remove();\n+        } else {\n+          j(attribute).replaceWith(\n+            j.jsxAttribute(j.jsxIdentifier('delimiter'), j.stringLiteral('none')),\n+          );\n+        }\n+      } else {\n+        report(api, `Manual changes required for PanelHeader's separator prop.`);\n+      }\n+    });\n+\n+  return source.toSource();\n+}\n",
+      "OldContent": null,
+      "NewContent": "import { API, FileInfo } from 'jscodeshift';\nimport { getImportInfo, swapBooleanValue } from '../codemod-helpers';\nimport { report } from '../report';\nimport { JSCodeShiftOptions } from '../types';\n\nexport const parser = 'tsx';\n\nexport default function transformer(file: FileInfo, api: API, options: JSCodeShiftOptions) {\n  const { alias } = options;\n  const j = api.jscodeshift;\n  const source = j(file.source);\n  const { localName } = getImportInfo(j, file, 'PanelHeader', alias);\n\n  swapBooleanValue(api, source, localName, 'visor', 'float');\n\n  source\n    .find(\n      j.JSXOpeningElement,\n      (element) => element.name.type === 'JSXIdentifier' && element.name.name === localName,\n    )\n    .find(j.JSXAttribute, (attribute) => attribute.name.name === 'separator')\n    .forEach((attribute) => {\n      const node = attribute.node;\n\n      if (!node.value) {\n        j(attribute).remove();\n      } else if (\n        node.value.type === 'JSXExpressionContainer' &&\n        node.value.expression.type === 'BooleanLiteral'\n      ) {\n        if (node.value.expression.value) {\n          j(attribute).remove();\n        } else {\n          j(attribute).replaceWith(\n            j.jsxAttribute(j.jsxIdentifier('delimiter'), j.stringLiteral('none')),\n          );\n        }\n      } else {\n        report(api, `Manual changes required for PanelHeader's separator prop.`);\n      }\n    });\n\n  return source.toSource();\n}\n",
+      "Path": "packages/codemods/src/transforms/panel-header.ts"
+    },
+    {
+      "OldPath": "packages/codemods/src/transforms/placeholder.ts",
+      "NewPath": "packages/codemods/src/transforms/placeholder.ts",
+      "IsNew": true,
+      "IsDeleted": false,
+      "IsRenamed": false,
+      "Diff": "@@ -0,0 +1,16 @@\n+import { API, FileInfo } from 'jscodeshift';\n+import { getImportInfo, swapBooleanValue } from '../codemod-helpers';\n+import { JSCodeShiftOptions } from '../types';\n+\n+export const parser = 'tsx';\n+\n+export default function transformer(file: FileInfo, api: API, options: JSCodeShiftOptions) {\n+  const { alias } = options;\n+  const j = api.jscodeshift;\n+  const source = j(file.source);\n+  const { localName } = getImportInfo(j, file, 'Placeholder', alias);\n+\n+  swapBooleanValue(api, source, localName, 'withPadding', 'noPadding');\n+\n+  return source.toSource();\n+}\n",
+      "OldContent": null,
+      "NewContent": "import { API, FileInfo } from 'jscodeshift';\nimport { getImportInfo, swapBooleanValue } from '../codemod-helpers';\nimport { JSCodeShiftOptions } from '../types';\n\nexport const parser = 'tsx';\n\nexport default function transformer(file: FileInfo, api: API, options: JSCodeShiftOptions) {\n  const { alias } = options;\n  const j = api.jscodeshift;\n  const source = j(file.source);\n  const { localName } = getImportInfo(j, file, 'Placeholder', alias);\n\n  swapBooleanValue(api, source, localName, 'withPadding', 'noPadding');\n\n  return source.toSource();\n}\n",
+      "Path": "packages/codemods/src/transforms/placeholder.ts"
+    },
+    {
+      "OldPath": "packages/codemods/src/transforms/popout-wrapper.ts",
+      "NewPath": "packages/codemods/src/transforms/popout-wrapper.ts",
+      "IsNew": false,
+      "IsDeleted": false,
+      "IsRenamed": false,
+      "Diff": "@@ -1,6 +1,6 @@\n import chalk from 'chalk';\n import { API, FileInfo } from 'jscodeshift';\n-import { getImportInfo } from '../codemod-helpers';\n+import { getImportInfo, swapBooleanValue } from '../codemod-helpers';\n import { report } from '../report';\n import { JSCodeShiftOptions } from '../types';\n \n@@ -12,11 +12,10 @@ export default function transformer(file: FileInfo, api: API, options: JSCodeShi\n   const source = j(file.source);\n   const { localName } = getImportInfo(j, file, 'PopoutWrapper', alias);\n \n-  const components = source\n-    .find(j.JSXOpeningElement)\n-    .filter(\n-      (path) => path.value.name.type === 'JSXIdentifier' && path.value.name.name === localName,\n-    );\n+  const components = source.find(\n+    j.JSXOpeningElement,\n+    (element) => element.name.type === 'JSXIdentifier' && element.name.name === localName,\n+  );\n \n   if (components.size() > 0) {\n     report(\n@@ -27,5 +26,7 @@ export default function transformer(file: FileInfo, api: API, options: JSCodeShi\n     );\n   }\n \n+  swapBooleanValue(api, source, localName, 'hasMask', 'noBackground');\n+\n   return source.toSource();\n }\n",
+      "OldContent": "import chalk from 'chalk';\nimport { API, FileInfo } from 'jscodeshift';\nimport { getImportInfo } from '../codemod-helpers';\nimport { report } from '../report';\nimport { JSCodeShiftOptions } from '../types';\n\nexport const parser = 'tsx';\n\nexport default function transformer(file: FileInfo, api: API, options: JSCodeShiftOptions) {\n  const { alias } = options;\n  const j = api.jscodeshift;\n  const source = j(file.source);\n  const { localName } = getImportInfo(j, file, 'PopoutWrapper', alias);\n\n  const components = source\n    .find(j.JSXOpeningElement)\n    .filter(\n      (path) => path.value.name.type === 'JSXIdentifier' && path.value.name.name === localName,\n    );\n\n  if (components.size() > 0) {\n    report(\n      api,\n      `: When using ${chalk.white.bgBlue(\n        'PopoutWrapper',\n      )} you might need to apply useScrollLock() hook manually.`,\n    );\n  }\n\n  return source.toSource();\n}\n",
+      "NewContent": "import chalk from 'chalk';\nimport { API, FileInfo } from 'jscodeshift';\nimport { getImportInfo, swapBooleanValue } from '../codemod-helpers';\nimport { report } from '../report';\nimport { JSCodeShiftOptions } from '../types';\n\nexport const parser = 'tsx';\n\nexport default function transformer(file: FileInfo, api: API, options: JSCodeShiftOptions) {\n  const { alias } = options;\n  const j = api.jscodeshift;\n  const source = j(file.source);\n  const { localName } = getImportInfo(j, file, 'PopoutWrapper', alias);\n\n  const components = source.find(\n    j.JSXOpeningElement,\n    (element) => element.name.type === 'JSXIdentifier' && element.name.name === localName,\n  );\n\n  if (components.size() > 0) {\n    report(\n      api,\n      `: When using ${chalk.white.bgBlue(\n        'PopoutWrapper',\n      )} you might need to apply useScrollLock() hook manually.`,\n    );\n  }\n\n  swapBooleanValue(api, source, localName, 'hasMask', 'noBackground');\n\n  return source.toSource();\n}\n",
+      "Path": "packages/codemods/src/transforms/popout-wrapper.ts"
+    },
+    {
+      "OldPath": "packages/codemods/src/transforms/select.ts",
+      "NewPath": "packages/codemods/src/transforms/select.ts",
+      "IsNew": true,
+      "IsDeleted": false,
+      "IsRenamed": false,
+      "Diff": "@@ -0,0 +1,20 @@\n+import { API, FileInfo } from 'jscodeshift';\n+import { getImportInfo, swapBooleanValue } from '../codemod-helpers';\n+import { JSCodeShiftOptions } from '../types';\n+\n+export const parser = 'tsx';\n+\n+export default function transformer(file: FileInfo, api: API, options: JSCodeShiftOptions) {\n+  const { alias } = options;\n+  const j = api.jscodeshift;\n+  const source = j(file.source);\n+  const { localName: selectLocalName } = getImportInfo(j, file, 'Select', alias);\n+  const { localName: customSelectLocalName } = getImportInfo(j, file, 'CustomSelect', alias);\n+  const { localName: chipsSelectLocalName } = getImportInfo(j, file, 'ChipsSelect', alias);\n+\n+  swapBooleanValue(api, source, selectLocalName, 'fixDropdownWidth', 'dropdownAutoWidth');\n+  swapBooleanValue(api, source, customSelectLocalName, 'fixDropdownWidth', 'dropdownAutoWidth');\n+  swapBooleanValue(api, source, chipsSelectLocalName, 'fixDropdownWidth', 'dropdownAutoWidth');\n+\n+  return source.toSource();\n+}\n",
+      "OldContent": null,
+      "NewContent": "import { API, FileInfo } from 'jscodeshift';\nimport { getImportInfo, swapBooleanValue } from '../codemod-helpers';\nimport { JSCodeShiftOptions } from '../types';\n\nexport const parser = 'tsx';\n\nexport default function transformer(file: FileInfo, api: API, options: JSCodeShiftOptions) {\n  const { alias } = options;\n  const j = api.jscodeshift;\n  const source = j(file.source);\n  const { localName: selectLocalName } = getImportInfo(j, file, 'Select', alias);\n  const { localName: customSelectLocalName } = getImportInfo(j, file, 'CustomSelect', alias);\n  const { localName: chipsSelectLocalName } = getImportInfo(j, file, 'ChipsSelect', alias);\n\n  swapBooleanValue(api, source, selectLocalName, 'fixDropdownWidth', 'dropdownAutoWidth');\n  swapBooleanValue(api, source, customSelectLocalName, 'fixDropdownWidth', 'dropdownAutoWidth');\n  swapBooleanValue(api, source, chipsSelectLocalName, 'fixDropdownWidth', 'dropdownAutoWidth');\n\n  return source.toSource();\n}\n",
+      "Path": "packages/codemods/src/transforms/select.ts"
+    },
+    {
+      "OldPath": "packages/codemods/src/transforms/tabbar.ts",
+      "NewPath": "packages/codemods/src/transforms/tabbar.ts",
+      "IsNew": true,
+      "IsDeleted": false,
+      "IsRenamed": false,
+      "Diff": "@@ -0,0 +1,16 @@\n+import { API, FileInfo } from 'jscodeshift';\n+import { getImportInfo, swapBooleanValue } from '../codemod-helpers';\n+import { JSCodeShiftOptions } from '../types';\n+\n+export const parser = 'tsx';\n+\n+export default function transformer(file: FileInfo, api: API, options: JSCodeShiftOptions) {\n+  const { alias } = options;\n+  const j = api.jscodeshift;\n+  const source = j(file.source);\n+  const { localName } = getImportInfo(j, file, 'Tabbar', alias);\n+\n+  swapBooleanValue(api, source, localName, 'shadow', 'plain');\n+\n+  return source.toSource();\n+}\n",
+      "OldContent": null,
+      "NewContent": "import { API, FileInfo } from 'jscodeshift';\nimport { getImportInfo, swapBooleanValue } from '../codemod-helpers';\nimport { JSCodeShiftOptions } from '../types';\n\nexport const parser = 'tsx';\n\nexport default function transformer(file: FileInfo, api: API, options: JSCodeShiftOptions) {\n  const { alias } = options;\n  const j = api.jscodeshift;\n  const source = j(file.source);\n  const { localName } = getImportInfo(j, file, 'Tabbar', alias);\n\n  swapBooleanValue(api, source, localName, 'shadow', 'plain');\n\n  return source.toSource();\n}\n",
+      "Path": "packages/codemods/src/transforms/tabbar.ts"
+    },
+    {
+      "OldPath": "styleguide/pages/migration_v6.md",
+      "NewPath": "styleguide/pages/migration_v6.md",
+      "IsNew": false,
+      "IsDeleted": false,
+      "IsRenamed": false,
+      "Diff": "@@ -781,6 +781,13 @@ npx @vkontakte/vkui-codemods --help\n + <ModalPageHeader getRootRef={ref}>...</ModalPageHeader>\n ```\n \n+```diff\n+- <ModalPageHeader separator>...</ModalPageHeader>\n++ <ModalPageHeader>...</ModalPageHeader>\n+- <ModalPageHeader separator={false}>...</ModalPageHeader>\n++ <ModalPageHeader noSeparator>...</ModalPageHeader>\n+```\n+\n <br/>\n \n ### [`Pagination`](#/Pagination)\n",
+      "OldContent": null,
+      "NewContent": "> Документацию по миграции с **v4** на **v5** можно найти [здесь](https://github.com/VKCOM/VKUI/releases/tag/v5.0.1).\n\n## Содержание\n\n- <a href=\"{{anchor}}\">Автоматизация обновления до v6</a>\n- <a href=\"{{anchor}}\">Зависимости</a>\n- <a href=\"{{anchor}}\">Сборка</a>\n- <a href=\"{{anchor}}\">Константы</a>\n- <a href=\"{{anchor}}\">Компоненты</a>\n  - <a href=\"{{anchor}}\">`Accordion`</a>\n  - <a href=\"{{anchor}}\">`ActionSheet`</a>\n  - <a href=\"{{anchor}}\">`ActionSheetItem`</a>\n  - <a href=\"{{anchor}}\">`Alert`</a>\n  - <a href=\"{{anchor}}\">`AppearanceProvider`</a>\n  - <a href=\"{{anchor}}\">`Avatar`</a>\n  - <a href=\"{{anchor}}\">`Banner`</a>\n  - <a href=\"{{anchor}}\">`Calendar`</a>\n  - <a href=\"{{anchor}}\">`CalendarRange`</a>\n  - <a href=\"{{anchor}}\">`CardScroll`</a>\n  - <a href=\"{{anchor}}\">`ConfigProvider`</a>\n  - <a href=\"{{anchor}}\">`Chip`</a>\n  - <a href=\"{{anchor}}\">`ChipsInput`</a>\n  - <a href=\"{{anchor}}\">`ChipsSelect`</a>\n  - <a href=\"{{anchor}}\">`ContentCard`</a>\n  - <a href=\"{{anchor}}\">`CustomScrollView`</a>\n  - <a href=\"{{anchor}}\">`CustomSelect`</a>\n  - <a href=\"{{anchor}}\">`DateInput`</a>\n  - <a href=\"{{anchor}}\">`DateRangeInput`</a>\n  - <a href=\"{{anchor}}\">`Image`</a>\n  - <a href=\"{{anchor}}\">`ImageBase`</a>\n  - <a href=\"{{anchor}}\">`FixedLayout`</a>\n  - <a href=\"{{anchor}}\">`Footer`</a>\n  - <a href=\"{{anchor}}\">`FormItem`</a>\n  - <a href=\"{{anchor}}\">\uD83D\uDDD1️ ~~`FormLayout`~~</a>\n  - <a href=\"{{anchor}}\">`Gallery`</a>\n  - <a href=\"{{anchor}}\">`Gradient`</a>\n  - <a href=\"{{anchor}}\">`GridAvatar`</a>\n  - <a href=\"{{anchor}}\">`Header`</a>\n  - <a href=\"{{anchor}}\">`ModalCard` и `ModaCardBase`</a>\n  - <a href=\"{{anchor}}\">`ModalPageHeader`</a>\n  - <a href=\"{{anchor}}\">`Pagination`</a>\n  - <a href=\"{{anchor}}\">`PanelHeader`</a>\n  - <a href=\"{{anchor}}\">\uD83D\uDDD1️ ~~`PanelHeader.Content`~~</a>\n  - <a href=\"{{anchor}}\">`Placeholder`</a>\n  - <a href=\"{{anchor}}\">\uD83D\uDDD1️ ~~`PromoBanner`~~</a>\n  - <a href=\"{{anchor}}\">`PopoutWrapper`</a>\n  - <a href=\"{{anchor}}\">`PullToRefresh`</a>\n  - <a href=\"{{anchor}}\">\uD83D\uDDD1️ ~~`RangeSlider`~~</a>\n  - <a href=\"{{anchor}}\">`Search`</a>\n  - <a href=\"{{anchor}}\">`Select`</a>\n  - <a href=\"{{anchor}}\">`SimpleCell`</a>\n  - <a href=\"{{anchor}}\">`Slider`</a>\n  - <a href=\"{{anchor}}\">`Spinner`</a>\n  - <a href=\"{{anchor}}\">`SplitCol`</a>\n  - <a href=\"{{anchor}}\">`Tabbar`</a>\n  - <a href=\"{{anchor}}\">`Tappable`</a>\n  - <a href=\"{{anchor}}\">~~`Tooltip`~~ -> `OnboardingTooltip`</a>\n  - <a href=\"{{anchor}}\">`Typography/Title`</a>\n  - <a href=\"{{anchor}}\">`Typography/Headline`</a>\n  - <a href=\"{{anchor}}\">`Typography/Subhead`</a>\n  - <a href=\"{{anchor}}\">`UsersStack`</a>\n  - <a href=\"{{anchor}}\">\uD83D\uDDD1️ ~~`VisuallyHiddenInput`~~</a>\n- <a href=\"{{anchor}}\">`unstable_` компоненты</a>\n  - <a href=\"{{anchor}}\">\uD83C\uDF89 ~~`unstable_ChipsSelect`~~ -> `ChipsSelect`</a>\n  - <a href=\"{{anchor}}\">\uD83C\uDF89 ~~`unstable_Popover`~~ -> `Popover`</a>\n  - <a href=\"{{anchor}}\">\uD83C\uDF89 ~~`unstable_Popper`~~ -> `Popper`</a>\n  - <a href=\"{{anchor}}\">\uD83C\uDF89 ~~`unstable_TextTooltip`~~ -> `Tooltip`</a>\n  - <a href=\"{{anchor}}\">\uD83C\uDF89 ~~`unstable_HorizontalCellShowMore`~~ -> `HorizontalCellShowMore`</a>\n  - <a href=\"{{anchor}}\">\uD83D\uDDD1️ ~~`RichTooltip`~~</a>\n- <a href=\"{{anchor}}\">Интеграция с VK Mini Apps</a>\n\n<br/>\n<hr/>\n<br/>\n\n## Автоматизация обновления до v6\n\n> Пока для перевода доступны только `Typescript`-файлы (`*.ts`, `*.tsx`).\n\nЧтобы упростить переход на новую мажорную версию, можно воспользоваться инструментом по\nавтоматической миграции ваших компонентов.\n\n1. Для начала обновите ваше приложение до новой мажорной версии (**v6**) в соответствии с требованиями\n   вашего пакетного менеджера и среды.\n\n2. Перейдите в директорию с исходниками вашего проекта (обычно это `src/`) и запустите команду `npx @vkontakte/vkui-codemods`.\n\n3. То, что можно изменить на месте, подвергнется миграции, о более сложных кейсах вы будете\n   оповещены в консоли по ходу выполнения команды из **п.2**.\n\n<br/>\n\nИнформацию по доступным параметрам можно узнать через опцию `--help`\n\n```shell\nnpx @vkontakte/vkui-codemods --help\n```\n\nБолее подробная инструкция расположена на странице пакета [@vkontakte/vkui-codemods](https://www.npmjs.com/package/@vkontakte/vkui-codemods).\n\n<br/><br/><hr/><br/>\n\n## Зависимости\n\n<br/>\n\n- Обновили минимально поддерживаемую версию [React](https://react.dev/)\n  до [v18.2.0](https://github.com/facebook/react/blob/main/CHANGELOG.md#1820-june-14-2022).\n- Удалили зависимость [@vkontakte/vk-bridge](https://www.npmjs.com/package/@vkontakte/vk-bridge)\n  в рамках задачи по уменьшению сцепления с [VK Mini Apps](https://vk.com/miniapps) (см. подробнее в разделе <a href=\"{{anchor}}\">Интеграция с VK Mini Apps</a>).\n\n<br/><br/><hr/><br/>\n\n## Сборка\n\n<br/>\n\n- Обновили конфигурацию [`.browserlistrc`](https://github.com/VKCOM/VKUI/blob/master/.browserslistrc):\n\n  ```diff\n  - android >= 5\n  + ChromeAndroid >= 57\n  - iOS >= 10\n  + iOS >= 10.3\n  - Chrome >= 51\n  + Chrome >= 57\n  Firefox >= 54\n  Edge >= 18\n  - Opera >= 38\n  + Opera >= 44\n  - Safari >= 10\n  + Safari >= 10.1\n\n  + Samsung >= 7.2\n  ```\n\n- В [специальной сборке](https://vkcom.github.io/VKUI/#/CSS%20Modules) теперь используется [CSS Logical](https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_logical_properties_and_values).\n\n  > Если вы используете [специальную сборку](https://vkcom.github.io/VKUI/#/CSS%20Modules) и вам\n  > требуется [широкая браузерная поддержка](https://caniuse.com/css-logical-props), рекомендуем\n  > воспользоваться [postcss-logical](https://www.npmjs.com/package/postcss-logical).\n\n<br/><br/><hr/><br/>\n\n## Константы\n\n<br/>\n\nСледующие перечисления были заменены на [объекты](https://www.typescriptlang.org/docs/handbook/enums.html#objects-vs-enums):\n\n- `Platform`\n- `Appearance`\n- `SizeType`\n- `ViewWidth`\n- `ViewHeight`\n\n<br/><br/><hr/><br/>\n\n## Компоненты\n\n<br/>\n\n### [`Accordion`](#/Accordion)\n\n- Отказались от нативного элемента `detail`, т.к. из-за неё некорректно работала анимация.\n\n- На замену свойств `open` и `onToggle` пришли свойства `expanded`, `defaultExpanded`, `onChange`.\n\n```diff\n<Accordion\n- open={openId === id}\n+ expanded={openId === id}\n\n- onToggle={(e) => e.target.open && setOpenId(id)}\n+ onChange={(open) => open && setOpenId(id)}\n>\n```\n\nКонтент должен быть обернут в `<Accordion.Content>`.\n\n```diff\n<Accordion expanded={open}>\n  <Accordion.Summary>Title</Accordion.Summary>\n+   <Accordion.Content>\n      <Div>Content</Div>\n+   </Accordion.Content>\n</Accordion>\n```\n\n<br/>\n\n### [`ActionSheet`](#/ActionSheet)\n\n- Свойство `toggleRef` теперь обязательно.\n- Свойство `popupDirection` удалено, используйте `placement`.\n\n```diff\n- <ActionSheet popupDirection=\"top\">\n+ <ActionSheet toggleRef={getRef} placement=\"top\">\n  <ActionSheetItem autoClose>Сохранить в закладках</ActionSheetItem>\n </ActionSheet>\n```\n\n<br/>\n\n### [`ActionSheetItem`](#/ActionSheetItem)\n\n- Свойство `autoClose` удалено, теперь это поведение по умолчанию.\n\n```diff\n <ActionSheet>\n-  <ActionSheetItem autoClose>Сохранить в закладках</ActionSheetItem>\n+  <ActionSheetItem>Сохранить в закладках</ActionSheetItem>\n-  <ActionSheetItem autoClose={false}>Закрепить запись</ActionSheetItem>\n+  <ActionSheetItem autoCloseDisabled>Закрепить запись</ActionSheetItem>\n </ActionSheet>\n```\n\n<br/>\n\n### [`Alert`](#/Alert)\n\n- Свойство `autoClose` удалено, теперь это поведение по-умолчанию.\n\n```diff\n <Alert\n   actions={[\n     {\n       title: \"Лишить права\",\n       mode: \"destructive\",\n-      autoClose: false,\n+      autoCloseDisabled: true,\n     },\n     {\n       title: \"Отмена\",\n-      autoClose: true,\n       mode: \"cancel\",\n     },\n   ]}\n   header=\"Подтвердите действие\"\n   text=\"Вы уверены, что хотите лишить пользователя права на\u00A0модерацию контента?\"\n />\n```\n\n<br/>\n\n### [`AppearanceProvider`](#/AppearanceProvider)\n\n- По аналогии с остальными провайдерами свойство `appearance` заменено на `value`.\n\n```diff\n- <AppearanceProvider appearance={appearance}>...</AppearanceProvider>\n+ <AppearanceProvider value={appearance}>...</AppearanceProvider>\n```\n\n<br/>\n\n## [`Avatar`](#/Avatar)\n\n- Свойство `withBorder` удалено, используйте свойство `noBorder`.\n\n```diff\n-  <Avatar withBorder>...</Avatar>\n+  <Avatar>...</Avatar>\n-  <Avatar withBorder={false}>...</Avatar>\n+  <Avatar noBorder>...</Avatar>\n```\n\n<br/>\n\n### [`Banner`](#/Banner)\n\n- Убрали установку внешних отступов. Теперь, при необходимости, следует их добавлять самостоятельно.\n  Соответственно, свойство `noPadding` удалёно.\n\n```diff\n- <Banner noPadding />\n+ <Banner />\n```\n\n- Внешний отступ можно задать через layout-компонент [Div](#/Div).\n\n```diff\n- <Banner />\n+ <Div>\n+  <Banner />\n+ </Div>\n```\n\n<br/>\n\n### [`Calendar`](#/Calendar)\n\n- Изменены a11y-свойства\n\n```diff\n<Calendar\n- prevMonthAriaLabel=\"\"\n+ prevMonthLabel=\"\"\n\n- nextMonthAriaLabel=\"\"\n+ nextMonthLabel=\"\"\n\n- changeDayAriaLabel=\"\"\n+ changeDayLabel=\"\"\n\n- changeMonthAriaLabel=\"\"\n+ changeMonthLabel=\"\"\n\n- changeYearAriaLabel=\"\"\n+ changeYearLabel=\"\"\n\n- changeMinutesAriaLabel=\"\"\n+ changeMinutesLabel=\"\"\n\n- changeHoursAriaLabel=\"\"\n+ changeHoursLabel=\"\"\n/>\n```\n\n<br/>\n\n### [`CalendarRange`](#/CalendarRange)\n\n- Изменены a11y-свойства\n\n```diff\n<CalendarRange\n- prevMonthAriaLabel=\"\"\n+ prevMonthLabel=\"\"\n\n- nextMonthAriaLabel=\"\"\n+ nextMonthLabel=\"\"\n\n- changeDayAriaLabel=\"\"\n+ changeDayLabel=\"\"\n\n- changeMonthAriaLabel=\"\"\n+ changeMonthLabel=\"\"\n\n- changeYearAriaLabel=\"\"\n+ changeYearLabel=\"\"\n/>\n```\n\n<br/>\n\n## [`CardScroll`](#/CardScroll)\n\n- Свойство `withSpaces` удалено, используйте свойство `noSpaces`.\n\n```diff\n-  <CardScroll withSpaces />\n+  <CardScroll />\n-  <CardScroll withSpaces={false} />\n+  <CardScroll noSpaces />\n```\n\n<br/>\n\n### [`ConfigProvider`](#/ConfigProvider)\n\n- `hasCustomPanelHeaderAfter` теперь по умолчанию `false`.\n- <!--чтобы сработало перечёркивание-->~~`onDetectAppearanceByBridge`~~ удален, используйте хук `useAppearance()` из библиотеки\n  [@vkontakte/vk-bridge-react](https://www.npmjs.com/package/@vkontakte/vk-bridge-react), если вам\n  нужно определять, что `appearance` был передан через VK Bridge.\n- <!--чтобы сработало перечёркивание-->~~`webviewType`~~ заменён на `hasCustomPanelHeaderAfter`.\n\n  ```diff\n  <ConfigProvider\n  -  webviewType={WebviewType.INTERNAL}\n  +  hasCustomPanelHeaderAfter={false}\n  />\n  ```\n\n  ```diff\n  <ConfigProvider\n  -  webviewType={WebviewType.VKAPPS}\n  +  hasCustomPanelHeaderAfter\n  +  customPanelHeaderAfterMinWidth={<value>} // при необходимости (по умолчанию 90)\n  />\n  ```\n\n- `platform` теперь принимает только **union** `'android' | 'ios' | 'vkcom'`. Раньше можно было\n  передать любое значение, чтобы можно было перебить токены по умолчанию. Если вам это необходимо,\n  то используйте свойство `tokensClassNames`. Подробнее читайте на странице [Кастомизация](#/Customize).\n  Ниже представлен код на примере `paradigmBase` из [@vkontakte/vkui-tokens](https://github.com/VKCOM/vkui-tokens).\n\n  ```diff\n  <ConfigProvider\n  -  platform=\"paradigmBase\"\n  +  tokensClassNames={{\n  +   light: 'vkui--paradigmBase--light',\n  +   dark: 'vkui--paradigmBase--dark',\n  +  }}\n  />\n  ```\n\n<br/>\n\n### [`Chip`](#/ChipsInput)\n\n- Изменено a11y-свойство\n\n```diff\n<Chip\n  value=\"Чип\"\n  removable={true}\n- removeAriaLabel=\"Удалить\"\n+ removeLabel=\"Удалить\"\n>\n  Чип\n</Chip>\n```\n\n<br/>\n\n### [`ChipsInput`](#/ChipsInput)\n\n- Компонент теперь может быть контролируемым и неконтролируемым.\n- `getOptionValue`, `getOptionLabel`, `getNewOptionData` – все аргументы функции теперь обязательны.\n- `renderChip` – вторым аргументов приходит `option`.\n\n```diff\n<ChipsInput\n-  value={[]}\n+  defaultValue={[]}\n\n-  value={[]}\n+  value={[]}\n+  onChange={[]}\n\n-  inputValue=\"\"\n+  defaultInputValue=\"\"\n\n-  inputAriaLabel=\"Введите название цвета\"\n+  inputLabel=\"Введите название цвета\"\n/>\n```\n\n<br/>\n\n### [`ContentCard`](#/ContentCard)\n\n- Изменён тeг (с `h4` на `span`), в котором `header` компонента рендерится по умолчанию.\n  Переопределить тег по умолчанию можно с помощью свойства `headerComponent`.\n\n```jsx static\n<ContentCard headerComponent=\"h4\" />\n```\n\n<br/>\n\n### [`CustomScrollView`](#/CustomScrollView)\n\n- Компонент больше не принимает свойства `window`/`document`.\n\n<br/>\n\n### [`CustomSelect`](#/CustomSelect)\n\n- Функция `onInputChange` больше не получает вторым параметром список опций, а также никак\n  не обрабатывает результат исполнения. Для фильтрации обновляйте `props.options` самостоятельно или\n  используйте свойство `filterFn`.\n- Удалено свойство `option` из `CustomSelectOption`.\n- Свойство `fixDropdownWidth` удалено, используйте свойство `dropdownAutoWidth`.\n\n```diff\n-  <CustomSelect fixDropdownWidth>...</CustomSelect>\n+  <CustomSelect>...</CustomSelect>\n-  <CustomSelect fixDropdownWidth={false}>...</CustomSelect>\n+  <CustomSelect dropdownAutoWidth>...</CustomSelect>\n```\n\n<br/>\n\n### [`DateInput`](#/DateInput)\n\n- Изменены a11y-свойства\n\n```diff\n<DateInput\n- prevMonthAriaLabel=\"\"\n+ prevMonthLabel=\"\"\n\n- nextMonthAriaLabel=\"\"\n+ nextMonthLabel=\"\"\n\n- changeMinutesAriaLabel=\"\"\n+ changeMinutesLabel=\"\"\n\n- changeHoursAriaLabel=\"\"\n+ changeHoursLabel=\"\"\n\n- changeDayAriaLabel=\"\"\n+ changeDayLabel=\"\"\n\n- changeMonthAriaLabel=\"\"\n+ changeMonthLabel=\"\"\n\n- changeYearAriaLabel=\"\"\n+ changeYearLabel=\"\"\n\n- clearFieldAriaLabel=\"\"\n+ clearFieldLabel=\"\"\n\n- showCalendarAriaLabel=\"\"\n+ showCalendarLabel=\"\"\n/>\n```\n\n<br/>\n\n### [`DateRangeInput`](#/DateInputRange)\n\n- Изменены a11y-свойства\n\n```diff\n<DateRangeInput\n- prevMonthAriaLabel=\"\"\n+ prevMonthLabel=\"\"\n\n- nextMonthAriaLabel=\"\"\n+ nextMonthLabel=\"\"\n\n- changeDayAriaLabel=\"\"\n+ changeDayLabel=\"\"\n\n- changeMonthAriaLabel=\"\"\n+ changeMonthLabel=\"\"\n\n- changeYearAriaLabel=\"\"\n+ changeYearLabel=\"\"\n\n- changeStartDayAriaLabel=\"\"\n+ changeStartDayLabel=\"\"\n\n- changeStartMonthAriaLabel=\"\"\n+ changeStartMonthLabel=\"\"\n\n- changeStartYearAriaLabel=\"\"\n+ changeStartYearLabel=\"\"\n\n- changeEndDayAriaLabel=\"\"\n+ changeEndDayLabel=\"\"\n\n- changeEndMonthAriaLabel=\"\"\n+ changeEndMonthLabel=\"\"\n\n- changeEndYearAriaLabel=\"\"\n+ changeEndYearLabel=\"\"\n\n- clearFieldAriaLabel=\"\"\n+ clearFieldLabel=\"\"\n\n- showCalendarAriaLabel=\"\"\n+ showCalendarLabel=\"\"\n/>\n```\n\n<br/>\n\n## [`Image`](#/Image)\n\n- Свойство `withBorder` удалено, используйте свойство `noBorder`.\n\n```diff\n-  <Image withBorder>...</Image>\n+  <Image>...</Image>\n-  <Image withBorder={false}>...</Image>\n+  <Image noBorder>...</Image>\n```\n\n<br/>\n\n## [`ImageBase`](#/ImageBase)\n\n- Свойство `withBorder` удалено, используйте свойство `noBorder`.\n\n```diff\n-  <ImageBase withBorder>...</ImageBase>\n+  <ImageBase>...</ImageBase>\n-  <ImageBase withBorder={false}>...</ImageBase>\n+  <ImageBase noBorder>...</ImageBase>\n```\n\n<br/>\n\n### [`FixedLayout`](#/FixedLayout)\n\n```diff\n- <FixedLayout getRef={ref}>...</FixedLayout>\n+ <FixedLayout getRootRef={ref}>...</FixedLayout>\n```\n\n<br/>\n\n### [`Footer`](#/Footer)\n\n- Вертикальный отступ теперь задаётся через `padding`, вместо `margin`, поэтому схлопывание `margin`\n  будет исключено.\n\n<br/>\n\n### [`FormItem`](#/FormItem)\n\n- Изменён тeг (с `h5` на `span`), в котором значение `top` рендерится по умолчанию, если не указано\n  свойство `htmlFor`. Если свойство `htmlFor` указано, но тег будет `label`.\n- Переопределить тeг по умолчанию можно с помощью свойства `topComponent`.\n\n```jsx static\n<FormItem top=\"Имя\" topComponent=\"h5\" />\n```\n\n<br/>\n\n### \uD83D\uDDD1️ ~~`FormLayout`~~\n\n- Компонент удален.\n- Используйте нативный тег `form`\n\n<br />\n\n## [`Gallery`](#/Gallery)\n\n- Свойство `isDraggable` удалено, используйте свойство `dragDisabled`.\n\n```diff\n-  <Gallery isDraggable />\n+  <Gallery />\n-  <Gallery isDraggable={false} />\n+  <Gallery dragDisabled />\n```\n\n<br/>\n\n### [`Gradient`](#/Gradient)\n\n- У свойства `mode` были удалены значения `black` и `white`, используйте `tint` или `default`.\n  `default` теперь значение по умолчанию.\n\n<br/>\n\n## [`GridAvatar`](#/GridAvatar)\n\n- Свойство `withBorder` удалено, используйте свойство `noBorder`.\n\n```diff\n-  <GridAvatar withBorder>...</GridAvatar>\n+  <GridAvatar>...</GridAvatar>\n-  <GridAvatar withBorder={false}>...</GridAvatar>\n+  <GridAvatar noBorder>...</GridAvatar>\n```\n\n<br />\n\n### [`Header`](#/Header)\n\n- Теперь для подзаголовка `subtitle` можно задать тип тэга с помощью свойства `subtitleComponent`.\n\n```jsx static\n<Header subtitle=\"SOHN —\u00A0Conrad\" subtitleComponent=\"h3\">\n  Плейлисты\n</Header>\n```\n\n<br/>\n\n### [`ModalCard`](#/ModalCard) и [`ModaCardBase`](#/ModaCardBase)\n\n- Тeг, в котором значение `header` рендерится по умолчанию, изменён с `h2` на `span`.\n- Тег, в котором значение `subheader` рендерится по умолчанию, изменён с `h5` на `span`.\n- Поменять теги по умолчанию можно с помощью свойств `headerComponent` и `subheaderComponent`.\n\n```jsx static\n<ModalCard\n  header=\"Баскетбол на выходных\"\n  headerComponent=\"h2\"\n  subheader=\"Приглашение в беседу\"\n  subheaderComponent=\"h3\"\n/>\n```\n\n<br />\n\nОтступ перед кнопками действий (`actions`) больше автоматически не меняется в зависимости от контента.\nОтступ теперь всегда равен `16px`.\nТакже автоматически больше не проставляются отступы, если внутрь переданы следующие компоненты: [UserStack](#/UserStack), [FormField](#/FormField).\nСогласно дизайн-системе отступ может быть и больше в зависимости от свойств и контента компонента.\nДля того, чтобы увеличить отступ используйте компонент [Spacing](#/Spacing).\nНиже приведёны ситуации в которых точно нужно использовать [Spacing](#/Spacing), чтобы продолжать следовать дизайн-системе.\n\n- `ModalCard` или `ModalCardBase` содержит `actions` и `header` или `subheader`, но не содержит `children`. Отступ в сумме с тем что идёт по умолчанию должен быть `32px`.\n\n```diff\n    <ModalCard header=\"Добавить игру «Загадки детства» в меню?\"\n      actions={\n-       <ButtonGroup mode=\"horizontal\" gap=\"s\" stretched>\n-         <Button size=\"l\" mode=\"primary\" stretched>\n-           Да\n-         </Button>\n-         <Button size=\"l\" mode=\"secondary\" stretched>\n-           Позже\n-         </Button>\n-       </ButtonGroup>\n+       <React.Fragment>\n+         <Spacing size={16} />\n+         <ButtonGroup mode=\"horizontal\" gap=\"s\" stretched>\n+           <Button size=\"l\" mode=\"primary\" stretched>\n+             Да\n+           </Button>\n+           <Button size=\"l\" mode=\"secondary\" stretched>\n+             Позже\n+           </Button>\n+         </ButtonGroup>\n+       </React.Fragment>\n    />\n```\n\n- `ModalCard` или `ModalCardBase` содержит `actions`, а внутрь `children` передан [UsersStack](#/UsersStack). Перед `UserStack` должен быть отступ в `20px`, а между `UserStack` и `actions` отступ должен быть в сумме `24px` (включая отступ по умолчанию `16px`).\n\n```diff\n    <ModalCard header=\"Добавить игру «Загадки детства» в меню?\"\n      actions={\n-       <ButtonGroup mode=\"horizontal\" gap=\"s\" stretched>\n-         <Button size=\"l\" mode=\"primary\" stretched>\n-           Да\n-         </Button>\n-         <Button size=\"l\" mode=\"secondary\" stretched>\n-           Позже\n-         </Button>\n-       </ButtonGroup>\n+       <React.Fragment>\n+         <Spacing size={8} />\n+         <ButtonGroup mode=\"horizontal\" gap=\"s\" stretched>\n+           <Button size=\"l\" mode=\"primary\" stretched>\n+             Да\n+           </Button>\n+           <Button size=\"l\" mode=\"secondary\" stretched>\n+             Позже\n+           </Button>\n+         </ButtonGroup>\n+       </React.Fragment>\n      }\n    >\n+     <Spacing size={20} />\n      <UsersStack photos={[getAvatarUrl('user_lihachyov')]}>\n        Понравилось Муртолу Левзачеву\n      </UsersStack>\n    </ModalCard>\n```\n\n- `ModalCard` или `ModalCardBase` содержит `header` или `subheader`, а внутрь `children` передан [FormField](#/FormField). Отступ между `header` или `subheader` и `FormField` должен быть `16px`.\n\n```diff\n    <ModalCard header=\"Добавить игру «Загадки детства» в меню?\"\n      actions={\n        <ButtonGroup mode=\"horizontal\" gap=\"s\" stretched>\n          <Button size=\"l\" mode=\"primary\" stretched>\n            Да\n          </Button>\n          <Button size=\"l\" mode=\"secondary\" stretched>\n            Позже\n          </Button>\n        </ButtonGroup>\n      }\n    >\n+    <Spacing size={16} />\n      <FormField>\n        <CustomInput />\n      </FormField>\n    </ModalCar>\n```\n\n<br/>\n\n### [`ModalPageHeader`](#/ModalPageHeader)\n\n```diff\n- <ModalPageHeader getRef={ref}>...</ModalPageHeader>\n+ <ModalPageHeader getRootRef={ref}>...</ModalPageHeader>\n```\n\n```diff\n- <ModalPageHeader separator>...</ModalPageHeader>\n+ <ModalPageHeader>...</ModalPageHeader>\n- <ModalPageHeader separator={false}>...</ModalPageHeader>\n+ <ModalPageHeader noSeparator>...</ModalPageHeader>\n```\n\n<br/>\n\n### [`Pagination`](#/Pagination)\n\n- Свойство `getPageAriaLabel` переименовано в `getPageLabel` и обновлено: теперь оно принимает\n  только `(isCurrent: boolean)` и не нуждается в номере страницы. Возвращайте текст с учетом того,\n  что номер страницы добавится автоматически через пробел **в конце**.\n\n```diff\n <Pagination\n- prevButtonAriaLabel=\"На предыдущую\"\n+ prevButtonLabel=\"На предыдущую\"\n\n- nextButtonAriaLabel=\"На следующую\"\n+ nextButtonLabel=\"На следующую\"\n\n- getPageAriaLabel={(page, isCurrent) => { isCurrent ? `${page} страница` : `Го на ${page} страницу` }}\n+ getPageLabel={(isCurrent) => { isCurrent ? \"Стр.\" : \"Го на страницу\" }}\n/>\n```\n\n<br/>\n\n## [`PanelHeader`](#/PanelHeader)\n\n- Свойство `visor` удалено, используйте свойство `float`.\n\n```diff\n-  <PanelHeader visor />\n+  <PanelHeader />\n-  <PanelHeader visor={false} />\n+  <PanelHeader float />\n```\n\n- Свойство `separator` удалено, используйте свойство `delimiter`.\n\n```diff\n-  <PanelHeader separator />\n+  <PanelHeader />\n-  <PanelHeader separator={false} />\n+  <PanelHeader delimiter=\"none\" />\n```\n\n<br/>\n\n### \uD83D\uDDD1️ ~~`PanelHeader.Content`~~\n\n- Подкомпонент удален, используйте вместо него `typographyProps` у [`PanelHeader`](#/PanelHeader).\n\n<br/>\n\n## [`Placeholder`](#/Placeholder)\n\n- Свойство `withPadding` удалено, используйте свойство `noPadding`.\n\n```diff\n-  <Placeholder withPadding>...</Placeholder>\n+  <Placeholder>...</Placeholder>\n-  <Placeholder withPadding={false}>...</Placeholder>\n+  <Placeholder noPadding>...</Placeholder>\n```\n\n<br/>\n\n### \uD83D\uDDD1️ ~~`PromoBanner`~~\n\n- Компонент удален.\n- Для своей реализации, используйте событие [`VKWebAppShowBannerAd`](https://dev.vk.com/mini-apps/monetization/ad/banners).\n\n<br/>\n\n### [`PopoutWrapper`](#/PopoutWrapper)\n\n- Теперь, при использовании компонента напрямую, необходимо самостоятельно импортировать и вызывать `useScrollLock()` (см. [issue #4314](https://github.com/VKCOM/VKUI/issues/4314)).\n\n- Свойство `hasMask` удалено, используйте свойство `noBackground`.\n\n```diff\n-  <PopoutWrapper hasMask>...</PopoutWrapper>\n+  <PopoutWrapper>...</Tabbar>\n-  <PopoutWrapper hasMask={false}>...</PopoutWrapper>\n+  <PopoutWrapper noBackground>...</PopoutWrapper>\n```\n\n<br/>\n\n### [`PullToRefresh`](#/PullToRefresh)\n\n- До этого `runTapticImpactOccurred()` вызывался внутри компонента после вызова обработчика `onRefresh`.\n  Сам `runTapticImpactOccurred()` через `vkBridge.send` вызывает событие `VKWebAppTapticImpactOccurred`.\n  В виду отказа от [VK Bridge](https://www.npmjs.com/package/@vkontakte/vk-bridge), мы удалили вызов\n  `runTapticImpactOccurred()` на стороне **VKUI**.\n- Пример представлен на странице [Интеграция с VK Mini Apps](https://vkcom.github.io/VKUI/#/integrations-vk-mini-apps)\n  под заголовком **Виброотклик (Taptic Engine)**.\n\n<br/>\n\n### \uD83D\uDDD1️ ~~`RangeSlider`~~\n\n- Компонент удален, используйте [`Slider`](#/Slider).\n\n```diff\n- <RangeSlider />\n+ <Slider multiple />\n```\n\n<br/>\n\n### [`Search`](#/Search)\n\n- Свойство `iconAriaLabel` переименовано в `iconLabel`.\n- Свойство `clearAriaLabel` переименовано в `clearLabel`.\n\n<br/>\n\n## [`Select`](#/Select)\n\n- Свойство `fixDropdownWidth` удалено, используйте свойство `dropdownAutoWidth`.\n\n```diff\n-  <Select fixDropdownWidth>...</Select>\n+  <Select>...</Select>\n-  <Select fixDropdownWidth={false}>...</Select>\n+  <Select dropdownAutoWidth>...</Select>\n```\n\n<br/>\n\n### [`SimpleCell`](#/SimpleCell)\n\n- Свойство `expandable` теперь не принимает значения типа `boolean`.\n\n```diff\n- <SimpleCell expandable={true}>...</SimpleCell>\n+ <SimpleCell expandable=\"auto\">...</SimpleCell>\n\n- <SimpleCell expandable={false}>...</SimpleCell>\n+ <SimpleCell>...</SimpleCell>\n```\n\n<br/>\n\n### [`Slider`](#/Slider)\n\n- Свойство `step` теперь принимает значение `1` по умолчанию.\n- Функция `onChange` вторым параметром теперь дополнительно расширяется типом `React.ChangeEvent`.\n\n<br/>\n\n### [`Spinner`](#/Spinner)\n\n- У свойства `aria-label` теперь отсутствует значение по умолчанию, для доступности воспользуйтесь\n  свойством `children`.\n\n<br/>\n\n### [`SplitCol`](#/SplitCol)\n\n```diff\n <ActionSheet>\n-  <SplitCol spaced>Сохранить в закладках</SplitCol>\n+  <SplitCol autoSpaced>Сохранить в закладках</SplitCol>\n </ActionSheet>\n```\n\n<br/>\n\n## [`Tabbar`](#/Tabbar)\n\n- Свойство `shadow` удалено, используйте свойство `plain`.\n\n```diff\n-  <Tabbar shadow>...</Tabbar>\n+  <Tabbar>...</Tabbar>\n-  <Tabbar shadow={false}>...</Tabbar>\n+  <Tabbar plain>...</Tabbar>\n```\n\n<br/>\n\n### [`Tappable`](#/Tappable)\n\n- Свойства `onEnter`, `onLeave`, `onStart`, `onEnd`, `onMove` и `stopPropagation` удалены.\n  Используйте вместо них [нативные свойства](https://developer.mozilla.org/en-US/docs/Web/API/Pointer_events#event_types_and_global_event_handlers).\n\n```diff\n<Tappable\n- stopPropagation\n\n- onEnter\n+ onPointerEnter\n\n- onLeave\n+ onPointerLeave\n\n- onStart\n+ onPointerDown\n\n- onEnd\n+ onPointerUp\n\n- onMove\n+ onPointerMove\n/>\n```\n\n- Улучшение доступности. Теперь если в кликабельный компонент не был передано свойство `onClick` или\n  `href`, то у такого компонента будут отключены состояния наведения, активирования и ripple-эффекты.\n  Если вы использовали `disabled` для отключения состояний, рекомендуем удалить это свойство.\n\n```diff\n<SimpleCell\n- disabled\n >\n  Информационный текст\n</SimpleCell>\n```\n\n<br/><br/>\n\n### ~~`Tooltip`~~ -> [`OnboardingTooltip`](#/OnboardingTooltip)\n\n- Стал доступнее за счёт `role=\"tooltip\"` и `aria-describedby`.\n\n```diff\n- <Tooltip>\n+ <OnboardingTooltip\n- isShown\n+ shown\n\n- alignX=\"bottom\"\n- alignY=\"left\"\n+ placement=\"bottom-start\"\n\n- offsetX={0}\n+ offsetByCrossAxis={0}\n\n- offsetY={0}\n+ offsetByMainAxis={0}\n\n- cornerOffset={0}\n+ arrowOffset={0}\n\n- cornerAbsoluteOffset={0}\n+ arrowOffset={0}\n+ isStaticArrowOffset\n>\n  <div>Target</div>\n- </Tooltip>\n+ </OnboardingTooltip>\n```\n\n<br/>\n\n### [`Typography/Title`](#/Title)\n\n- По умолчанию тeг в котором рендерится компонент теперь `span` и он больше не привязан к значению\n  свойства `level`.\n- Переопределить тeг по умолчанию можно с помощью свойства `Component`.\n\n```jsx static\n<Title Component=\"h1\" />\n```\n\n<br/>\n\n### [`Typography/Headline`](#/Headline)\n\n- Изменён тeг (с `h4` на `span`), в котором компонент рендерится по умолчанию.\n- Переопределить тeг по умолчанию можно с помощью свойства `Component`.\n\n```jsx static\n<Headline Component=\"h4\" />\n```\n\n<br/>\n\n### [`Typography/Subhead`](#/Subhead)\n\n- Изменён тeг (с `h5` на `span`), в котором компонент рендерится по умолчанию.\n- Переопределить тeг по умолчанию можно с помощью свойства `Component`.\n\n```jsx static\n<Subhead Component=\"h5\" />\n```\n\n<br/>\n\n### [`UsersStack`](#/UsersStack)\n\n```diff\n- <UsersStack layout=\"vertical\">...</UsersStack>\n+ <UsersStack direction=\"column\">...</UsersStack>\n\n- <UsersStack layout=\"horizontal\">...</UsersStack>\n+ <UsersStack direction=\"row\">...</UsersStack>\n```\n\n<br/>\n\n### \uD83D\uDDD1️ ~~`VisuallyHiddenInput`~~\n\n- Компонент удален, используйте [`VisuallyHidden`](#/VisuallyHidden).\n\n```diff\n- <VisuallyHiddenInput />\n+ <VisuallyHidden Component=\"input\" />\n```\n\n<br/><br/><hr/><br/>\n\n## `unstable_` компоненты\n\n<br/>\n\n### \uD83C\uDF89 ~~`unstable_ChipsSelect`~~ -> [`ChipsSelect`](#/ChipsSelect)\n\n- Теперь экспортируется как стабильный.\n- Компонент теперь может быть контролируемым и неконтролируемым.\n- `creatable` – может быть всё ещё `boolean`, при этом теперь можно передать и текст, чтобы\n  переопределить текст по умолчанию.\n- `getOptionValue`, `getOptionLabel`, `getNewOptionData` – все аргументы функции теперь обязательны.\n- `renderChip` – вторым аргументов приходит `option`.\n- Свойство `fixDropdownWidth` удалено, используйте свойство `dropdownAutoWidth`.\n\n```diff\n-  <ChipsSelect fixDropdownWidth>...</ChipsSelect>\n+  <ChipsSelect>...</ChipsSelect>\n-  <ChipsSelect fixDropdownWidth={false}>...</ChipsSelect>\n+  <ChipsSelect dropdownAutoWidth>...</ChipsSelect>\n```\n\n```diff\n<ChipsSelect\n-  value={[]}\n+  defaultValue={[]}\n\n-  value={[]}\n+  value={[]}\n+  onChange={[]}\n\n-  inputValue=\"\"\n+  defaultInputValue=\"\"\n\n-  popupDirection=\"bottom\"\n+  placement=\"bottom\"\n\n-  showSelected={true}\n+  selectedBehavior=\"highlight\"\n\n-  showSelected={false}\n+  selectedBehavior=\"hide\"\n\n-  creatableText=\"Lorem Ipsum\"\n+  creatable=\"Lorem Ipsum\"\n/>\n```\n\n<br/>\n\n### \uD83C\uDF89 ~~`unstable_Popover`~~ -> [`Popover`](#/Popover)\n\n- Теперь экспортируется как стабильный.\n- <!--чтобы сработало перечёркивание-->~~`action`~~ -> `trigger` – помимо `\"click\"` и `\"hover\"`, теперь принимает `\"focus\"` или комбинацию этих событий.\n  Также можно передать `\"manual\"`, что сделает компонент полностью контролируемым, в `onShownChange`\n  будет вызываться при нажатии за пределы целевого и всплывающего элементов, по кнопке ESC или при\n  вызове `onClose` из свойства `content`.\n- `content` теперь принимает [render prop](https://react.dev/reference/react/cloneElement#passing-data-with-a-render-prop).\n  В аргументе функции можно получить метод `onClose`, с помощью которого можно программно закрывать\n  всплывающий элемента.\n- `onShownChange` – вторым аргументом теперь приходит `reason`, который даёт понять по какой причине\n  показался/скрылся всплывающий элемент.\n- `hoverDelay` – принимает либо общее число задержки для `trigger=\"hover\"`, либо массив чисел типа\n  `[<показ>, <скрытие>]`.\n- `autoFocus` – включать ли авто-фокусирование на всплывающий элемент (работает при навигации с клавиатуры).\n- `noStyling` – убирает стилизацию по умолчанию.\n- `usePortal` – рендерить ли всплывающий элемент в портале. Вместо `boolean`, можно передать\n  контейнер, куда должен отрендериться всплывающий элемент.\n\n```diff\n<Popover\n- action=\"hover\"\n+ trigger=\"hover\"\n\n- offsetDistance={0}\n+ offsetByMainAxis={0}\n\n- offsetSkidding={0}\n+ offsetByCrossAxis={0}\n\n- shownDelay={2}\n+ hoverDelay={2}\n\n- hideDelay={10}\n+ hoverDelay={[0, 10]}\n\n- shownDelay={5}\n- hideDelay={10}\n+ hoverDelay={[5 10]}\n>\n  <div>Target</div>\n</Popover>\n```\n\n<br/>\n\n### \uD83C\uDF89 ~~`unstable_Popper`~~ -> [`Popper`](#/Popper)\n\n- Теперь экспортируется как стабильный.\n- `targetRef` теперь умеет принимать `VirtualElement`.\n- `renderContent` удалён в пользу `children`. Раньше из `renderContent` можно было получить\n  `className`, который задаёт `Popper`, сейчас этот `className` пустой.\n- `arrowProps` принимает атрибуты `HTMLDivElement`, а также `iconStyle` и `iconClassName`.\n- `onPlacementChange` теперь вызывается только в случае, если `Popper` подобрал оптимальный\n  `placement` вместо пользовательского.\n\n```diff\n<Popper\n- renderContent\n\n- arrowClassName=\"\"\n+ arrowProps={{ iconClassName: \"\" }}\n\n- offsetDistance={0}\n+ offsetByMainAxis={0}\n\n- offsetSkidding={0}\n+ offsetByCrossAxis={0}\n\n- onPlacementChange={({ placement }) => {}}\n+ onPlacementChange={(placement) => {}}\n\n- forcePortal\n+ usePortal\n\n- portalRoot={someHTMLElement}\n+ usePortal={someHTMLElement}\n/>\n  Content\n</Popper>\n```\n\n<br/>\n\n### \uD83C\uDF89 ~~`unstable_TextTooltip`~~ -> [`Tooltip`](#/Tooltip)\n\n- Теперь экспортируется как стабильный.\n- Компонент теперь может быть контролируемым и неконтролируемым.\n- Помимо `hover`, теперь реагирует и на `focus`.\n- Стал доступнее за счёт `role=\"tooltip\"` и `aria-describedby`.\n- Может закрываться по кнопке **ESC**.\n- ⚠️ Наведение на сам тултип теперь по умолчанию отключено. Используйте `enableInteractive`, чтобы\n  включить эту возможность.\n\n```diff\n- <TextTooltip\n+ <Tooltip\n- autoUpdateOnTargetResize\n- customMiddlewares\n- renderContent\n\n- getRef\n+ getRootRef\n\n- offsetSkidding={0}\n+ offsetByCrossAxis={0}\n\n- offsetDistance={0}\n+ offsetByMainAxis={0}\n\n- shownDelay={2}\n+ hoverDelay={2}\n\n- hideDelay={10}\n+ hoverDelay={[0, 10]}\n\n- shownDelay={5}\n- hideDelay={10}\n+ hoverDelay={[5 10]}\n\n- forcePortal\n+ usePortal\n\n- portalRoot={someHTMLElement}\n+ usePortal={someHTMLElement}\n>\n  <div>Target</div>\n- </TextTooltip>\n+ </Tooltip>\n```\n\n<br/>\n\n### \uD83C\uDF89 ~~`unstable_HorizontalCellShowMore`~~ -> [`HorizontalCellShowMore`](#/HorizontalCellShowMore)\n\n- Теперь экспортируется как стабильный.\n\n<br/>\n\n### \uD83D\uDDD1️ ~~`RichTooltip`~~\n\n- Компонент удален, используйте [`Tooltip`](#/Tooltip).\n\n```diff\n- <RichTooltip style={{maxWidth: 320}} content={\n+ <Tooltip maxWidth={320} placement=\"bottom-start\" enableInteractive text={\n  <RichCell>\n    Lorem\n  </RichCell>\n}>\n  <Link style={{display: 'inline-block', margin: 20, userSelect: 'none'}}>Илья Гришин</Link>\n- </RichTooltip>\n+ </Tooltip>\n```\n\n<br/><br/><hr/><br/>\n\n## Интеграция с [VK Mini Apps](https://vk.com/miniapps)\n\n> Этот **Breaking Change** предназначен для разработчиков мини-приложений ВКонтакте. Если вы таким\n> не являетесь, то смело пропускайте эту секцию.\n\nИзначально, **VKUI** создавался как инструмент для создания клиентской части мини-приложений [ВКонтакте](https://vk.com).\nСейчас **VKUI** уже больше чем просто мини-приложения. Разработчики используют библиотеку, чтобы\nсоздавать полноценные независимые приложения, которые никак не связаны с [VK Mini Apps](https://vk.com/miniapps).\n\nВ связи с этим мы отказались от завязки на мини-приложения [ВКонтакте](https://vk.com). Для этого мы\nудалили интеграцию с библиотекой [VK Bridge](https://www.npmjs.com/package/@vkontakte/vk-bridge), а\nтакже убрали упоминания о [VK Mini Apps](https://vk.com/miniapps) в документации. Это привнесло в\nбиблиотеку ряд изменений касающихся API.\n\n### Конфигурация VKUI\n\nИз [VK Bridge](https://www.npmjs.com/package/@vkontakte/vk-bridge) мы доставали несколько настроек:\n\n1. тему (`light` или `dark`);\n2. параметры адаптивности;\n3. размеры безопасных зон (в CSS это `--safe-area-insets-*`);\n4. открыто веб-вью или нет.\n\nПервые три пункта перенесли в библиотеку [@vkontakte/vk-bridge-react](https://www.npmjs.com/package/@vkontakte/vk-bridge-react).\n\nПомимо **VK Bridge**, была завязка на мини-приложения в свойстве `webviewType` за счёт свойства\n`\"vkapps\"`. Теперь это свойство `hasCustomPanelHeaderAfter`, который по умолчанию `false`.\n\nБойлерплейт для **VK Mini Apps** представлен на странице [Интеграция с VK Mini Apps](https://vkcom.github.io/VKUI/#/integrations-vk-mini-apps)\nпод заголовком **Конфигурация VKUI**.\n\n### \uD83D\uDDD1️ ~~`withInsets`~~\n\n- Используйте вместо него хук `useInsets()` из [@vkontakte/vk-bridge-react](https://www.npmjs.com/package/@vkontakte/vk-bridge-react).\n\n### \uD83D\uDDD1️ ~~`HasInsets`~~\n\n- Используйте вместо него `SafeAreaInsets`.\n- Если вы используете [@vkontakte/vk-bridge](https://www.npmjs.com/package/@vkontakte/vk-bridge), то\n  вы можете объявить тип у себя следующим образом:\n\n```ts static\nimport type { Insets } form '@vkontakte/vk-brige';\n\ninterface HasInsets {\n  insets?: Partial<Insets>;\n}\n```\n",
+      "Path": "styleguide/pages/migration_v6.md"
+    }
+  ],
+  "Notes": [],
+  "Repository": {
+    "AgentFilesAtHead": [],
+    "GitIgnore": "# Project\nPUBLISHING.md\n\n# Builds\ndist/\nstorybook-static/\n\n# Dependency directory\nnode_modules/\n\n# Logs\nnpm-debug.log\nstats.json\ntest-results.json\na11y-results.json\nlint-results.json\ne2e-results.json\nyarn-error.log\nplaywright-report/\nblob-report/\nall-blob-reports/\n\n# Caches\n.cache\ntmp/\n\n# SWC\n.swc\n\n# Coverage directory used by tools like istanbul\ncoverage\n\n# nyc test coverage\n.nyc_output\n.nyc_a11y_output\n\n# Snapshot directory of Cypress Image Diff\n__diff_output__\n\n# CI\n.env\n.lfs-assets-id\n\n# IDE\n.idea/\n.vscode/\n\n# OS\n.DS_Store\n\n# yarn specific\n# see https://yarnpkg.com/getting-started/qa#which-files-should-be-gitignored\n.pnp.*\n.yarn/*\n!.yarn/patches\n!.yarn/plugins\n!.yarn/releases\n!.yarn/sdks\n!.yarn/versions\n",
+    "BaselineFiles": [
+      {
+        "Path": "packages/codemods/src/transforms/__tests__/action-sheet-item.ts",
+        "Content": "jest.autoMockOff();\n\nimport { defineSnapshotTestFromFixture } from '../../testHelpers/testHelper';\n\nconst name = 'action-sheet-item';\nconst fixtures = ['basic'] as const;\n\ndescribe(name, () => {\n  fixtures.forEach((test) =>\n    defineSnapshotTestFromFixture(__dirname, name, global.TRANSFORM_OPTIONS, `${name}/${test}`),\n  );\n});\n"
+      },
+      {
+        "Path": "packages/codemods/src/transforms/__tests__/action-sheet.ts",
+        "Content": "jest.autoMockOff();\n\nimport { defineSnapshotTestFromFixture } from '../../testHelpers/testHelper';\n\nconst name = 'action-sheet';\nconst fixtures = ['basic'] as const;\n\ndescribe(name, () => {\n  fixtures.forEach((test) =>\n    defineSnapshotTestFromFixture(__dirname, name, global.TRANSFORM_OPTIONS, `${name}/${test}`),\n  );\n});\n"
+      },
+      {
+        "Path": "packages/codemods/src/transforms/__tests__/alert.ts",
+        "Content": "jest.autoMockOff();\n\nimport { defineSnapshotTestFromFixture } from '../../testHelpers/testHelper';\n\nconst name = 'alert';\nconst fixtures = ['basic'] as const;\n\ndescribe(name, () => {\n  fixtures.forEach((test) =>\n    defineSnapshotTestFromFixture(__dirname, name, global.TRANSFORM_OPTIONS, `${name}/${test}`),\n  );\n});\n"
+      },
+      {
+        "Path": "packages/codemods/src/transforms/__tests__/appearance-provider.ts",
+        "Content": "jest.autoMockOff();\n\nimport { defineSnapshotTestFromFixture } from '../../testHelpers/testHelper';\n\nconst name = 'appearance-provider';\nconst fixtures = ['basic'] as const;\n\ndescribe(name, () => {\n  fixtures.forEach((test) =>\n    defineSnapshotTestFromFixture(__dirname, name, global.TRANSFORM_OPTIONS, `${name}/${test}`),\n  );\n});\n"
+      },
+      {
+        "Path": "packages/codemods/src/transforms/__tests__/calendar-range.ts",
+        "Content": "jest.autoMockOff();\n\nimport { defineSnapshotTestFromFixture } from '../../testHelpers/testHelper';\n\nconst name = 'calendar-range';\nconst fixtures = ['basic'] as const;\n\ndescribe(name, () => {\n  fixtures.forEach((test) =>\n    defineSnapshotTestFromFixture(__dirname, name, global.TRANSFORM_OPTIONS, `${name}/${test}`),\n  );\n});\n"
+      },
+      {
+        "Path": "packages/codemods/src/transforms/__tests__/calendar.ts",
+        "Content": "jest.autoMockOff();\n\nimport { defineSnapshotTestFromFixture } from '../../testHelpers/testHelper';\n\nconst name = 'calendar';\nconst fixtures = ['basic'] as const;\n\ndescribe(name, () => {\n  fixtures.forEach((test) =>\n    defineSnapshotTestFromFixture(__dirname, name, global.TRANSFORM_OPTIONS, `${name}/${test}`),\n  );\n});\n"
+      },
+      {
+        "Path": "packages/codemods/src/transforms/__tests__/chip.ts",
+        "Content": "jest.autoMockOff();\nimport { defineSnapshotTestFromFixture } from '../../testHelpers/testHelper';\n\nconst name = 'chip';\nconst fixtures = ['basic'] as const;\n\ndescribe(name, () => {\n  fixtures.forEach((test) =>\n    defineSnapshotTestFromFixture(__dirname, name, global.TRANSFORM_OPTIONS, `${name}/${test}`),\n  );\n});\n"
+      },
+      {
+        "Path": "packages/codemods/src/transforms/__tests__/chips-input.ts",
+        "Content": "jest.autoMockOff();\n\nimport { defineSnapshotTestFromFixture } from '../../testHelpers/testHelper';\n\nconst name = 'chips-input';\nconst fixtures = ['basic'] as const;\n\ndescribe(name, () => {\n  fixtures.forEach((test) =>\n    defineSnapshotTestFromFixture(__dirname, name, global.TRANSFORM_OPTIONS, `${name}/${test}`),\n  );\n});\n"
+      },
+      {
+        "Path": "packages/codemods/src/transforms/__tests__/config-provider.ts",
+        "Content": "jest.autoMockOff();\n\nimport { defineSnapshotTestFromFixture } from '../../testHelpers/testHelper';\n\nconst name = 'config-provider';\nconst fixtures = ['basic'] as const;\n\ndescribe(name, () => {\n  fixtures.forEach((test) =>\n    defineSnapshotTestFromFixture(__dirname, name, global.TRANSFORM_OPTIONS, `${name}/${test}`),\n  );\n});\n"
+      },
+      {
+        "Path": "packages/codemods/src/transforms/__tests__/content-card.ts",
+        "Content": "jest.autoMockOff();\n\nimport { defineSnapshotTestFromFixture } from '../../testHelpers/testHelper';\n\nconst name = 'content-card';\nconst fixtures = ['basic'] as const;\n\ndescribe(name, () => {\n  fixtures.forEach((test) =>\n    defineSnapshotTestFromFixture(__dirname, name, global.TRANSFORM_OPTIONS, `${name}/${test}`),\n  );\n});\n"
+      },
+      {
+        "Path": "packages/codemods/src/transforms/__tests__/date-input.ts",
+        "Content": "jest.autoMockOff();\n\nimport { defineSnapshotTestFromFixture } from '../../testHelpers/testHelper';\n\nconst name = 'date-input';\nconst fixtures = ['basic'] as const;\n\ndescribe(name, () => {\n  fixtures.forEach((test) =>\n    defineSnapshotTestFromFixture(__dirname, name, global.TRANSFORM_OPTIONS, `${name}/${test}`),\n  );\n});\n"
+      },
+      {
+        "Path": "packages/codemods/src/transforms/__tests__/date-range-input.ts",
+        "Content": "jest.autoMockOff();\n\nimport { defineSnapshotTestFromFixture } from '../../testHelpers/testHelper';\n\nconst name = 'date-range-input';\nconst fixtures = ['basic'] as const;\n\ndescribe(name, () => {\n  fixtures.forEach((test) =>\n    defineSnapshotTestFromFixture(__dirname, name, global.TRANSFORM_OPTIONS, `${name}/${test}`),\n  );\n});\n"
+      },
+      {
+        "Path": "packages/codemods/src/transforms/__tests__/fixed-layout.ts",
+        "Content": "jest.autoMockOff();\n\nimport { defineSnapshotTestFromFixture } from '../../testHelpers/testHelper';\n\nconst name = 'fixed-layout';\nconst fixtures = ['basic'] as const;\n\ndescribe(name, () => {\n  fixtures.forEach((test) =>\n    defineSnapshotTestFromFixture(__dirname, name, global.TRANSFORM_OPTIONS, `${name}/${test}`),\n  );\n});\n"
+      },
+      {
+        "Path": "packages/codemods/src/transforms/__tests__/form-item.ts",
+        "Content": "jest.autoMockOff();\n\nimport { defineSnapshotTestFromFixture } from '../../testHelpers/testHelper';\n\nconst name = 'form-item';\nconst fixtures = ['basic'] as const;\n\ndescribe(name, () => {\n  fixtures.forEach((test) =>\n    defineSnapshotTestFromFixture(__dirname, name, global.TRANSFORM_OPTIONS, `${name}/${test}`),\n  );\n});\n"
+      }
+    ],
+    "ConfigFiles": [
+      {
+        "Path": ".browserslistrc",
+        "Content": "ChromeAndroid >= 57\niOS >= 10.3\nChrome >= 57\nFirefox >= 54\nEdge >= 18\nOpera >= 44\nSafari >= 10.1\nSamsung >= 7.2"
+      },
+      {
+        "Path": ".editorconfig",
+        "Content": "# editorconfig.org\n\nroot = true\n\n[*]\nindent_style = space\nindent_size = 2\nend_of_line = lf\ncharset = utf-8\ntrim_trailing_whitespace = true\ninsert_final_newline = true\n\n[*.md]\ntrim_trailing_whitespace = false\n"
+      },
+      {
+        "Path": ".eslintrc.json",
+        "Content": "{\n  \"root\": true,\n  \"env\": {\n    \"es6\": true, // Enable global es6 variables, like Set, Map, etc\n    \"browser\": true,\n    \"node\": true\n  },\n  \"parser\": \"@typescript-eslint/parser\",\n  \"plugins\": [\"import\", \"unicorn\"],\n  \"parserOptions\": {\n    \"project\": \"./tsconfig.json\",\n    \"ecmaVersion\": 2018, // Allows for the parsing of modern ECMAScript features\n    \"sourceType\": \"module\", // Allows for the use of imports\n    \"ecmaFeatures\": {\n      \"jsx\": true, // Allows for the parsing of JSX\n      \"restParams\": true,\n      \"spread\": true\n    }\n  },\n  \"extends\": [\n    \"plugin:@vkontakte/eslint-plugin/react-typescript\", // \"Preset 1\"\n    \"prettier\" // \"Preset 2\" (overrides \"Preset 1\")\n  ],\n  \"rules\": {\n    \"@typescript-eslint/explicit-member-accessibility\": \"off\", // [Reason] overrides \"Preset 1\"\n    \"@typescript-eslint/no-unnecessary-condition\": \"off\", // [Reason] overrides \"Preset 1\"\n    \"@typescript-eslint/no-magic-numbers\": \"off\", // [Reason] overrides \"Preset 1\"\n    \"@typescript-eslint/no-non-null-assertion\": \"off\", // [Reason] overrides \"Preset 1\"\n    \"@typescript-eslint/ban-ts-comment\": [\n      \"error\",\n      {\n        \"ts-expect-error\": {\n          \"descriptionFormat\": \"^: TS\\\\d+ .+$\"\n        }\n      }\n    ],\n\n    \"no-shadow\": \"off\", // [Reason] need using @typescript-eslint/no-shadow\n    \"no-restricted-globals\": [\"error\", \"window\", \"document\"],\n    \"import/order\": [\n      \"error\",\n      {\n        \"groups\": [\"builtin\", \"external\", \"internal\", \"parent\", \"sibling\", \"index\"],\n        \"newlines-between\": \"never\",\n        \"alphabetize\": {\n          \"order\": \"asc\"\n        },\n        \"pathGroupsExcludedImportTypes\": [\"**/*.css\", \"react\", \"react-dom\", \"react-dom/**\"],\n        \"pathGroups\": [\n          {\n            \"pattern\": \"{react,react-dom,react-dom/**}\",\n            \"group\": \"external\",\n            \"position\": \"before\"\n          },\n          { \"pattern\": \"{.,..}/**/*.css\", \"group\": \"index\", \"position\": \"after\" }\n        ]\n      }\n    ],\n    \"sort-imports\": [\n      \"error\",\n      {\n        \"ignoreCase\": true,\n        \"ignoreDeclarationSort\": true,\n        \"ignoreMemberSort\": false,\n        \"allowSeparatedGroups\": true,\n        \"memberSyntaxSortOrder\": [\"none\", \"single\", \"all\", \"multiple\"]\n      }\n    ],\n    \"curly\": \"error\", // Enforce consistent brace style\n    \"eqeqeq\": \"error\", // Only type-safe equality operators\n    \"unicorn/expiring-todo-comments\": [\"error\"],\n    \"no-console\": \"error\"\n  }\n}\n"
+      },
+      {
+        "Path": ".prettierrc.js",
+        "Content": "module.exports = require('@vkontakte/prettier-config').createConfig();\n"
+      },
+      {
+        "Path": "package.json",
+        "Content": "{\n  \"private\": true,\n  \"version\": \"0.0.0\",\n  \"name\": \"@vkontakte/vkui-monorepo\",\n  \"dependencies\": {\n    \"@project-docs/styleguide\": \"workspace:1.0.0\",\n    \"@project-tools/eslint-plugin-vkui\": \"workspace:1.0.0\",\n    \"@project-tools/postcss-restructure-variable\": \"workspace:1.0.0\",\n    \"@project-tools/storybook-addon-cartesian\": \"workspace:1.0.0\",\n    \"@project-tools/stylelint-bad-multiplication\": \"workspace:1.0.0\"\n  },\n  \"devDependencies\": {\n    \"@csstools/postcss-global-data\": \"2.1.1\",\n    \"@playwright/experimental-ct-react\": \"1.40.1\",\n    \"@playwright/test\": \"1.40.1\",\n    \"@size-limit/file\": \"^11.0.1\",\n    \"@size-limit/webpack\": \"^11.0.1\",\n    \"@size-limit/webpack-css\": \"^11.0.1\",\n    \"@swc/cli\": \"^0.1.63\",\n    \"@swc/core\": \"1.3.101\",\n    \"@swc/jest\": \"^0.2.29\",\n    \"@testing-library/dom\": \"^9.3.1\",\n    \"@testing-library/jest-dom\": \"^6.1.5\",\n    \"@testing-library/react\": \"^14.0.0\",\n    \"@testing-library/user-event\": \"^14.5.1\",\n    \"@types/jest\": \"^29.5.10\",\n    \"@types/jest-axe\": \"^3.5.9\",\n    \"@types/node\": \"^20.10.5\",\n    \"@types/react\": \"^18.2.45\",\n    \"@types/react-dom\": \"^18.2.18\",\n    \"@types/webpack\": \"^5.28.5\",\n    \"@typescript-eslint/eslint-plugin\": \"^5.61.0\",\n    \"@typescript-eslint/parser\": \"^5.61.0\",\n    \"@vkontakte/eslint-plugin\": \"^1.1.1\",\n    \"@vkontakte/prettier-config\": \"^0.1.0\",\n    \"@vkontakte/stylelint-config\": \"^4.0.1\",\n    \"@vkontakte/vkui-tokens\": \"4.41.4\",\n    \"autoprefixer\": \"^10.4.16\",\n    \"concurrently\": \"^8.2.2\",\n    \"cross-env\": \"^7.0.2\",\n    \"css-loader\": \"^6.8.1\",\n    \"cssnano\": \"^6.0.2\",\n    \"dotenv\": \"^16.3.1\",\n    \"eslint\": \"^8.45.0\",\n    \"eslint-config-prettier\": \"8.8.0\",\n    \"eslint-import-resolver-alias\": \"^1.1.2\",\n    \"eslint-plugin-compat\": \"^4.1.4\",\n    \"eslint-plugin-import\": \"^2.29.1\",\n    \"eslint-plugin-jest\": \"^27.2.3\",\n    \"eslint-plugin-prettier\": \"^4.2.1\",\n    \"eslint-plugin-react\": \"7.32.2\",\n    \"eslint-plugin-react-hooks\": \"^4.3.0\",\n    \"eslint-plugin-unicorn\": \"^48.0.0\",\n    \"husky\": \"^8.0.3\",\n    \"jest\": \"^29.7.0\",\n    \"jest-axe\": \"^8.0.0\",\n    \"jest-environment-jsdom\": \"^29.7.0\",\n    \"jest-environment-node\": \"^29.7.0\",\n    \"jest-preset-stylelint\": \"^7.0.0\",\n    \"lint-staged\": \"^15.2.0\",\n    \"mini-css-extract-plugin\": \"^2.7.6\",\n    \"postcss\": \"^8.4.32\",\n    \"postcss-cli\": \"^11.0.0\",\n    \"postcss-custom-media\": \"^10.0.2\",\n    \"postcss-gap-properties\": \"^5.0.1\",\n    \"postcss-import\": \"^15.0.0\",\n    \"postcss-loader\": \"^7.3.3\",\n    \"postcss-logical\": \"^7.0.1\",\n    \"postcss-modules\": \"^6.0.0\",\n    \"postcss-value-parser\": \"^4.2.0\",\n    \"prettier\": \"^2.8.8\",\n    \"process\": \"^0.11.10\",\n    \"react\": \"^18.2.0\",\n    \"react-dom\": \"^18.2.0\",\n    \"semver\": \"^7.5.4\",\n    \"shx\": \"^0.3.2\",\n    \"size-limit\": \"^11.0.1\",\n    \"style-loader\": \"^3.3.3\",\n    \"stylelint\": \"^16.1.0\",\n    \"stylelint-config-standard\": \"^36.0.0\",\n    \"stylelint-media-use-custom-media\": \"^4.0.0\",\n    \"stylelint-use-logical\": \"^2.1.0\",\n    \"stylelint-value-no-unknown-custom-properties\": \"^5.0.0\",\n    \"swc-loader\": \"^0.2.3\",\n    \"swc-plugin-css-modules\": \"0.1.7\",\n    \"swc-plugin-transform-remove-imports\": \"1.10.0\",\n    \"ts-node\": \"^10.9.2\",\n    \"typescript\": \"^5.3.3\",\n    \"typescript-plugin-css-modules\": \"^5.0.2\",\n    \"webpack\": \"^5.89.0\",\n    \"webpack-cli\": \"^5.1.4\",\n    \"webpack-merge\": \"^5.10.0\",\n    \"yargs\": \"^17.7.2\"\n  },\n  \"scripts\": {\n    \"docs:styleguide\": \"yarn workspace @project-docs/styleguide run start\",\n    \"docs:styleguide:props\": \"yarn workspace @project-docs/styleguide run start:props\",\n    \"docs:styleguide:build\": \"yarn workspace @project-docs/styleguide run build\",\n    \"docs:storybook\": \"yarn workspace @vkontakte/vkui storybook\",\n    \"docs:storybook:build\": \"yarn workspace @vkontakte/vkui storybook:build\",\n    \"build\": \"yarn workspaces foreach run build\",\n    \"build:vkui\": \"yarn workspace @vkontakte/vkui run build\",\n    \"test\": \"yarn workspaces foreach run test\",\n    \"test:ci\": \"yarn workspaces foreach run test:ci\",\n    \"test:e2e\": \"yarn workspace @vkontakte/vkui run test:e2e\",\n    \"test:e2e-update\": \"yarn workspace @vkontakte/vkui run test:e2e-update\",\n    \"test:e2e:ci\": \"yarn workspace @vkontakte/vkui run test:e2e:ci\",\n    \"test:e2e-update:ci\": \"yarn workspace @vkontakte/vkui run test:e2e-update:ci\",\n    \"test:coverage\": \"npx nyc report --reporter=lcov\",\n    \"lint\": \"concurrently 'yarn:lint:types' 'yarn:lint:es' 'yarn:lint:style' 'yarn:lint:prettier' 'yarn:lint:generated-files'\",\n    \"lint:es\": \"eslint . --ext .jsx,.js,.ts,.tsx --cache --cache-location .cache/.eslintcache\",\n    \"lint:es:ci\": \"yarn lint:es -o lint-results.json -f json\",\n    \"lint:style\": \"cross-env LINT_PRECOMMIT_RUN=1 stylelint '**/*.css' --cache --cache-location .cache/.stylelintcache\",\n    \"lint:prettier\": \"prettier --check --ignore-unknown .\",\n    \"lint:types\": \"tsc --incremental --emitDeclarationOnly --declaration --tsBuildInfoFile .cache/.tsbuildinfo\",\n    \"lint:generated-files\": \"yarn workspace @vkontakte/vkui run lint:generated-files\",\n    \"prepare\": \"husky install\",\n    \"pre-commit\": \"lint-staged\",\n    \"playwright:install\": \"playwright install --with-deps\",\n    \"playwright:cmd:merge-reports\": \"playwright merge-reports\",\n    \"codesandbox:install\": \"PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 yarn install\",\n    \"size:ci\": \"yarn workspace @vkontakte/vkui run size:ci\",\n    \"g:npm:version\": \"cd $INIT_CWD && npm version --no-workspaces-update --no-commit-hooks --no-git-tag-version\"\n  },\n  \"resolutions\": {\n    \"stylelint\": \"15.11.0\",\n    \"stylelint-config-standard\": \"34.0.0\",\n    \"stylelint-media-use-custom-media\": \"3.0.0\"\n  },\n  \"lint-staged\": {\n    \"*.{ts,tsx,js,jsx}\": [\n      \"prettier --check\",\n      \"eslint\"\n    ],\n    \"*.css\": [\n      \"prettier --check\",\n      \"cross-env LINT_PRECOMMIT_RUN=1 stylelint --allow-empty-input\"\n    ],\n    \"*.{json,md}\": [\n      \"prettier --check\"\n    ]\n  },\n  \"packageManager\": \"yarn@3.6.3\",\n  \"workspaces\": {\n    \"packages\": [\n      \"styleguide\",\n      \"packages/*\",\n      \"tools/*\"\n    ]\n  }\n}\n"
+      },
+      {
+        "Path": "stylelint.config.js",
+        "Content": "const path = require('path');\nconst { VKUI_PACKAGE } = require('./shared');\n\nmodule.exports = {\n  extends: ['stylelint-config-standard', '@vkontakte/stylelint-config'],\n  plugins: [\n    '@project-tools/stylelint-bad-multiplication',\n    'stylelint-media-use-custom-media',\n    'stylelint-value-no-unknown-custom-properties',\n    'stylelint-use-logical',\n  ],\n  rules: {\n    'indentation': null,\n    'block-no-empty': null,\n    'declaration-block-no-redundant-longhand-properties': null,\n    'comment-empty-line-before': null,\n    'comment-whitespace-inside': null,\n    'no-descending-specificity': null,\n    'no-duplicate-selectors': null,\n    'value-keyword-case': null,\n    'selector-class-pattern': null,\n    'custom-property-pattern': null,\n    'value-no-vendor-prefix': null,\n    'property-no-vendor-prefix': null,\n    'media-feature-range-notation': null, // need 104 chrome\n    'alpha-value-notation': 'number',\n    /**\n     * https://caniuse.com/mdn-css_types_color_hsl_space_separated_parameters\n     */\n    'color-function-notation': 'legacy',\n    /**\n     * // In Selectors Level 3, only a single simple selector was allowed as the argument to :not(), whereas Selectors Level 4 allows a selector list.\n     */\n    'selector-not-notation': 'simple',\n    'selector-pseudo-class-no-unknown': [\n      true,\n      {\n        ignorePseudoClasses: ['global'],\n      },\n    ],\n    'function-no-unknown': [\n      true,\n      {\n        ignoreFunctions: ['constant'],\n      },\n    ],\n    'length-zero-no-unit': [\n      true,\n      {\n        ignore: ['custom-properties'],\n      },\n    ],\n    'csstools/value-no-unknown-custom-properties': [\n      true,\n      {\n        importFrom: [\n          path.join(__dirname, VKUI_PACKAGE.PATHS.CSS_CONSTANTS),\n          path.join(__dirname, VKUI_PACKAGE.PATHS.CSS_DYNAMIC_TOKENS),\n          path.join(\n            __dirname,\n            'node_modules/@vkontakte/vkui-tokens/themes/vkBase/cssVars/declarations/index.css',\n          ),\n        ],\n      },\n    ],\n    'csstools/media-use-custom-media': [\n      'known',\n      {\n        importFrom: path.join(__dirname, VKUI_PACKAGE.PATHS.CSS_CUSTOM_MEDIAS),\n      },\n    ],\n    'selector-pseudo-class-disallowed-list': ['global'],\n    '@project-tools/stylelint-bad-multiplication': true,\n    'import-notation': null,\n    'plugin/vkui': null,\n    'plugin/selector-bem-pattern': null,\n    'plugin/logical-shorthands': 'always',\n    'property-disallowed-list': null,\n    'csstools/use-logical': 'always',\n  },\n};\n"
+      },
+      {
+        "Path": "tsconfig.json",
+        "Content": "{\n  \"compilerOptions\": {\n    \"allowJs\": true,\n    \"jsx\": \"react\",\n    \"target\": \"esnext\",\n    \"lib\": [\"es6\", \"dom\", \"dom.Iterable\"],\n    \"esModuleInterop\": true,\n    \"allowSyntheticDefaultImports\": true,\n    \"noUnusedLocals\": true,\n    \"noUnusedParameters\": true,\n    \"noImplicitReturns\": true,\n    \"noFallthroughCasesInSwitch\": true,\n    \"moduleResolution\": \"node\",\n    \"resolveJsonModule\": true,\n    \"isolatedModules\": true,\n    \"strict\": true,\n    \"skipLibCheck\": true,\n    \"baseUrl\": \"./\",\n    \"outDir\": \".cache/ts\",\n    \"paths\": {\n      \"@vkontakte/vkui\": [\"./packages/vkui\"],\n      // FIXME дублируем, чтобы не падал `yarn run lint:types`.\n      //  Не выкупается `paths`, который указан в `./packages/vkui`\n      \"@vkui-e2e/test\": [\"./packages/vkui/src/testing/e2e/index.playwright\"],\n      \"@vkui-e2e/playground-helpers\": [\"./packages/vkui/src/testing/e2e/index.playground\"],\n      \"@vkui-e2e/utils\": [\"./packages/vkui/src/testing/e2e/utils\"]\n    }\n  },\n  \"exclude\": [\n    \"**/node_modules\",\n    \"**/dist\",\n    \"**/coverage/**\",\n    \"**/storybook-static\",\n    \"**/__testfixtures__\",\n    \"**/__tests__\"\n  ]\n}\n"
+      },
+      {
+        "Path": "packages/codemods/.eslintrc.json",
+        "Content": "{\n  \"root\": true,\n  \"env\": {\n    \"node\": true\n  },\n  \"parser\": \"@typescript-eslint/parser\",\n  \"plugins\": [\"import\"],\n  \"rules\": {\n    \"import/order\": [\n      \"error\",\n      {\n        \"groups\": [\"builtin\", \"external\", \"internal\"],\n        \"newlines-between\": \"never\",\n        \"alphabetize\": {\n          \"order\": \"asc\"\n        }\n      }\n    ],\n    \"sort-imports\": [\n      \"error\",\n      {\n        \"ignoreCase\": true,\n        \"ignoreDeclarationSort\": true,\n        \"ignoreMemberSort\": false,\n        \"allowSeparatedGroups\": true,\n        \"memberSyntaxSortOrder\": [\"none\", \"single\", \"all\", \"multiple\"]\n      }\n    ],\n    \"curly\": \"error\", // Enforce consistent brace style\n    \"eqeqeq\": \"error\" // Only type-safe equality operators\n  }\n}\n"
+      },
+      {
+        "Path": "packages/codemods/jest.config.ts",
+        "Content": "import { Config } from 'jest';\n\nconst config: Config = {\n  roots: ['<rootDir>/src/transforms'],\n  transform: {\n    '^.+\\\\.(t|j)sx?$': '@swc/jest',\n  },\n  testEnvironment: 'node',\n  globals: {\n    TRANSFORM_OPTIONS: { alias: '@vkontakte/vkui' },\n  },\n};\n\nexport default config;\n"
+      },
+      {
+        "Path": "packages/codemods/package.json",
+        "Content": "{\n  \"name\": \"@vkontakte/vkui-codemods\",\n  \"version\": \"0.0.3\",\n  \"description\": \"Codemods for automatic VKUI major version upgrade\",\n  \"repository\": \"https://github.com/VKCOM/VKUI\",\n  \"homepage\": \"https://vkcom.github.io/VKUI/\",\n  \"license\": \"MIT\",\n  \"bin\": \"./dist/index.js\",\n  \"files\": [\n    \"dist\"\n  ],\n  \"engines\": {\n    \"yarn\": \"^1.21.1\",\n    \"node\": \">16.0.0\"\n  },\n  \"dependencies\": {\n    \"chalk\": \"^4.1.2\",\n    \"commander\": \"^11.0.0\",\n    \"cross-spawn\": \"^7.0.3\",\n    \"jscodeshift\": \"^0.13.1\",\n    \"prompts\": \"^2.4.2\",\n    \"typescript\": \"^5.3.3\"\n  },\n  \"devDependencies\": {\n    \"@swc/core\": \"^1.3.101\",\n    \"@swc/jest\": \"^0.2.29\",\n    \"@types/cross-spawn\": \"^6.0.6\",\n    \"@types/jest\": \"^29.5.10\",\n    \"@types/jscodeshift\": \"^0.11.11\",\n    \"@types/node\": \"^20.10.5\",\n    \"@types/prompts\": \"^2.4.2\",\n    \"jest\": \"^29.7.0\",\n    \"ts-node\": \"^10.9.2\"\n  },\n  \"scripts\": {\n    \"build\": \"tsc\",\n    \"test\": \"jest\",\n    \"test:ci\": \"yarn test\",\n    \"migrate\": \"jscodeshift\"\n  },\n  \"publishConfig\": {\n    \"provenance\": true,\n    \"access\": \"public\"\n  }\n}\n"
+      },
+      {
+        "Path": "packages/codemods/tsconfig.json",
+        "Content": "{\n  \"compilerOptions\": {\n    \"outDir\": \"dist\",\n    \"moduleResolution\": \"node\",\n    \"esModuleInterop\": true,\n    \"resolveJsonModule\": false,\n    \"isolatedModules\": true,\n    \"strict\": true\n  },\n  \"include\": [\"src/**/*.ts\", \"src/**/*.tsx\", \"src/**/*.json\"],\n  \"exclude\": [\"**/__testfixtures__\", \"**/__tests__\", \"node_modules\"],\n  \"files\": [\"./typings.d.ts\"]\n}\n"
+      }
+    ]
+  }
+}

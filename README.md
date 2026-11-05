@@ -1,8 +1,17 @@
-# DetectAICodeTest: кто написал C#-мердж-реквест — человек или Claude Code
+# DetectAICodeTest: кто написал мердж-реквест — человек или Claude Code
 
-Прототип получает ссылку на MR в GitLab и выдаёт **вероятность (в %) того, что код написан Claude Code**. Вместе с ней — **объяснение**: какие паттерны ИИ найдены, какие признаки указывают на человека и какой вклад дала каждая группа сигналов.
+Программа получает ссылку на MR в GitLab и выдаёт **вероятность (в %) того, что код написан Claude Code**. Вместе с ней — **объяснение**: какие паттерны ИИ найдены, какие признаки указывают на человека и какой вклад дала каждая группа сигналов. В отчёте указан **стек проекта**.
 
-Анализ полностью **локальный**: код MR никуда, кроме вашего GitLab, не отправляется. Внешних ИИ-сервисов нет. Алгоритм построен на исследовании «Как отличить C#-код, написанный человеком, от кода Claude Code» (выжимка — [docs/RESEARCH.md](docs/RESEARCH.md)).
+**Языки:**
+
+| Язык | Что анализируется | Исследование |
+|---|---|---|
+| **C# (.NET)** | `.cs`, разбор Roslyn | [docs/RESEARCH.md](docs/RESEARCH.md) |
+| **JavaScript / TypeScript (фронтенд)** | React, Angular, Vue: `.ts/.tsx/.js/.jsx/.vue`, шаблоны Angular `.html`, стили `.css/.scss/.less`; собственный разбор на C# | [docs/frontend/RESEARCH.md](docs/frontend/RESEARCH.md) |
+
+Язык выбирается на странице сразу после ссылки на MR («C#», «JavaScript / TypeScript» или «Авто» — по файлам MR), в консоли — флагом `--lang csharp|frontend|auto`.
+
+Анализ полностью **локальный**: код MR никуда, кроме вашего GitLab, не отправляется. Внешних ИИ-сервисов нет, Node.js не нужен.
 
 ## Быстрый старт
 
@@ -18,7 +27,11 @@ export GITLAB_TOKEN=glpat-xxxxxxxxxxxxxxxx
 bash run.sh https://gitlab.company.com/group/project/-/merge_requests/123
 ```
 
-- Веб-страница с полем для ссылки: `bash run.sh web` (откроется http://127.0.0.1:5057). Токен вводится один раз и хранится, пока открыта вкладка. Галочка «только по коду» запоминается. После каждой проверки поле ссылки очищается, а проверенные MR собираются в список на странице.
+- Веб-страница с полем для ссылки и выбором языка: `bash run.sh web` (откроется http://127.0.0.1:5057).
+  - Токен вводится один раз и хранится, пока открыта вкладка.
+  - Выбранный язык и галочка «только по коду» запоминаются.
+  - После каждой проверки поле ссылки очищается, а проверенные MR собираются в список на странице (с отметкой языка).
+- Фронтенд-MR из консоли: `bash run.sh <ссылка> --lang frontend` (без флага язык определяется автоматически).
 - Несколько MR сразу (файл со ссылками, по одной в строке): `bash run.sh batch mrs.txt --html reports/`.
 
 ### Windows (PowerShell)
@@ -127,12 +140,15 @@ GitLab → аватар → **Edit profile → Access Tokens** → *Add new toke
 ## Как работает
 
 ```
-GitLab API ─► MR, коммиты, диффы, файлы до/после, соседние файлы проекта
-           ─► предобработка: без сгенерированного (*.Designer.cs, *.g.cs, Migrations/, scaffold Identity),
-              Roslyn-разбор, область анализа = добавленные строки
-           ─► 16 групп сигналов (≈ 70 признаков) ─► поправка на стиль проекта
-           ─► сумма вкладов с ограничением каждой группы ─► вероятность + объяснение
+GitLab API ─► MR, коммиты, диффы, файлы до/после, соседние файлы проекта, конфиги (csproj, package.json, ESLint, Prettier, tsconfig…)
+           ─► выбор языка (или автоопределение по добавленным строкам)
+           ─► детектор языка: без сгенерированного кода, разбор (Roslyn для C#, свой лексер и мини-парсер для JS/TS/JSX/Vue/Angular/CSS),
+              область анализа = добавленные строки ─► признаки кода, поправка на стиль и конвенции проекта
+           ─► общие сигналы MR: прямые следы Claude Code, форма MR, коммиты и процесс
+           ─► сумма вкладов с ограничением каждой группы ─► вероятность + объяснение + стек
 ```
+
+### C# (.NET)
 
 | Группа | Примеры признаков |
 |---|---|
@@ -153,7 +169,28 @@ GitLab API ─► MR, коммиты, диффы, файлы до/после, с
 | Коммиты и процесс | стиль сообщений (Conventional Commits, тело-список), коммиты-доделки «fix/правки», **скорость** (строк в час между коммитами одного автора, по дате авторства — устойчиво к rebase), **«готовность с первого раза»** (новый файл создан одним коммитом), **реакция на ревью** (скорость и ширина исправлений после замечаний), описание MR, упоминание ИИ-инструментов, эмодзи в коммитах |
 | Отличие от стиля проекта | те же признаки на существующем коде проекта (старые версии файлов + соседние файлы): MR «аккуратнее» проекта → ИИ; конвенции проекта (XML-doc по StyleCop и т.п.) ослабляют соответствующие признаки |
 
-Подробности и обоснование — в [docs/RESEARCH.md](docs/RESEARCH.md), исходный код признаков — в [`src/AiDetect.Core/Features`](src/AiDetect.Core/Features) и [`src/AiDetect.Core/Signals`](src/AiDetect.Core/Signals).
+Подробности и обоснование — в [docs/RESEARCH.md](docs/RESEARCH.md), код — в [`src/AiDetect.Languages.CSharp`](src/AiDetect.Languages.CSharp).
+
+### JavaScript / TypeScript (фронтенд)
+
+| Группа | Примеры признаков |
+|---|---|
+| Прямые следы, форма MR, процесс | общие с C#; плюс «комплект» компонента (типы, константы, хуки, `index.ts`, тесты, сторис), barrel-файлы |
+| JSDoc/TSDoc | JSDoc на экспортах и публичных методах, шаблонные фразы («Returns…», «Custom hook that…»), документированные поля `…Props`, `@param {Type}` в TS (человек) |
+| Комментарии | повествования («// Fetch users»), пересказ кода, заголовки секций разметки `{/* Header */}` и стилей, небрежные комментарии, язык комментариев |
+| Именование | `catch (error)` против `catch (e)`, `users.map((user) =>` против `x =>`, сокращения, `handleX`, префикс `I` у интерфейсов, транслит |
+| Типизация TypeScript | `any`, `unknown`, `!`, `as`, `as const`, служебные типы, объединения литералов против `enum`, явные типы результата, `useState<T>(null)`, `import type` |
+| Современный синтаксис | `??`, `?.`, `===`, `const`/`let`/`var`, шаблонные строки против `+`, `async/await` против `.then()`, функциональные обновления состояния |
+| Обработка ошибок | `error instanceof Error ? … : 'Unknown error'`, проверка `response.ok`, сообщения «Failed to…», тройка loading/error/finally; пустой `catch`, `throw 'строка'` |
+| Отмена и отписка | очистка в `useEffect`, `AbortController`, флаг `cancelled`; Angular: `takeUntil`/`takeUntilDestroyed`/`unsubscribe`, `| async`; Vue: `onUnmounted` |
+| Логирование | `console.error('Failed to load users:', error)` против `console.log` |
+| Идиомы фреймворков | React: мемоизация, свои хуки, `key={index}`, `React.FC`, классы и PropTypes; Angular: `private readonly` в DI, `subscribe({ next, error })`, вложенные `subscribe`, `http.get<T>`, `trackBy`, `OnPush`; Vue: `defineProps<…>()`, `withDefaults`, Options API, `v-for` без ключа |
+| Разметка и доступность | `type="button"`, `aria-*`, `data-testid`, `label for`, `alt`, клики на `div` |
+| Стили | CSS-переменные, «типовые» значения ИИ (`rgba(0,0,0,0.1)`, `0.2s ease`, палитра Tailwind), `:focus-visible`, `!important`, `z-index: 9999`, вендорные префиксы |
+| Ручные привычки и форматирование | TODO, закомментированный код, `debugger`, `eslint-disable`, `@ts-ignore`, `alert`, jQuery, опечатки; пробелы в конце строк, `if(`, смешение кавычек и `;` |
+| Тесты | `should …`, `it.each`, `clearAllMocks`, `getByRole`, `userEvent`, точные проверки, `test@example.com`, AAA; снапшоты (человек) |
+
+Конвенции проекта ищутся в конфигах без запуска Node.js: Prettier, правила и пресеты ESLint/TSLint (airbnb, @typescript-eslint, jsx-a11y, angular-eslint, vue), строгий tsconfig, stylelint, husky/lint-staged. Правило, которое делает черту обязательной для всех, ослабляет соответствующий признак. Подробности — [docs/frontend/RESEARCH.md](docs/frontend/RESEARCH.md), код — [`src/AiDetect.Languages.Frontend`](src/AiDetect.Languages.Frontend).
 
 ## Проверка качества
 
@@ -182,10 +219,10 @@ scripts/build_corpus_from_git.py --repo <путь к клону> --name <имя>
 ./run.sh fetch https://gitlab.company.com/.../merge_requests/101 --save corpus-my/human/mr101.json
 ./run.sh fetch https://gitlab.company.com/.../merge_requests/202 --save corpus-my/ai/mr202.json
 ./run.sh eval corpus-my -v                       # точность на ваших MR и какие признаки различают
-./run.sh calibrate corpus-my -o model/weights.json   # подбор весов (с перекрёстной проверкой)
+./run.sh calibrate corpus-my --lang csharp -o model/weights.csharp.json   # подбор весов (с перекрёстной проверкой)
 ```
 
-`model/weights.json` подхватывается автоматически при следующей сборке.
+Веса хранятся отдельно для каждого языка: `model/weights.csharp.json`, `model/weights.frontend.json`. Они подхватываются автоматически при следующей сборке.
 
 ## Другие режимы
 
@@ -209,15 +246,39 @@ scripts/make-demo-repo.sh /tmp/demo && ./run.sh --git /tmp/demo --base main --he
 
 ## Структура
 
+Один репозиторий и одна основная ветка для всех языков: детекторы используют общее ядро и одну веб-страницу. Каждый язык — отдельный модуль.
+
 ```
-src/AiDetect.Core/        движок: Model, Sources (GitLab/git/JSON), Diff, Preprocessing,
-                          Features (Roslyn), Signals, Analysis (скоринг), Reporting, Evaluation
-src/AiDetect.Cli/         консоль и веб-режим (aidetect)
-tests/AiDetect.Tests/     модульные тесты (dotnet test)
-samples/demo/             демо: одна фича «вручную» и «как Claude Code»
-scripts/                  сборка демо-репозитория и корпуса
-corpus/ai-src/            исходники ИИ-образцов корпуса (патчи)
-docs/                     CONTEXT.md (конспект проекта для продолжения работы), RESEARCH_FULL.md (полное исследование),
-                          выжимка исследования, требования, план, оценка качества, примеры отчётов
-corpus/manifest-*.tsv     состав корпуса оценки (пересборка: scripts/rebuild_corpus.py)
+src/AiDetect.Core/                 общее ядро: модель MR, источники (GitLab/git/JSON), дифф, сигналы MR и процесса,
+                                   скоринг, калибровка, отчёты; интерфейс ILanguageAnalyzer и реестр языков
+src/AiDetect.Languages.CSharp/     детектор C# (Roslyn)
+src/AiDetect.Languages.Frontend/   детектор JS/TS: Parsing/ (лексер, Vue, HTML, CSS), признаки, сигналы, конвенции, стек
+src/AiDetect.Cli/                  консоль и веб-режим (aidetect), список языков — AppLanguages.cs
+tests/AiDetect.Tests/              тесты ядра и C#
+tests/AiDetect.Frontend.Tests/     тесты фронтенда
+tests/web/                         поддельный GitLab и браузерные тесты страницы
+model/weights.<язык>.json          веса моделей
+corpus/<язык>/                     манифесты корпуса и патчи ИИ-образцов (JSON пересобираются scripts/rebuild_corpus.py)
+docs/                              CONTEXT.md (конспект проекта), исследование и оценка C#; docs/frontend/ — то же для фронтенда
+scripts/                           отбор и пересборка корпуса, экспорт ИИ-образцов, оценка, примеры
 ```
+
+### Как добавить новый язык
+
+1. Создать проект `src/AiDetect.Languages.<Язык>` с реализацией `ILanguageAnalyzer`:
+   - какие файлы анализировать;
+   - извлечение признаков и сигналы по коду;
+   - слои, конвенции, стек.
+2. Добавить строку в `src/AiDetect.Cli/AppLanguages.cs`. Пункт на странице и флаг `--lang` появятся сами.
+3. Собрать корпус `corpus/<язык>/`:
+   - `scripts/select_corpus_commits.py` — человеческие MR;
+   - агенты и `scripts/export_ai_samples.py` — ИИ-образцы;
+   - `scripts/rebuild_corpus.py` — пересборка.
+4. Откалибровать: `scripts/evaluate.sh <язык>` → `model/weights.<язык>.json`.
+
+### Версии и ветки
+
+- **`v1`** (тег `v1.0.0`) — только C#.
+- **`v2`** (тег `v2.0.0`) — C# + фронтенд.
+- Основная линия разработки — ветка по умолчанию. Новые языки и задачи делаются в коротких рабочих ветках и вливаются в основную. Отдельные ветки под языки не нужны.
+- История версий — [CHANGELOG.md](CHANGELOG.md).

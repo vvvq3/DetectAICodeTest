@@ -33,6 +33,12 @@ public sealed class CliOptions
     public string? GitLabHost { get; private set; } = Environment.GetEnvironmentVariable("AIDETECT_GITLAB_HOST");
     public double Lambda { get; private set; } = 16.0;
     public bool Balanced { get; private set; }
+
+    /// <summary>calibrate: целевая доля ложных «ИИ» на людях (0 — без поправки смещения).</summary>
+    public double TargetFpr { get; private set; }
+
+    /// <summary>calibrate: температура (резкость шкалы вероятностей); null — из начальных весов (2.5).</summary>
+    public double? Temperature { get; private set; }
     public bool OpenBrowser { get; private set; } = true;
 
     /// <summary>Язык анализа: auto (по файлам MR), csharp, frontend (и псевдонимы: cs, js, ts…).</summary>
@@ -139,6 +145,12 @@ public sealed class CliOptions
                     break;
                 case "--balanced":
                     o.Balanced = true;
+                    break;
+                case "--temperature":
+                    o.Temperature = double.Parse(Next(), System.Globalization.CultureInfo.InvariantCulture);
+                    break;
+                case "--target-fpr":
+                    o.TargetFpr = double.Parse(Next(), System.Globalization.CultureInfo.InvariantCulture);
                     break;
                 case "--no-browser":
                     o.OpenBrowser = false;

@@ -1,0 +1,278 @@
+From 73096e713f901fd25f1cbfe41e13798c1b89a0a9 Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Thu, 5 Nov 2026 22:14:43 +0000
+Subject: [PATCH 1/2] chore: Add helpers to filter and highlight canned
+ responses
+
+Add filterCannedResponses, which matches the search key against both the
+short code and the content (case-insensitive) and ranks short code prefix
+matches first, followed by short code and content matches.
+
+Add getHighlightedSegments, which splits a text into matching and
+non-matching segments so the match can be highlighted in templates
+without v-html.
+
+Also add isArrowUp/isArrowDown keyboard helpers.
+---
+ .../dashboard/helper/cannedResponseHelper.js  |  68 ++++++++++
+ .../helper/specs/cannedResponseHelper.spec.js | 120 ++++++++++++++++++
+ .../shared/helpers/KeyboardHelpers.js         |   8 ++
+ .../helpers/specs/KeyboardHelpers.spec.js     |  22 +++-
+ 4 files changed, 217 insertions(+), 1 deletion(-)
+ create mode 100644 app/javascript/dashboard/helper/cannedResponseHelper.js
+ create mode 100644 app/javascript/dashboard/helper/specs/cannedResponseHelper.spec.js
+
+diff --git a/app/javascript/dashboard/helper/cannedResponseHelper.js b/app/javascript/dashboard/helper/cannedResponseHelper.js
+new file mode 100644
+index 0000000000..21ae6b7157
+--- /dev/null
++++ b/app/javascript/dashboard/helper/cannedResponseHelper.js
+@@ -0,0 +1,68 @@
++const escapeRegExp = (text = '') => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
++
++const normalize = text => (text || '').toLowerCase();
++
++/**
++ * Filters canned responses by short code and content (case-insensitive).
++ *
++ * Results are ordered by relevance while keeping the original order inside
++ * each group:
++ *   1. short code starts with the search key
++ *   2. short code contains the search key
++ *   3. content contains the search key
++ */
++export const filterCannedResponses = (cannedResponses = [], searchKey = '') => {
++  const term = normalize(searchKey).trim();
++  if (!term) {
++    return cannedResponses;
++  }
++
++  const shortCodePrefixMatches = [];
++  const shortCodeMatches = [];
++  const contentMatches = [];
++
++  cannedResponses.forEach(cannedResponse => {
++    const shortCode = normalize(cannedResponse.short_code);
++    const content = normalize(cannedResponse.content);
++
++    if (shortCode.startsWith(term)) {
++      shortCodePrefixMatches.push(cannedResponse);
++    } else if (shortCode.includes(term)) {
++      shortCodeMatches.push(cannedResponse);
++    } else if (content.includes(term)) {
++      contentMatches.push(cannedResponse);
++    }
++  });
++
++  return [...shortCodePrefixMatches, ...shortCodeMatches, ...contentMatches];
++};
++
++/**
++ * Splits `text` into segments so that every case-insensitive occurrence of
++ * `searchKey` can be rendered highlighted, without having to use v-html.
++ *
++ * getHighlightedSegments('Hello hello', 'HELLO')
++ * // => [
++ * //   { text: 'Hello', isMatch: true },
++ * //   { text: ' ', isMatch: false },
++ * //   { text: 'hello', isMatch: true },
++ * // ]
++ */
++export const getHighlightedSegments = (text = '', searchKey = '') => {
++  const content = text || '';
++  const term = (searchKey || '').trim();
++  if (!content) {
++    return [];
++  }
++  if (!term) {
++    return [{ text: content, isMatch: false }];
++  }
++
++  // With a capturing group, String#split keeps the separators: every odd
++  // index of the resulting array is a match.
++  const pattern = new RegExp(`(${escapeRegExp(term)})`, 'gi');
++  return content
++    .split(pattern)
++    .map((segment, index) => ({ text: segment, isMatch: index % 2 === 1 }))
++    .filter(segment => segment.text);
++};
+diff --git a/app/javascript/dashboard/helper/specs/cannedResponseHelper.spec.js b/app/javascript/dashboard/helper/specs/cannedResponseHelper.spec.js
+new file mode 100644
+index 0000000000..c1882f9f17
+--- /dev/null
++++ b/app/javascript/dashboard/helper/specs/cannedResponseHelper.spec.js
+@@ -0,0 +1,120 @@
++import {
++  filterCannedResponses,
++  getHighlightedSegments,
++} from '../cannedResponseHelper';
++
++const cannedResponses = [
++  { id: 1, short_code: 'hello', content: 'Hi there, how can I help you?' },
++  { id: 2, short_code: 'refund', content: 'Your refund has been processed.' },
++  { id: 3, short_code: 'bye', content: 'Thanks for reaching out. Goodbye!' },
++  { id: 4, short_code: 'Shipping', content: 'Orders ship within 2 days.' },
++];
++
++const search = (searchKey, responses = cannedResponses) =>
++  filterCannedResponses(responses, searchKey).map(response => response.id);
++
++describe('#filterCannedResponses', () => {
++  it('returns all the canned responses if the search key is empty', () => {
++    expect(filterCannedResponses(cannedResponses)).toEqual(cannedResponses);
++    expect(filterCannedResponses(cannedResponses, '')).toEqual(cannedResponses);
++    expect(filterCannedResponses(cannedResponses, '   ')).toEqual(
++      cannedResponses
++    );
++  });
++
++  it('ignores whitespace around the search key', () => {
++    expect(search(' bye ')).toEqual([3]);
++  });
++
++  it('matches the short code', () => {
++    expect(search('refund')).toEqual([2]);
++    expect(search('ipp')).toEqual([4]);
++  });
++
++  it('matches the content', () => {
++    expect(search('processed')).toEqual([2]);
++    expect(search('within 2')).toEqual([4]);
++  });
++
++  it('is case-insensitive', () => {
++    expect(search('SHIP')).toEqual([4]);
++    expect(search('shipping')).toEqual([4]);
++    expect(search('GOODBYE')).toEqual([3]);
++  });
++
++  it('ranks short code prefix, short code and content matches in that order', () => {
++    const responses = [
++      { id: 1, short_code: 'greeting', content: 'Hello!' },
++      { id: 2, short_code: 'say-hello', content: 'Hey' },
++      { id: 3, short_code: 'hello', content: 'Hi' },
++    ];
++    expect(search('hello', responses)).toEqual([3, 2, 1]);
++  });
++
++  it('keeps the original order within the same rank', () => {
++    expect(search('you')).toEqual([1, 2]);
++  });
++
++  it('returns an empty list if nothing matches', () => {
++    expect(search('xyz')).toEqual([]);
++    expect(search('hello', [])).toEqual([]);
++  });
++
++  it('handles canned responses with missing fields', () => {
++    const responses = [
++      { id: 1, short_code: 'empty', content: null },
++      { id: 2, short_code: null, content: 'Empty short code' },
++    ];
++    expect(search('empty', responses)).toEqual([1, 2]);
++  });
++});
++
++describe('#getHighlightedSegments', () => {
++  it('returns the whole text as one segment if the search key is empty', () => {
++    expect(getHighlightedSegments('Hello there', '')).toEqual([
++      { text: 'Hello there', isMatch: false },
++    ]);
++    expect(getHighlightedSegments('Hello there', '  ')).toEqual([
++      { text: 'Hello there', isMatch: false },
++    ]);
++  });
++
++  it('returns an empty list if the text is empty', () => {
++    expect(getHighlightedSegments('', 'hello')).toEqual([]);
++    expect(getHighlightedSegments(null, 'hello')).toEqual([]);
++  });
++
++  it('marks the matching part of the text', () => {
++    expect(getHighlightedSegments('Say hello to us', 'hello')).toEqual([
++      { text: 'Say ', isMatch: false },
++      { text: 'hello', isMatch: true },
++      { text: ' to us', isMatch: false },
++    ]);
++  });
++
++  it('matches case-insensitively and keeps the original casing', () => {
++    expect(getHighlightedSegments('Hello hello', 'HELLO')).toEqual([
++      { text: 'Hello', isMatch: true },
++      { text: ' ', isMatch: false },
++      { text: 'hello', isMatch: true },
++    ]);
++  });
++
++  it('returns a single segment if nothing matches', () => {
++    expect(getHighlightedSegments('Hello', 'bye')).toEqual([
++      { text: 'Hello', isMatch: false },
++    ]);
++  });
++
++  it('treats special characters in the search key literally', () => {
++    expect(getHighlightedSegments('Costs $10 (incl. tax)', '(incl.')).toEqual([
++      { text: 'Costs $10 ', isMatch: false },
++      { text: '(incl.', isMatch: true },
++      { text: ' tax)', isMatch: false },
++    ]);
++    expect(getHighlightedSegments('a.c abc', 'a.c')).toEqual([
++      { text: 'a.c', isMatch: true },
++      { text: ' abc', isMatch: false },
++    ]);
++  });
++});
+diff --git a/app/javascript/shared/helpers/KeyboardHelpers.js b/app/javascript/shared/helpers/KeyboardHelpers.js
+index 38bf623214..7bc498a301 100644
+--- a/app/javascript/shared/helpers/KeyboardHelpers.js
++++ b/app/javascript/shared/helpers/KeyboardHelpers.js
+@@ -9,3 +9,11 @@ export const isEscape = e => {
+ export const hasPressedShift = e => {
+   return e.shiftKey;
+ };
++
++export const isArrowUp = e => {
++  return e.keyCode === 38;
++};
++
++export const isArrowDown = e => {
++  return e.keyCode === 40;
++};
+diff --git a/app/javascript/shared/helpers/specs/KeyboardHelpers.spec.js b/app/javascript/shared/helpers/specs/KeyboardHelpers.spec.js
+index 851c7dfefb..e73a5533d7 100644
+--- a/app/javascript/shared/helpers/specs/KeyboardHelpers.spec.js
++++ b/app/javascript/shared/helpers/specs/KeyboardHelpers.spec.js
+@@ -1,4 +1,10 @@
+-import { isEnter, isEscape, hasPressedShift } from '../KeyboardHelpers';
++import {
++  isEnter,
++  isEscape,
++  hasPressedShift,
++  isArrowUp,
++  isArrowDown,
++} from '../KeyboardHelpers';
+ 
+ describe('#KeyboardHelpers', () => {
+   describe('#isEnter', () => {
+@@ -18,4 +24,18 @@ describe('#KeyboardHelpers', () => {
+       expect(hasPressedShift({ shiftKey: true })).toEqual(true);
+     });
+   });
++
++  describe('#isArrowUp', () => {
++    it('return correct values', () => {
++      expect(isArrowUp({ keyCode: 38 })).toEqual(true);
++      expect(isArrowUp({ keyCode: 40 })).toEqual(false);
++    });
++  });
++
++  describe('#isArrowDown', () => {
++    it('return correct values', () => {
++      expect(isArrowDown({ keyCode: 40 })).toEqual(true);
++      expect(isArrowDown({ keyCode: 38 })).toEqual(false);
++    });
++  });
+ });
+-- 
+2.43.0
+

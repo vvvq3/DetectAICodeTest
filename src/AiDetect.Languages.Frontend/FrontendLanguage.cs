@@ -15,10 +15,14 @@ public sealed class FrontendLanguage : ILanguageAnalyzer
 {
     public const string LanguageId = "frontend";
 
+    /// <summary>
+    /// Слои для признака «много слоёв». Шаблон, стили и модуль Angular — части одного компонента (ng generate создаёт их вместе),
+    /// поэтому отдельными слоями не считаются.
+    /// </summary>
     private static readonly Layer[] Meaningful =
     [
-        Layer.Component, Layer.Hook, Layer.State, Layer.Service, Layer.ApiClient, Layer.Routing, Layer.Styles, Layer.Types, Layer.Utils,
-        Layer.Constants, Layer.Stories, Layer.Tests, Layer.Documentation, Layer.Validation, Layer.Middleware, Layer.Module, Layer.I18n,
+        Layer.Component, Layer.Hook, Layer.State, Layer.Service, Layer.ApiClient, Layer.Routing, Layer.Types, Layer.Utils,
+        Layer.Constants, Layer.Stories, Layer.Tests, Layer.Documentation, Layer.Validation, Layer.Middleware, Layer.I18n,
     ];
 
     public string Id => LanguageId;

@@ -1,6 +1,7 @@
 name	category	repo	base	title	model
 fe-alfresco-recent-files	ai-default	Alfresco/alfresco-content-app	13fa06565496aac3eda3fa2ff3281bd5b703ee5e	Add Recently viewed panel to the sidebar	sonnet
 fe-bitwarden-password-age	ai-default	bitwarden/web	5c0a77aec8c83a1658aa9624929cd2464afad3cb	Show password age badge in vault items list	opus
+fe-chatwoot-canned-search	ai-default	chatwoot/chatwoot	fa883a2780663b99e88839b2fc7be994af7b5647	Search canned responses by short code and content in the reply box	opus
 fe-directus-char-counter	ai-default	directus/directus	14ac17f8ce69487639b14e8a00857478e5029689	Add character counter option to input interfaces	sonnet
 fe-dspace-copy-handle	ai-default	DSpace/dspace-angular	e867badcb5a126365fe8ed8583029c1c1e440809	Copy to clipboard buttons for URI and DOI	opus
 fe-excalidraw-recent-colors	ai-default	excalidraw/excalidraw	aef3644c93eea3434357dfed4eaf16cdeb4a81c7	Show recent colors in the color picker	opus
@@ -12,6 +13,7 @@ fe-reactadmin-copy-button	ai-default	marmelab/react-admin	58c2d77e0e3589c815966d
 fe-redash-duplicate-dashboard	ai-default	getredash/redash	dcdff66e6260517e954785bb34da47e565402f1a	Add Duplicate action to dashboard page	opus
 fe-spartacus-back-to-top	ai-default	SAP/spartacus	c6d9076037c8275af30b0a8fe2e8e2cfb170f08c	feat: add back to top CMS component	opus
 fe-vkui-rating	ai-default	VKCOM/VKUI	bfccc2015100836574aabe3cc55b42c3bb88c5a6	Rating: add star rating component	opus
+fe-directus-export-masked	ai-masked	directus/directus	14ac17f8ce69487639b14e8a00857478e5029689	Export items in batches, allow picking fields	opus
 fe-gauzy-birthdays-masked	ai-masked	ever-co/ever-gauzy	a821fa463067c42899691bbfd93b91125a0ed92e	feat: upcoming birthdays widget on dashboard	opus
 fe-jitsi-ru-masked	ai-masked	jitsi/jitsi-meet	76b4899c3966b1c8c972e029169735ae9330edbb	таймер встречи: можно скрыть в настройках	opus
 fe-reactadmin-ru-masked	ai-masked	marmelab/react-admin	58c2d77e0e3589c815966d303ca6fdb7e74cc4f4	Добавил PhoneField для российских номеров	sonnet

@@ -1,0 +1,74 @@
+name	repo	base	head	title
+m-alfresco-a6c929a9	Alfresco/alfresco-content-app	baeba22e8fb06a6e89b5089634a297a976b49640	a6c929a958d903c7e9447bcd2b36f09fdcf8cff0	[ACS-8064] Migrate actions-favorites tests to Playwright (#3871)
+m-alfresco-608e6c5e	Alfresco/alfresco-content-app	c77528c530c38dc77b1f08bb06be6be7a92abb00	608e6c5eb400a36ebb6fc212546de9363f7e9afb	[ACS-6575] code fix and split action suite (#3604)
+m-alfresco-e2ddd81c	Alfresco/alfresco-content-app	b3ed9bedb553eaa8eeaadc56f5ab01878f4451d3	e2ddd81cbc3989f5d5e926267d8f957155148ca7	[ACS-5923] navigation breadcrumb playwright test (#3410)
+m-alfresco-8f284086	Alfresco/alfresco-content-app	d8aba8c174c7429c43351fabdb8c9121ef827749	8f28408607204547e627c90b62277b7e86f5b3d1	[ACA-4070] Add unit tests for linking rule sets (#2878)
+m-dspace-4d13e284	DSpace/dspace-angular	ca61647a7ab5f13b3ee88d09425343fc7f88a7ef	7f8e0a1d1cd4b30c437bb089a1275a6b0a1fb8f0	Fix error which prevent submitter to deposit a new item
+m-dspace-fc6da948	DSpace/dspace-angular	45650c1a2a5b8bb72861b1c837c7727c5419cc76	ff4b4a6881fe6e1ad8f7dd7c115df1e67c455dbd	Split processes overview page into sections
+m-dspace-21c7f438	DSpace/dspace-angular	5a9e9fdd5a2e078df0f860ffd89ed51afd41738b	9ca57e942a85c9678fe47c6476cf81c6a2e2d013	Browse by Controlled Vocabulary Page
+m-dspace-66820dd2	DSpace/dspace-angular	0395480ab8ddeabe22ff1b7d2c6f678fd9830428	6e54acddc65d4b0e74e11c699e02e2caa2b7d749	Created `ListableNotificationObject`
+m-ringui-b0b33e82	JetBrains/ring-ui	a0e1cfef949b8677aa1e0fc56dd780fe2fc0386a	7991c80cc3533579f6c5de56eb2b80e42352b156	Add native HTML dialog support [publish]
+m-ringui-63d57377	JetBrains/ring-ui	f7d90e0fa63f4e8f3d201353fdb80c0c53a684ad	93c173799fdd219640fcc208df7963a8568df22c	Inline stories
+m-ringui-27bf1d94	JetBrains/ring-ui	2469eda5df882a6952f91d006ae311a187c1ff65	27bf1d94b24b4df742059fd8856369185d2359d2	Added <Collapse /> component.
+m-ringui-324f7680	JetBrains/ring-ui	2cee25212e05713898a8f6dba6678f587ae04049	324f7680cdd2c63e8eed8665fdcdf5b2d5128f6b	RG-2252 Update login and email presentation on User Card in ring-ui
+m-spartacus-26d10a13	SAP/spartacus	051406fa8956988847fe8b057a2b4d34de530eda	26d10a139b78fb57fd7cf80dfb75ea90210414ed	feat/CXSPA-7301: Allow Billing Address + Guest checkout - in Digital Payments (#18892)
+m-spartacus-d55774f9	SAP/spartacus	34c81506abc540f07d58ed9953f1272b0feab72e	d55774f993e49fff72c54622aadc24ad52cafd52	chore: SSR contextual logging - changes before Spartacus 7.0
+m-spartacus-fec0b8ce	SAP/spartacus	75e19c408b91d1b2b0df5534710f847619b6d2d4	fec0b8ce5cf79e1285a7cd681fc309909736ada0	chore: B2C saved cart e2e (#15605)
+m-spartacus-24c488b5	SAP/spartacus	5153feec2b16cb5fa19a545b94ff66ff97d818c1	24c488b59c9ed1107009c9c7516e72fff6560114	Fix: Avoid immediate navigation to conflict group (#16634)
+m-taiga-8c9703db	Tinkoff/taiga-ui	8cd9ae1abee00b9f3b648f06b525f29fb8d5160f	8c9703db596198598a4c24c2b8c384ea2965c1b0	refactor(core): `Tooltip` move to kit (#7958)
+m-taiga-2d67fa53	Tinkoff/taiga-ui	472de02c20f242e6d85d66be2821094ecd7fb972	2d67fa53b2d9d57224f1ad3e752de80373fcf717	chore: `tuiPreventDefault` add migration (#6714)
+m-taiga-6cfb5c1e	Tinkoff/taiga-ui	6fc813e7c264846c9b17294a3b9ed7ed2804ec3e	6cfb5c1ebcfbf8f944ee86d732da6d118a8ad3de	feat(experimental): `Sensitive` add new directive (#5425)
+m-taiga-263c7135	Tinkoff/taiga-ui	11cc1940edf637c192906c219c67b2829b4c49ca	263c71356b0453f199daf645a0419a3fb31660dd	fix(core): `Hint`/`Dropdown` fix directives order mattering (#3726)
+m-vkui-7e7759a9	VKCOM/VKUI	163238bd60685221076ba116e0a41b76954b7243	7e7759a9832ce7510c95533b92e6c9df65406686	feat(Calendar): make month/year select options disabled if dates are unavailable (#6937)
+m-vkui-ff5ec673	VKCOM/VKUI	88658fa9436987f41895f01c99a6fb5edf241481	ff5ec6733164af3894c85390a28485f66dd84d36	chore: add more codemods (#6340)
+m-vkui-43e5c5c9	VKCOM/VKUI	fd7cb8d78a2644b39b14f2203cac6e3fb2a7e471	43e5c5c9779d2f52a785b98d80e82c7677cd8006	feat(Cell): add auto scroll for draggable mode (#5833)
+m-vkui-6bc8cfa0	VKCOM/VKUI	4239912b088a5d6d798f0bc7dee688fe454506a6	90ae55a76da78c3d18570595bfaba01618b7d066	feat: it adds ability to provide custom arrow icon
+m-chatwoot-08516e6c	chatwoot/chatwoot	5abf0e960ad6d7211fc06c162c6e17c856d9911a	08516e6c43338ee5d91f3f19b376a98b7e7689f4	feat: Enable gmail channel (#9622)
+m-chatwoot-9f905ce2	chatwoot/chatwoot	dca14ef82da5a862d3bd7ad346ebafe6c712d12d	9f905ce2e628de100777327579bbb52226707feb	feat: Update the input for the SLA threshold selection (#8974)
+m-chatwoot-b18cac77	chatwoot/chatwoot	647161121e85098357922cb58c68f50ebd7e281d	b18cac77fbae394f407de1c85a952abfc3432c1b	chore: Moved file upload methods to mixin (#7987)
+m-chatwoot-d01f2063	chatwoot/chatwoot	590e4e9c1c590e264206fe880cdb00da2a169220	d01f2063d0fdc99cf1a0d8205feb0c81d3e1d54e	feat: Creates component to show articles search results [CW-1451] (#7126)
+m-directus-c893b9fa	directus/directus	1d7e0b71606bb5eb7cce86d810a72bfa9f7b6f6b	c893b9fa65fe26d74a7915bce50698beadec7b1e	Add public registration (#22125)
+m-directus-c59fc8f2	directus/directus	10ce8277882633d4b0126efd312fdeabfd1b37d2	c59fc8f240bc5e7c5cc0b1ac774d1c3e49f1dcee	Add display options for repeater (#19703)
+m-directus-e5897177	directus/directus	b9213304d1efcfe15d1488c1213d6e3f941bef08	e5897177bfc2e79f69fa382be763446bdc8e8a7a	script[setup]: modules/content (#18442)
+m-directus-1c93cc66	directus/directus	ce8f571c7241d1f57592bcf4e2319a7272d271bc	1c93cc661e77ad8a1d8d6253493bba12c3b172d2	Reduce translate function calls in the App (#16038)
+m-gauzy-bc8452e0	ever-co/ever-gauzy	fd84454e975b71b86b1458e85569735fe3a1c32f	2eb41ce531c48064fad15b04fb392861a39ebaab	[Fix] Employees, Candidates and Onboarding Issues & Bugs
+m-gauzy-8e8ce0ec	ever-co/ever-gauzy	e3fe038a6e865eac37ae5391dcc05e1ac513f387	854b16d56f7d8870f7f73e746b47a16f1e617610	Fix :: Organization Project Wrong Relationship
+m-gauzy-5cf930e0	ever-co/ever-gauzy	c55fd793b6471c66e6b602387baf4bbae2f9ae15	6f8f2ce749b576af848d8fd3c21e70773d09aecc	Feat/#6418 employee minimum bill rate
+m-gauzy-b98df59d	ever-co/ever-gauzy	5f98c07f6951627b8d9e6391fc67846a2f07cada	57af7ff9af798a7c541175c6e1af37471d26eb54	Fix :: Task Mutation Validation
+m-excalidraw-66a2f242	excalidraw/excalidraw	04668d8263b35bf76f1390b25abeeed4181820f6	66a2f242962b480dc855b761dd2411d632cbab59	fix: Add binding update to manual stat changes (#8183)
+m-excalidraw-aad8ab01	excalidraw/excalidraw	88a2b286c7dbc2866621d27ec5b683253c42fe03	aad8ab012330dddf09fe8349dc744143fa5e40da	feat: follow mode (#6848)
+m-excalidraw-49e42898	excalidraw/excalidraw	3ddcc48e4c192f525930e503b3e9214627f0043d	49e4289878bdf120ae5e8275ff4ac0f8c01c3c72	feat: make `appState.selectedElementIds` more stable (#6745)
+m-excalidraw-06b45e0c	excalidraw/excalidraw	809d5ba17f2e55e4db0d0302d5af38bbb9c8922a	06b45e0cfc9bc93b3565acee2932d643169fb298	fix: image horizontal flip fix + improved tests (#5799)
+m-hoppscotch-1d1462df	hoppscotch/hoppscotch	b851d3003caa425b29f1e960d239c6b1aa743278	1d1462df699fced25f4ca9e18f1c82a166adf57b	feat(sh-admin): introducing advanced SMTP configurations and invite links to dashboard (#4087)
+m-hoppscotch-6abc0e60	hoppscotch/hoppscotch	957641fb0fa1ede5b305cfce29b4d3132c486001	6abc0e60715ebffe1dafcfe0afa44d2a9dbce24d	HBE-326 feature: server configuration through GraphQL API (#3591)
+m-hoppscotch-b55970cc	hoppscotch/hoppscotch	74ad2e43a4a018d8be0f48ee289c0a1d1676d1a6	b55970cc7a649c866ecaa4c0b1896e7c1ae68848	spotlight: settings based actions added (#3244)
+m-hoppscotch-ae77c60c	hoppscotch/hoppscotch	7e1b26c6a9c65a3e1948bbe01a74cfda38e2724e	1583c86c78422bbaed126b77e8c66ed6c6a73480	chore: merge hoppscotch/staging into self-hosted/main
+m-jitsi-f0fc63f5	jitsi/jitsi-meet	d6181750748103a1998d75558cbe2b81f1039ecf	f0fc63f5730ea09a78b46577a8a48e0b7d892d10	feat(visitors): Handles live conference and queue service. (#14869)
+m-jitsi-f8bd8b61	jitsi/jitsi-meet	be55ccd6f46bf5d8bff594977dd29d7fa7410164	f8bd8b616e1caad91c74ccc359802d9a536ee492	feat(reactions): New button for web.
+m-jitsi-246a2d6b	jitsi/jitsi-meet	838b26f770df4a28dc3bfc52bfb844b0e2e87ab5	246a2d6bbf83e626067ea97ba59eb790498f5a7f	feat(share-room): created getInviteOthersControl helper (#12769)
+m-jitsi-c77e2c83	jitsi/jitsi-meet	3403d7bec2773bb9ecb58de00bfab0a34456d7ff	c77e2c8301e521d19fafb2ffd04825e29dbb8739	feat(settings/native): fixes and updates (#12094)
+m-koel-4c923fae	koel/koel	7087029b8ad6dfb4d61449790c5adc1eb88c4440	527e7abb7013833577f4b628ebaf18158ae11bf5	Merge pull request #1466 from koel/next
+m-reactadmin-a3bd5a6f	marmelab/react-admin	0b3f84001fd66e2f01d2d44a0e3f6999aadb6f13	ab8d514e004a8c416108686f772177b5d8dcd4f9	Update `<ReferenceField>` to render a link to the show view when relevant
+m-reactadmin-d189c57a	marmelab/react-admin	3e810af125d5fc0c64a1bbae39ba63d5af366470	b5d6532faa28658ba41f505e9a5ed23969164f80	[Next] Backport changes from master
+m-reactadmin-0d2fe46c	marmelab/react-admin	2fc66de894eb7755cb0b793c1e00d4ed9f3bf59c	3c4d15b140162149a9ad80038678f83bbb667a3c	Add support for lazy-loaded React components
+m-reactadmin-7cf8f78a	marmelab/react-admin	795879a60fadc6ac5eab9816132b5e656f19410d	67560194c14660dcb160d08f2a9ca5ca994af1ac	Fix form `validate` function no longer applies translation
+m-mattermost-57c40ad8	mattermost/mattermost-webapp	0c6d52551306cb4b657fa72377e11cbf945db313	57c40ad81e66c03882a276f12383058491d99328	MM: 42267: Browse channel UI Update and ability to hide joined channels (#11262)
+m-mattermost-5b769ee8	mattermost/mattermost-webapp	7c0cacdb62dcd88d74edff053a1c050c4afaafa5	5b769ee8ca3798cbae247fbff2d6b105aea9427d	[MM-47566] Show upcoming invoice in subscription screen if present (#11638)
+m-mattermost-115e8ca5	mattermost/mattermost-webapp	07cfdcb71ff5d66c82e5c983fda58ebec1eaa115	115e8ca5744534c91b5d93a0cbd9dce3cf8dcc6d	[MM-45946]capture hyperlinks when pasting (#11299)
+m-mattermost-2da3ff92	mattermost/mattermost-webapp	58efa69910101be434f665cbfc4fcdcce9e9998d	2da3ff928710f473c75a955e5c2dcc959d68562d	MM-20393: Migrate 'components/channel_header' module and associated tests to TypeScript (#10931)
+m-ncdeck-fb33f90f	nextcloud/deck	632e70bc29c1ae7c6212024b71416a631a36ffea	213c8c5f2f21e6834401f4ba070f8103f726c68a	Merge pull request #5630 from nextcloud/enh/interactive-widget
+m-ncdeck-05020b08	nextcloud/deck	8f8597def78f8b22ec15969d9f0b87d1640e607f	b360ba66c0871728a17671229910b86bfaccb83c	Merge pull request #5264 from nextcloud/fix/design
+m-ncdeck-ea679569	nextcloud/deck	8aa4fdcec5e05d4297efe511e847378ee94facac	7c774bd988e45ccaf1a8b07634da9f6c866a40fc	Merge pull request #2658 from BKapelari/More-Dashboard-Widgets-#2643
+m-ncdeck-2f58f9c1	nextcloud/deck	0e52215f3012f42502eb82e08b994a708a50fecb	1e9060b876cb622009c86de3b01e7fa86778cc45	Merge pull request #4399 from nextcloud/enh/text-editor
+m-outline-0f1f0e82	outline/outline	5ddc36555d540c6eecd4b24a6f68c613c5405ae0	0f1f0e82c272343faef5db089604b47fbe520332	Enable keyboard navigation in member invite list (#7102)
+m-outline-4ddb5c3e	outline/outline	cbb00c48714a078fb33b25b479a7963934afd551	4ddb5c3eed68cabf80a45dcd68f1c4535562435b	feat: Add option to replace existing file attachment in editor
+m-outline-9918b9bf	outline/outline	3d6a875631090904cbeb8967cd3c4b4b72f87460	9918b9bf130bcc6f90f3f1a9dcf3264d879c692a	feat: Add 'delete user' option for admins
+m-outline-cc333637	outline/outline	ea9680c3d711f6e7a97bc5aa8054ba732a639992	cc333637dd8f3ca2fecf1020e71d20d2ea0dcd7a	Desktop support (#4484)
+m-owncloudweb-1fcbaabe	owncloud/web	9323c8bed828d63338d0773f16a770d4029e86ab	1fcbaabe2e956b758ea4a057a6144c10f95499bd	Dynamic app provider apps (#11103)
+m-owncloudweb-cafdf773	owncloud/web	e821218658a418be85e3265b3e4cae77c6025175	cafdf773871f2631ad0318cbd97c71a16f99e0d3	Webdav details followup (#10062)
+m-owncloudweb-383e148a	owncloud/web	e9d26bd413e9d85a07f1a0d8718f41ac5f2be88a	d722f1b995f089bbe2f081724ecc18f1d573518e	Cloud import (first iteration: OneDrive)
+m-owncloudweb-4ad81165	owncloud/web	0ef04c30adb7a78c0503fdb483bfcd6fc7690f42	4ad811652ea34457e50cb52d0417ad1e13401ef2	[full-ci] Display resources in `GenericSpace` as tiles (#7991)
+m-posthog-aacce8d8	PostHog/posthog	9f19f97b53ef24995145b445ec61cee9a663b6a8	aacce8d850e255fa6a8a291c01a7bcd95a9fa501	feat: buffered canvas playback (#21946)
+m-posthog-01274795	PostHog/posthog	b532289dd25a0af0ee2362aa1f8b20962bab1dc3	0127479573c2156c8dcfceff0830d6f70bb7d9f6	fix(notebooks): apply insight query migration to inlined notebook insights (#19991)
+m-posthog-8b174819	PostHog/posthog	31749e197bb6b1d507944f1fdcc71b54b808ed43	8b174819e4d76c8901a86c28c27d0fe0f6b2810e	feat: notebook filtering by recordings presence (#16955)
+m-posthog-0513bcac	PostHog/posthog	cf3dbc367f52df0a767343fcb55537ab50686343	0513bcac41d2c87700ad4ca0753d449e6c56750b	chore: Add placeholder and instructions to ff payloads (#14123)

@@ -97,9 +97,36 @@ public static class Calibrator
         return result;
     }
 
+    /// <summary>
+    /// Консервативный порог: сдвигает смещение так, чтобы на обучающих человеческих MR доля оценок ≥ 50% не превышала targetFpr.
+    /// Смещение только уменьшается (никогда не делает модель смелее).
+    /// </summary>
+    public static ModelParameters ApplyTargetFpr(ModelParameters p, List<Sample> samples, Dictionary<string, double> prior, double targetFpr)
+    {
+        var humans = samples.Where(s => s.Label == 0)
+            .Select(s => s.X.Sum(kv => p.WeightFor(kv.Key, prior.GetValueOrDefault(kv.Key)) * kv.Value))
+            .OrderByDescending(z => z)
+            .ToList();
+        if (humans.Count == 0 || targetFpr <= 0)
+        {
+            return p;
+        }
+
+        // Логит без смещения у человека на границе квантиля; смещение = −этот логит (p = 0.5 ровно на границе), с небольшим запасом.
+        int idx = Math.Min(humans.Count - 1, (int)Math.Floor(targetFpr * humans.Count));
+        double needed = -humans[idx] - 0.05;
+        if (needed < p.Bias)
+        {
+            p.Bias = Math.Round(needed, 4);
+            p.Description += $"; смещение сдвинуто для доли ложных «ИИ» ≤ {targetFpr:P0}";
+        }
+
+        return p;
+    }
+
     /// <summary>k-кратная перекрёстная проверка калибровки: честная оценка AUC на отложенных MR.</summary>
     public static List<(int Label, double P)> CrossValidate(List<Sample> samples, Dictionary<string, double> prior, ModelParameters start, int folds = 5, double lambda = 2.0,
-        bool balanced = true)
+        bool balanced = true, double targetFpr = 0)
     {
         var result = new List<(int, double)>();
         var indexed = samples.Select((s, i) => (s, i)).ToList();
@@ -108,6 +135,11 @@ public static class Calibrator
             var train = indexed.Where(x => x.i % folds != f).Select(x => x.s).ToList();
             var test = indexed.Where(x => x.i % folds == f).Select(x => x.s).ToList();
             var p = Fit(train, prior, start, lambda, balanced: balanced);
+            if (targetFpr > 0)
+            {
+                p = ApplyTargetFpr(p, train, prior, targetFpr);
+            }
+
             foreach (var s in test)
             {
                 double z = p.Bias + s.X.Sum(kv => p.WeightFor(kv.Key, prior.GetValueOrDefault(kv.Key)) * kv.Value);

@@ -1,0 +1,707 @@
+From 1a325e5009785ddcafbc67db33763e27b044f83e Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Thu, 5 Nov 2026 22:20:55 +0000
+Subject: [PATCH 2/2] feat: Search canned responses by short code and content
+ in the reply box
+
+Typing "/" in the reply box now opens a searchable canned response
+dropdown:
+
+- The full list is fetched once when the dropdown opens and filtered on
+  the client, so the content can be searched as well as the short code
+  and typing no longer fires an API request per keystroke.
+- Filtering is case-insensitive and debounced (150ms). Short code
+  matches are listed before content matches.
+- The matching text is highlighted in both the short code and the
+  content, rendered as text nodes instead of v-html.
+- Up/Down (and Ctrl-P/Ctrl-N) move the selection with wrap-around and
+  keep the selected item scrolled into view, Enter inserts it, Escape
+  closes the dropdown.
+- An empty state is shown while loading, when nothing matches the
+  search, and when the account has no canned responses yet.
+
+The dropdown is now anchored to the top of the reply box with CSS
+instead of an offset computed from the number of results, and talks to
+the reply box through select/close events.
+---
+ .../assets/scss/widgets/_reply-box.scss       |  14 +
+ .../widgets/conversation/CannedResponse.vue   | 184 +++++++----
+ .../widgets/conversation/HighlightedText.vue  |  25 ++
+ .../widgets/conversation/ReplyBox.vue         |  23 +-
+ .../conversation/specs/CannedResponse.spec.js | 298 ++++++++++++++++++
+ .../i18n/locale/en/conversation.json          |   5 +
+ 6 files changed, 482 insertions(+), 67 deletions(-)
+ create mode 100644 app/javascript/dashboard/components/widgets/conversation/HighlightedText.vue
+ create mode 100644 app/javascript/dashboard/components/widgets/conversation/specs/CannedResponse.spec.js
+
+diff --git a/app/javascript/dashboard/assets/scss/widgets/_reply-box.scss b/app/javascript/dashboard/assets/scss/widgets/_reply-box.scss
+index a234a110de..395cb61a31 100644
+--- a/app/javascript/dashboard/assets/scss/widgets/_reply-box.scss
++++ b/app/javascript/dashboard/assets/scss/widgets/_reply-box.scss
+@@ -28,6 +28,7 @@
+       background: $color-white;
+       border-bottom: $space-small solid $color-white;
+       border-top: $space-small solid $color-white;
++      bottom: 100%;
+       left: 0;
+ 
+       max-height: 14rem;
+@@ -39,6 +40,19 @@
+       .active a {
+         background: $color-woot;
+       }
++
++      mark {
++        background: $color-primary-light;
++        border-radius: $space-micro;
++        color: $color-heading;
++      }
++
++      .canned--empty-state {
++        color: $color-light-gray;
++        font-size: $font-size-small;
++        margin: 0;
++        padding: $space-small $space-normal;
++      }
+     }
+ 
+     &.is-active {
+diff --git a/app/javascript/dashboard/components/widgets/conversation/CannedResponse.vue b/app/javascript/dashboard/components/widgets/conversation/CannedResponse.vue
+index e80adf24d6..caf4c5dd8d 100644
+--- a/app/javascript/dashboard/components/widgets/conversation/CannedResponse.vue
++++ b/app/javascript/dashboard/components/widgets/conversation/CannedResponse.vue
+@@ -1,88 +1,162 @@
+ <template>
+-  <ul
+-    v-if="cannedMessages.length"
+-    id="canned-list"
+-    class="vertical dropdown menu canned"
+-    :style="{ top: getTopPadding() + 'rem' }"
+-  >
+-    <li
+-      v-for="(item, index) in cannedMessages"
+-      :id="`canned-${index}`"
+-      :key="item.short_code"
+-      :class="{ active: index === selectedIndex }"
+-      @click="onListItemSelection(index)"
+-      @mouseover="onHover(index)"
+-    >
+-      <a class="text-truncate">
+-        <strong>{{ item.short_code }}</strong> - {{ item.content }}
+-      </a>
+-    </li>
+-  </ul>
++  <div class="canned">
++    <ul v-if="hasResults" ref="list" class="vertical dropdown menu">
++      <li
++        v-for="(cannedResponse, index) in filteredCannedResponses"
++        :key="cannedResponse.id"
++        :class="{ active: index === selectedIndex }"
++        @mousedown.prevent
++        @mouseover="onHover(index)"
++        @click="onSelect(index)"
++      >
++        <a class="text-truncate">
++          <strong>
++            <highlighted-text
++              :text="cannedResponse.short_code"
++              :search-key="searchTerm"
++            />
++          </strong>
++          -
++          <highlighted-text
++            :text="cannedResponse.content"
++            :search-key="searchTerm"
++          />
++        </a>
++      </li>
++    </ul>
++    <p v-else class="canned--empty-state">
++      {{ emptyStateMessage }}
++    </p>
++  </div>
+ </template>
+ 
+ <script>
+ import { mapGetters } from 'vuex';
++import HighlightedText from './HighlightedText';
++import { filterCannedResponses } from 'dashboard/helper/cannedResponseHelper';
++import {
++  isArrowDown,
++  isArrowUp,
++  isEnter,
++  isEscape,
++} from 'shared/helpers/KeyboardHelpers';
++
++const SEARCH_DEBOUNCE_DELAY = 150;
++
++const isMoveUp = e => isArrowUp(e) || (e.ctrlKey && e.keyCode === 80); // Ctrl-P
++const isMoveDown = e => isArrowDown(e) || (e.ctrlKey && e.keyCode === 78); // Ctrl-N
+ 
+ export default {
+-  props: ['onKeyenter', 'onClick'],
++  components: {
++    HighlightedText,
++  },
++  props: {
++    searchKey: {
++      type: String,
++      default: '',
++    },
++  },
+   data() {
+     return {
++      // Debounced copy of `searchKey`, used for filtering and highlighting
++      searchTerm: this.searchKey,
++      searchTimer: null,
+       selectedIndex: 0,
+     };
+   },
+   computed: {
+     ...mapGetters({
+-      cannedMessages: 'getCannedResponses',
++      cannedResponses: 'getCannedResponses',
++      uiFlags: 'getUIFlags',
+     }),
++    filteredCannedResponses() {
++      return filterCannedResponses(this.cannedResponses, this.searchTerm);
++    },
++    hasResults() {
++      return this.filteredCannedResponses.length > 0;
++    },
++    emptyStateMessage() {
++      if (this.uiFlags.fetchingList) {
++        return this.$t('CONVERSATION.CANNED_RESPONSES.LOADING');
++      }
++      const searchKey = this.searchTerm.trim();
++      if (searchKey) {
++        return this.$t('CONVERSATION.CANNED_RESPONSES.NO_RESULTS', {
++          searchKey,
++        });
++      }
++      return this.$t('CONVERSATION.CANNED_RESPONSES.EMPTY');
++    },
++  },
++  watch: {
++    searchKey(newSearchKey) {
++      clearTimeout(this.searchTimer);
++      this.searchTimer = setTimeout(() => {
++        this.searchTerm = newSearchKey;
++      }, SEARCH_DEBOUNCE_DELAY);
++    },
++    filteredCannedResponses() {
++      this.selectedIndex = 0;
++      this.$nextTick(this.scrollToSelectedItem);
++    },
+   },
+   mounted() {
+-    document.addEventListener('keydown', this.keyListener);
++    // The full list is fetched and filtered on the client, so that the
++    // content can be searched too and typing does not trigger API calls.
++    this.$store.dispatch('getCannedResponse');
++    document.addEventListener('keydown', this.onKeydown);
+   },
+   beforeDestroy() {
+-    document.removeEventListener('keydown', this.keyListener);
++    clearTimeout(this.searchTimer);
++    document.removeEventListener('keydown', this.onKeydown);
+   },
+   methods: {
+-    getTopPadding() {
+-      if (this.cannedMessages.length <= 4) {
+-        return -this.cannedMessages.length * 3.5;
++    onKeydown(e) {
++      if (isEscape(e)) {
++        e.preventDefault();
++        this.$emit('close');
++      } else if (isMoveUp(e)) {
++        e.preventDefault();
++        this.moveSelection(-1);
++      } else if (isMoveDown(e)) {
++        e.preventDefault();
++        this.moveSelection(1);
++      } else if (isEnter(e)) {
++        e.preventDefault();
++        this.onSelect(this.selectedIndex);
+       }
+-      return -14;
+-    },
+-    isUp(e) {
+-      return e.keyCode === 38 || (e.ctrlKey && e.keyCode === 80); // UP, Ctrl-P
+-    },
+-    isDown(e) {
+-      return e.keyCode === 40 || (e.ctrlKey && e.keyCode === 78); // DOWN, Ctrl-N
+     },
+-    isEnter(e) {
+-      return e.keyCode === 13;
+-    },
+-    keyListener(e) {
+-      if (this.isUp(e)) {
+-        if (!this.selectedIndex) {
+-          this.selectedIndex = this.cannedMessages.length - 1;
+-        } else {
+-          this.selectedIndex -= 1;
+-        }
++    moveSelection(step) {
++      const count = this.filteredCannedResponses.length;
++      if (!count) {
++        return;
+       }
+-      if (this.isDown(e)) {
+-        if (this.selectedIndex === this.cannedMessages.length - 1) {
+-          this.selectedIndex = 0;
+-        } else {
+-          this.selectedIndex += 1;
+-        }
++      this.selectedIndex = (this.selectedIndex + step + count) % count;
++      this.$nextTick(this.scrollToSelectedItem);
++    },
++    scrollToSelectedItem() {
++      const { list } = this.$refs;
++      const item = list && list.children[this.selectedIndex];
++      if (!item) {
++        return;
+       }
+-      if (this.isEnter(e)) {
+-        this.onKeyenter(this.cannedMessages[this.selectedIndex].content);
++      const container = this.$el;
++      const itemTop = item.offsetTop;
++      const itemBottom = itemTop + item.offsetHeight;
++      if (itemTop < container.scrollTop) {
++        container.scrollTop = itemTop;
++      } else if (itemBottom > container.scrollTop + container.clientHeight) {
++        container.scrollTop = itemBottom - container.clientHeight;
+       }
+-      this.$el.scrollTop = 34 * this.selectedIndex;
+     },
+     onHover(index) {
+       this.selectedIndex = index;
+     },
+-    onListItemSelection(index) {
+-      this.selectedIndex = index;
+-      this.onClick(this.cannedMessages[this.selectedIndex].content);
++    onSelect(index) {
++      const cannedResponse = this.filteredCannedResponses[index];
++      if (cannedResponse) {
++        this.$emit('select', cannedResponse.content);
++      }
+     },
+   },
+ };
+diff --git a/app/javascript/dashboard/components/widgets/conversation/HighlightedText.vue b/app/javascript/dashboard/components/widgets/conversation/HighlightedText.vue
+new file mode 100644
+index 0000000000..3c4048bc68
+--- /dev/null
++++ b/app/javascript/dashboard/components/widgets/conversation/HighlightedText.vue
+@@ -0,0 +1,25 @@
++<script>
++import { getHighlightedSegments } from 'dashboard/helper/cannedResponseHelper';
++
++// Renders `text` with every case-insensitive occurrence of `searchKey`
++// wrapped in a <mark>. The text is rendered as text nodes, never as HTML.
++export default {
++  functional: true,
++  props: {
++    text: {
++      type: String,
++      default: '',
++    },
++    searchKey: {
++      type: String,
++      default: '',
++    },
++  },
++  render(h, { props, data }) {
++    const children = getHighlightedSegments(props.text, props.searchKey).map(
++      ({ text, isMatch }) => (isMatch ? h('mark', text) : text)
++    );
++    return h('span', data, children);
++  },
++};
++</script>
+diff --git a/app/javascript/dashboard/components/widgets/conversation/ReplyBox.vue b/app/javascript/dashboard/components/widgets/conversation/ReplyBox.vue
+index 8d6b2c027b..9f6e0714a8 100644
+--- a/app/javascript/dashboard/components/widgets/conversation/ReplyBox.vue
++++ b/app/javascript/dashboard/components/widgets/conversation/ReplyBox.vue
+@@ -4,9 +4,9 @@
+       <canned-response
+         v-if="showCannedResponsesList"
+         v-on-clickaway="hideCannedResponse"
+-        data-dropdown-menu
+-        :on-keyenter="replaceText"
+-        :on-click="replaceText"
++        :search-key="cannedResponseSearchKey"
++        @select="replaceText"
++        @close="hideCannedResponse"
+       />
+       <emoji-input
+         v-if="showEmojiPicker"
+@@ -118,6 +118,7 @@ export default {
+       isFocused: false,
+       showEmojiPicker: false,
+       showCannedResponsesList: false,
++      cannedResponseSearchKey: '',
+       isUploading: false,
+     };
+   },
+@@ -216,13 +217,8 @@ export default {
+       const hasNextWord = updatedMessage.includes(' ');
+       const isShortCodeActive = isSlashCommand && !hasNextWord;
+       if (isShortCodeActive) {
++        this.cannedResponseSearchKey = updatedMessage.substr(1);
+         this.showCannedResponsesList = true;
+-        if (updatedMessage.length > 1) {
+-          const searchKey = updatedMessage.substr(1, updatedMessage.length);
+-          this.$store.dispatch('getCannedResponse', { searchKey });
+-        } else {
+-          this.$store.dispatch('getCannedResponse');
+-        }
+       } else {
+         this.showCannedResponsesList = false;
+       }
+@@ -240,6 +236,10 @@ export default {
+         this.hideEmojiPicker();
+         this.hideCannedResponse();
+       } else if (isEnter(e)) {
++        if (this.showCannedResponsesList) {
++          // Enter picks a canned response, handled by the dropdown itself
++          return;
++        }
+         if (!hasPressedShift(e)) {
+           e.preventDefault();
+           this.sendMessage();
+@@ -271,9 +271,8 @@ export default {
+       }
+     },
+     replaceText(message) {
+-      setTimeout(() => {
+-        this.message = message;
+-      }, 100);
++      // The list gets hidden by the `message` watcher once the text changes
++      this.message = message;
+     },
+     setPrivateReplyMode() {
+       this.isPrivateTabActive = true;
+diff --git a/app/javascript/dashboard/components/widgets/conversation/specs/CannedResponse.spec.js b/app/javascript/dashboard/components/widgets/conversation/specs/CannedResponse.spec.js
+new file mode 100644
+index 0000000000..d919911aa4
+--- /dev/null
++++ b/app/javascript/dashboard/components/widgets/conversation/specs/CannedResponse.spec.js
+@@ -0,0 +1,298 @@
++import { createLocalVue, mount } from '@vue/test-utils';
++import Vuex from 'vuex';
++import VueI18n from 'vue-i18n';
++
++import i18n from 'dashboard/i18n';
++
++import CannedResponse from '../CannedResponse';
++
++const localVue = createLocalVue();
++localVue.use(Vuex);
++localVue.use(VueI18n);
++
++const i18nConfig = new VueI18n({
++  locale: 'en',
++  messages: i18n,
++});
++
++const KEY_CODES = {
++  ENTER: 13,
++  ESCAPE: 27,
++  UP: 38,
++  DOWN: 40,
++  N: 78,
++  P: 80,
++};
++
++const cannedResponses = [
++  { id: 1, short_code: 'hello', content: 'Hi there, how can I help you?' },
++  { id: 2, short_code: 'refund', content: 'Your refund has been processed.' },
++  { id: 3, short_code: 'bye', content: 'Thanks for reaching out. Goodbye!' },
++];
++
++// The dropdown listens to keydown events on the document, since the focus
++// stays in the reply box textarea while navigating.
++const pressKey = (keyCode, options = {}) => {
++  const event = new KeyboardEvent('keydown', { cancelable: true, ...options });
++  Object.defineProperty(event, 'keyCode', { value: keyCode });
++  document.dispatchEvent(event);
++  return event;
++};
++
++describe('CannedResponse', () => {
++  let getCannedResponse = null;
++  let wrapper = null;
++
++  const mountDropdown = ({
++    searchKey = '',
++    records = cannedResponses,
++    uiFlags = { fetchingList: false },
++  } = {}) => {
++    const store = new Vuex.Store({
++      getters: {
++        getCannedResponses: () => records,
++        getUIFlags: () => uiFlags,
++      },
++      actions: { getCannedResponse },
++    });
++
++    wrapper = mount(CannedResponse, {
++      store,
++      localVue,
++      i18n: i18nConfig,
++      propsData: { searchKey },
++    });
++    return wrapper;
++  };
++
++  const listItems = () => wrapper.findAll('li');
++  const activeItem = () => wrapper.find('li.active');
++
++  beforeEach(() => {
++    jest.useFakeTimers();
++    getCannedResponse = jest.fn();
++  });
++
++  afterEach(() => {
++    if (wrapper) {
++      wrapper.destroy();
++      wrapper = null;
++    }
++    jest.useRealTimers();
++  });
++
++  it('fetches the canned responses when mounted', () => {
++    mountDropdown();
++
++    expect(getCannedResponse).toHaveBeenCalledTimes(1);
++  });
++
++  it('lists all the canned responses if there is no search key', () => {
++    mountDropdown();
++
++    expect(listItems().length).toBe(3);
++    expect(activeItem().text()).toContain('hello');
++  });
++
++  describe('filtering', () => {
++    it('filters the canned responses by short code', () => {
++      mountDropdown({ searchKey: 'refund' });
++
++      expect(listItems().length).toBe(1);
++      expect(listItems().at(0).text()).toContain('Your refund');
++    });
++
++    it('filters the canned responses by content, ignoring the case', () => {
++      mountDropdown({ searchKey: 'GOODBYE' });
++
++      expect(listItems().length).toBe(1);
++      expect(listItems().at(0).text()).toContain('bye');
++    });
++
++    it('highlights the matching text in the short code and the content', () => {
++      mountDropdown({ searchKey: 'HEL' });
++
++      const highlights = listItems()
++        .at(0)
++        .findAll('mark');
++      expect(listItems().length).toBe(1);
++      expect(highlights.length).toBe(2);
++      expect(highlights.at(0).text()).toBe('hel');
++      expect(highlights.at(1).text()).toBe('hel');
++    });
++
++    it('does not highlight anything if there is no search key', () => {
++      mountDropdown();
++
++      expect(wrapper.find('mark').exists()).toBe(false);
++    });
++
++    it('debounces the search', async () => {
++      mountDropdown();
++
++      await wrapper.setProps({ searchKey: 'r' });
++      jest.advanceTimersByTime(100);
++      await wrapper.setProps({ searchKey: 'by' });
++      jest.advanceTimersByTime(100);
++      await wrapper.vm.$nextTick();
++
++      expect(listItems().length).toBe(3);
++
++      jest.advanceTimersByTime(50);
++      await wrapper.vm.$nextTick();
++
++      expect(listItems().length).toBe(1);
++      expect(listItems().at(0).text()).toContain('Thanks for reaching out');
++    });
++
++    it('selects the first result when the search changes', async () => {
++      mountDropdown();
++      pressKey(KEY_CODES.DOWN);
++      pressKey(KEY_CODES.DOWN);
++      await wrapper.vm.$nextTick();
++      expect(activeItem().text()).toContain('bye');
++
++      await wrapper.setProps({ searchKey: 'e' });
++      jest.runAllTimers();
++      await wrapper.vm.$nextTick();
++
++      expect(activeItem().text()).toContain('hello');
++    });
++  });
++
++  describe('empty state', () => {
++    it('shows a message if no canned response matches the search', () => {
++      mountDropdown({ searchKey: 'xyz' });
++
++      expect(wrapper.find('ul').exists()).toBe(false);
++      expect(wrapper.find('.canned--empty-state').text()).toBe(
++        'No canned responses matching "xyz"'
++      );
++    });
++
++    it('shows a message if there are no canned responses', () => {
++      mountDropdown({ records: [] });
++
++      expect(wrapper.find('.canned--empty-state').text()).toBe(
++        'There are no canned responses yet. You can add them from Settings > Canned Responses.'
++      );
++    });
++
++    it('shows a loading message while the canned responses are fetched', () => {
++      mountDropdown({ records: [], uiFlags: { fetchingList: true } });
++
++      expect(wrapper.find('.canned--empty-state').text()).toBe(
++        'Fetching canned responses...'
++      );
++    });
++  });
++
++  describe('keyboard navigation', () => {
++    it('moves the selection down and up with the arrow keys', async () => {
++      mountDropdown();
++
++      pressKey(KEY_CODES.DOWN);
++      await wrapper.vm.$nextTick();
++      expect(activeItem().text()).toContain('refund');
++
++      pressKey(KEY_CODES.UP);
++      await wrapper.vm.$nextTick();
++      expect(activeItem().text()).toContain('hello');
++    });
++
++    it('supports Ctrl-N and Ctrl-P', async () => {
++      mountDropdown();
++
++      pressKey(KEY_CODES.N, { ctrlKey: true });
++      await wrapper.vm.$nextTick();
++      expect(activeItem().text()).toContain('refund');
++
++      pressKey(KEY_CODES.P, { ctrlKey: true });
++      await wrapper.vm.$nextTick();
++      expect(activeItem().text()).toContain('hello');
++    });
++
++    it('wraps around at the beginning and the end of the list', async () => {
++      mountDropdown();
++
++      pressKey(KEY_CODES.UP);
++      await wrapper.vm.$nextTick();
++      expect(activeItem().text()).toContain('bye');
++
++      pressKey(KEY_CODES.DOWN);
++      await wrapper.vm.$nextTick();
++      expect(activeItem().text()).toContain('hello');
++    });
++
++    it('prevents the default action of the navigation keys', () => {
++      mountDropdown();
++
++      expect(pressKey(KEY_CODES.DOWN).defaultPrevented).toBe(true);
++      expect(pressKey(KEY_CODES.UP).defaultPrevented).toBe(true);
++      expect(pressKey(KEY_CODES.ENTER).defaultPrevented).toBe(true);
++      expect(pressKey(KEY_CODES.ESCAPE).defaultPrevented).toBe(true);
++    });
++
++    it('emits "select" with the content of the selected item on Enter', () => {
++      mountDropdown();
++
++      pressKey(KEY_CODES.DOWN);
++      pressKey(KEY_CODES.ENTER);
++
++      expect(wrapper.emitted().select).toEqual([
++        ['Your refund has been processed.'],
++      ]);
++    });
++
++    it('does not emit "select" on Enter if there are no results', () => {
++      mountDropdown({ searchKey: 'xyz' });
++
++      pressKey(KEY_CODES.DOWN);
++      pressKey(KEY_CODES.ENTER);
++
++      expect(wrapper.emitted().select).toBeUndefined();
++    });
++
++    it('emits "close" on Escape', () => {
++      mountDropdown();
++
++      pressKey(KEY_CODES.ESCAPE);
++
++      expect(wrapper.emitted().close).toHaveLength(1);
++    });
++
++    it('stops listening to the keyboard once destroyed', () => {
++      mountDropdown();
++      wrapper.destroy();
++
++      pressKey(KEY_CODES.ESCAPE);
++
++      expect(wrapper.emitted().close).toBeUndefined();
++      wrapper = null;
++    });
++  });
++
++  describe('mouse interaction', () => {
++    it('selects the item under the mouse', async () => {
++      mountDropdown();
++
++      await listItems()
++        .at(2)
++        .trigger('mouseover');
++
++      expect(activeItem().text()).toContain('bye');
++    });
++
++    it('emits "select" with the content of the clicked item', async () => {
++      mountDropdown();
++
++      await listItems()
++        .at(1)
++        .trigger('click');
++
++      expect(wrapper.emitted().select).toEqual([
++        ['Your refund has been processed.'],
++      ]);
++    });
++  });
++});
+diff --git a/app/javascript/dashboard/i18n/locale/en/conversation.json b/app/javascript/dashboard/i18n/locale/en/conversation.json
+index 710a5a301f..dcd6e359e7 100644
+--- a/app/javascript/dashboard/i18n/locale/en/conversation.json
++++ b/app/javascript/dashboard/i18n/locale/en/conversation.json
+@@ -42,6 +42,11 @@
+       "CREATE": "Add Note",
+       "TWEET": "Tweet"
+     },
++    "CANNED_RESPONSES": {
++      "LOADING": "Fetching canned responses...",
++      "NO_RESULTS": "No canned responses matching \"{searchKey}\"",
++      "EMPTY": "There are no canned responses yet. You can add them from Settings > Canned Responses."
++    },
+     "VISIBLE_TO_AGENTS": "Private Note: Only visible to you and your team",
+     "CHANGE_STATUS": "Conversation status changed",
+     "CHANGE_AGENT": "Conversation Assignee changed",
+-- 
+2.43.0
+
