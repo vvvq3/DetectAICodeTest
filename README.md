@@ -18,7 +18,7 @@ export GITLAB_TOKEN=glpat-xxxxxxxxxxxxxxxx
 bash run.sh https://gitlab.company.com/group/project/-/merge_requests/123
 ```
 
-- Веб-страница с полем для ссылки: `bash run.sh web`.
+- Веб-страница с полем для ссылки: `bash run.sh web` (откроется http://127.0.0.1:5057). Токен вводится один раз и хранится, пока открыта вкладка. Галочка «только по коду» запоминается. После каждой проверки поле ссылки очищается, а проверенные MR собираются в список на странице.
 - Несколько MR сразу (файл со ссылками, по одной в строке): `bash run.sh batch mrs.txt --html reports/`.
 
 ### Windows (PowerShell)
