@@ -1,0 +1,679 @@
+From 6119bcf487fcb9651dcb160e7c960abbc5fb0ea6 Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Thu, 5 Nov 2026 22:19:05 +0000
+Subject: [PATCH 2/3] feat: add back to top CMS component
+
+Add BackToTopComponent (cx-back-to-top), mapped to the
+BackToTopComponent CMS type. The component renders a floating button
+once the page is scrolled beyond a display threshold, which defaults to
+400px and can be configured globally (backToTop.displayThreshold) or
+per component through the CMS data.
+
+- scroll events are listened to outside the Angular zone and audited,
+  so change detection only runs when the visibility changes
+- the scroll listener is removed when the component is destroyed
+- clicking the button scrolls smoothly to the top (instant when the
+  user prefers reduced motion) and moves the focus to the start of the
+  document, so keyboard users continue from the top of the page
+- the button is a native, labelled button element
+---
+ projects/assets/src/translations/en/common.ts |   3 +
+ .../translations/translation-chunks-config.ts |   1 +
+ .../src/cms-components/cms-lib.module.ts      |   2 +
+ .../back-to-top/back-to-top.component.html    |   9 +
+ .../back-to-top/back-to-top.component.spec.ts | 292 ++++++++++++++++++
+ .../back-to-top/back-to-top.component.ts      | 161 ++++++++++
+ .../back-to-top/back-to-top.model.ts          |  12 +
+ .../back-to-top/back-to-top.module.ts         |  24 ++
+ .../back-to-top/config/back-to-top-config.ts  |  22 ++
+ .../config/default-back-to-top-config.ts      |   7 +
+ .../navigation/back-to-top/index.ts           |   5 +
+ .../src/cms-components/navigation/index.ts    |   1 +
+ 12 files changed, 539 insertions(+)
+ create mode 100644 projects/storefrontlib/src/cms-components/navigation/back-to-top/back-to-top.component.html
+ create mode 100644 projects/storefrontlib/src/cms-components/navigation/back-to-top/back-to-top.component.spec.ts
+ create mode 100644 projects/storefrontlib/src/cms-components/navigation/back-to-top/back-to-top.component.ts
+ create mode 100644 projects/storefrontlib/src/cms-components/navigation/back-to-top/back-to-top.model.ts
+ create mode 100644 projects/storefrontlib/src/cms-components/navigation/back-to-top/back-to-top.module.ts
+ create mode 100644 projects/storefrontlib/src/cms-components/navigation/back-to-top/config/back-to-top-config.ts
+ create mode 100644 projects/storefrontlib/src/cms-components/navigation/back-to-top/config/default-back-to-top-config.ts
+ create mode 100644 projects/storefrontlib/src/cms-components/navigation/back-to-top/index.ts
+
+diff --git a/projects/assets/src/translations/en/common.ts b/projects/assets/src/translations/en/common.ts
+index 5ff9cfc67e..c87e63e05d 100644
+--- a/projects/assets/src/translations/en/common.ts
++++ b/projects/assets/src/translations/en/common.ts
+@@ -131,6 +131,9 @@ export const common = {
+       productList: 'Product List',
+     },
+   },
++  backToTop: {
++    label: 'Back to top',
++  },
+   formErrors: {
+     globalMessage: 'The form you are trying to submit contains errors.',
+     required: 'This field is required',
+diff --git a/projects/assets/src/translations/translation-chunks-config.ts b/projects/assets/src/translations/translation-chunks-config.ts
+index a1e4803528..3c5c982ac5 100644
+--- a/projects/assets/src/translations/translation-chunks-config.ts
++++ b/projects/assets/src/translations/translation-chunks-config.ts
+@@ -14,6 +14,7 @@ export const translationChunksConfig: TranslationChunksConfig = {
+     'miniCart',
+     'miniLogin',
+     'skipLink',
++    'backToTop',
+     'formErrors',
+     'errorHandlers',
+   ],
+diff --git a/projects/storefrontlib/src/cms-components/cms-lib.module.ts b/projects/storefrontlib/src/cms-components/cms-lib.module.ts
+index 337500122f..e4dbbe9254 100644
+--- a/projects/storefrontlib/src/cms-components/cms-lib.module.ts
++++ b/projects/storefrontlib/src/cms-components/cms-lib.module.ts
+@@ -35,6 +35,7 @@ import {
+   UpdateProfileModule,
+ } from './myaccount/index';
+ import {
++  BackToTopModule,
+   BreadcrumbModule,
+   CategoryNavigationModule,
+   FooterNavigationModule,
+@@ -72,6 +73,7 @@ import { WishListModule } from './wish-list/wish-list.module';
+     NavigationModule,
+     FooterNavigationModule,
+     BreadcrumbModule,
++    BackToTopModule,
+     SearchBoxModule,
+     SiteContextSelectorModule,
+     QualtricsModule,
+diff --git a/projects/storefrontlib/src/cms-components/navigation/back-to-top/back-to-top.component.html b/projects/storefrontlib/src/cms-components/navigation/back-to-top/back-to-top.component.html
+new file mode 100644
+index 0000000000..fd2bb34cc4
+--- /dev/null
++++ b/projects/storefrontlib/src/cms-components/navigation/back-to-top/back-to-top.component.html
+@@ -0,0 +1,9 @@
++<button
++  *ngIf="isVisible"
++  type="button"
++  [attr.aria-label]="'backToTop.label' | cxTranslate"
++  [attr.title]="'backToTop.label' | cxTranslate"
++  (click)="scrollToTop()"
++>
++  <cx-icon [type]="iconType.CARET_UP"></cx-icon>
++</button>
+diff --git a/projects/storefrontlib/src/cms-components/navigation/back-to-top/back-to-top.component.spec.ts b/projects/storefrontlib/src/cms-components/navigation/back-to-top/back-to-top.component.spec.ts
+new file mode 100644
+index 0000000000..2bb33d965f
+--- /dev/null
++++ b/projects/storefrontlib/src/cms-components/navigation/back-to-top/back-to-top.component.spec.ts
+@@ -0,0 +1,292 @@
++import { Component, Input } from '@angular/core';
++import {
++  ComponentFixture,
++  fakeAsync,
++  TestBed,
++  tick,
++  waitForAsync,
++} from '@angular/core/testing';
++import { I18nTestingModule, WindowRef } from '@spartacus/core';
++import { BehaviorSubject } from 'rxjs';
++import { CmsComponentData } from '../../../cms-structure/page/model/cms-component-data';
++import { BackToTopComponent } from './back-to-top.component';
++import { CmsBackToTopComponent } from './back-to-top.model';
++import { BackToTopConfig } from './config/back-to-top-config';
++
++const SCROLL_AUDIT_TIME = 100;
++
++@Component({
++  selector: 'cx-icon',
++  template: '',
++})
++class MockIconComponent {
++  @Input() type: string;
++}
++
++/**
++ * Minimal window replacement, which allows to control the scroll position
++ * and dispatch scroll events without scrolling the test runner page.
++ */
++class MockWindow {
++  pageYOffset = 0;
++  scrollTo = jasmine.createSpy('scrollTo');
++  matchMedia = jasmine
++    .createSpy('matchMedia')
++    .and.returnValue({ matches: false });
++
++  protected eventTarget = document.createElement('div');
++
++  addEventListener(type: string, listener: any, options?: any): void {
++    this.eventTarget.addEventListener(type, listener, options);
++  }
++
++  removeEventListener(type: string, listener: any, options?: any): void {
++    this.eventTarget.removeEventListener(type, listener, options);
++  }
++
++  scroll(position: number): void {
++    this.pageYOffset = position;
++    this.eventTarget.dispatchEvent(new Event('scroll'));
++  }
++}
++
++describe('BackToTopComponent', () => {
++  let component: BackToTopComponent;
++  let fixture: ComponentFixture<BackToTopComponent>;
++  let mockWindow: MockWindow;
++  let componentData$: BehaviorSubject<CmsBackToTopComponent>;
++  let winRef: { nativeWindow: any; document: Document };
++
++  beforeEach(
++    waitForAsync(() => {
++      mockWindow = new MockWindow();
++      componentData$ = new BehaviorSubject<CmsBackToTopComponent>({});
++      winRef = { nativeWindow: mockWindow, document };
++
++      TestBed.configureTestingModule({
++        imports: [I18nTestingModule],
++        declarations: [BackToTopComponent, MockIconComponent],
++        providers: [
++          { provide: WindowRef, useValue: winRef },
++          {
++            provide: CmsComponentData,
++            useValue: { data$: componentData$.asObservable() },
++          },
++          {
++            provide: BackToTopConfig,
++            useValue: { backToTop: { displayThreshold: 400 } },
++          },
++        ],
++      }).compileComponents();
++    })
++  );
++
++  function createComponent(): void {
++    fixture = TestBed.createComponent(BackToTopComponent);
++    component = fixture.componentInstance;
++    fixture.detectChanges();
++  }
++
++  function scrollTo(position: number): void {
++    mockWindow.scroll(position);
++    tick(SCROLL_AUDIT_TIME);
++    fixture.detectChanges();
++  }
++
++  function getButton(): HTMLButtonElement {
++    return fixture.nativeElement.querySelector('button');
++  }
++
++  it('should create', () => {
++    createComponent();
++    expect(component).toBeTruthy();
++  });
++
++  describe('visibility', () => {
++    it('should not render the button at the top of the page', () => {
++      createComponent();
++      expect(component.isVisible).toBe(false);
++      expect(getButton()).toBeNull();
++    });
++
++    it('should render the button when scrolled beyond the default threshold', fakeAsync(() => {
++      createComponent();
++
++      scrollTo(400);
++      expect(getButton()).toBeNull();
++
++      scrollTo(401);
++      expect(component.isVisible).toBe(true);
++      expect(getButton()).toBeTruthy();
++    }));
++
++    it('should remove the button when scrolled back above the threshold', fakeAsync(() => {
++      createComponent();
++
++      scrollTo(800);
++      expect(getButton()).toBeTruthy();
++
++      scrollTo(100);
++      expect(component.isVisible).toBe(false);
++      expect(getButton()).toBeNull();
++    }));
++
++    it('should render the button when the page is initially scrolled', () => {
++      mockWindow.pageYOffset = 1000;
++      createComponent();
++      expect(getButton()).toBeTruthy();
++    });
++
++    it('should only evaluate the scroll position once per audit time', fakeAsync(() => {
++      createComponent();
++
++      mockWindow.scroll(500);
++      mockWindow.scroll(1000);
++      fixture.detectChanges();
++      expect(getButton()).toBeNull();
++
++      tick(SCROLL_AUDIT_TIME);
++      fixture.detectChanges();
++      expect(getButton()).toBeTruthy();
++    }));
++
++    it('should not render anything when there is no window (SSR)', () => {
++      winRef.nativeWindow = undefined;
++      createComponent();
++
++      expect(component.isVisible).toBe(false);
++      expect(getButton()).toBeNull();
++      expect(() => component.scrollToTop()).not.toThrow();
++    });
++  });
++
++  describe('threshold', () => {
++    it('should use the threshold from the CMS component data', fakeAsync(() => {
++      componentData$.next({ displayThreshold: 100 });
++      createComponent();
++
++      scrollTo(150);
++      expect(getButton()).toBeTruthy();
++    }));
++
++    it('should accept a threshold string from the CMS component data', fakeAsync(() => {
++      componentData$.next({ displayThreshold: '1000' });
++      createComponent();
++
++      scrollTo(500);
++      expect(getButton()).toBeNull();
++
++      scrollTo(1001);
++      expect(getButton()).toBeTruthy();
++    }));
++
++    it('should fall back to the configured threshold for an invalid CMS value', fakeAsync(() => {
++      componentData$.next({ displayThreshold: 'invalid' });
++      createComponent();
++
++      scrollTo(300);
++      expect(getButton()).toBeNull();
++
++      scrollTo(500);
++      expect(getButton()).toBeTruthy();
++    }));
++
++    it('should re-evaluate the visibility when the CMS data changes', fakeAsync(() => {
++      createComponent();
++
++      scrollTo(300);
++      expect(getButton()).toBeNull();
++
++      componentData$.next({ displayThreshold: 200 });
++      fixture.detectChanges();
++      expect(getButton()).toBeTruthy();
++    }));
++  });
++
++  describe('scrollToTop', () => {
++    it('should smoothly scroll to the top of the page on click', fakeAsync(() => {
++      createComponent();
++      scrollTo(1000);
++
++      getButton().click();
++
++      expect(mockWindow.scrollTo).toHaveBeenCalledWith({
++        top: 0,
++        behavior: 'smooth',
++      });
++    }));
++
++    it('should not animate the scroll when the user prefers reduced motion', fakeAsync(() => {
++      mockWindow.matchMedia.and.returnValue({ matches: true });
++      createComponent();
++      scrollTo(1000);
++
++      getButton().click();
++
++      expect(mockWindow.matchMedia).toHaveBeenCalledWith(
++        '(prefers-reduced-motion: reduce)'
++      );
++      expect(mockWindow.scrollTo).toHaveBeenCalledWith({
++        top: 0,
++        behavior: 'auto',
++      });
++    }));
++
++    it('should move the focus to the start of the document', fakeAsync(() => {
++      createComponent();
++      scrollTo(1000);
++
++      const button = getButton();
++      button.focus();
++      expect(document.activeElement).toBe(button);
++
++      button.click();
++
++      expect(document.activeElement).toBe(document.body);
++      expect(document.body.hasAttribute('tabindex')).toBe(false);
++    }));
++  });
++
++  describe('accessibility', () => {
++    it('should render a native button, so that it is keyboard accessible', fakeAsync(() => {
++      createComponent();
++      scrollTo(1000);
++
++      const button = getButton();
++      expect(button.tagName).toEqual('BUTTON');
++      expect(button.getAttribute('type')).toEqual('button');
++    }));
++
++    it('should provide an accessible label', fakeAsync(() => {
++      createComponent();
++      scrollTo(1000);
++
++      expect(getButton().getAttribute('aria-label')).toEqual('backToTop.label');
++    }));
++  });
++
++  describe('ngOnDestroy', () => {
++    it('should remove the scroll listener', fakeAsync(() => {
++      spyOn(mockWindow, 'removeEventListener').and.callThrough();
++      createComponent();
++
++      fixture.destroy();
++
++      expect(mockWindow.removeEventListener).toHaveBeenCalledWith(
++        'scroll',
++        jasmine.any(Function),
++        jasmine.objectContaining({ passive: true })
++      );
++    }));
++
++    it('should no longer react to scroll events', fakeAsync(() => {
++      createComponent();
++      fixture.destroy();
++
++      mockWindow.scroll(1000);
++      tick(SCROLL_AUDIT_TIME);
++
++      expect(component.isVisible).toBe(false);
++    }));
++  });
++});
+diff --git a/projects/storefrontlib/src/cms-components/navigation/back-to-top/back-to-top.component.ts b/projects/storefrontlib/src/cms-components/navigation/back-to-top/back-to-top.component.ts
+new file mode 100644
+index 0000000000..7b93cefe8c
+--- /dev/null
++++ b/projects/storefrontlib/src/cms-components/navigation/back-to-top/back-to-top.component.ts
+@@ -0,0 +1,161 @@
++import {
++  ChangeDetectionStrategy,
++  ChangeDetectorRef,
++  Component,
++  NgZone,
++  OnDestroy,
++  OnInit,
++} from '@angular/core';
++import { WindowRef } from '@spartacus/core';
++import { combineLatest, fromEvent, Observable, Subscription } from 'rxjs';
++import {
++  auditTime,
++  distinctUntilChanged,
++  map,
++  startWith,
++} from 'rxjs/operators';
++import { CmsComponentData } from '../../../cms-structure/page/model/cms-component-data';
++import { ICON_TYPE } from '../../misc/icon/icon.model';
++import { CmsBackToTopComponent } from './back-to-top.model';
++import { BackToTopConfig } from './config/back-to-top-config';
++import { defaultBackToTopConfig } from './config/default-back-to-top-config';
++
++/**
++ * Time (in ms) used to throttle the evaluation of scroll events.
++ */
++const SCROLL_AUDIT_TIME = 100;
++
++/**
++ * Renders a floating button that brings the user back to the top of the page.
++ *
++ * The button is only rendered once the page is scrolled beyond the display
++ * threshold, which is taken from the CMS component data, or the global
++ * `backToTop.displayThreshold` configuration otherwise.
++ */
++@Component({
++  selector: 'cx-back-to-top',
++  templateUrl: './back-to-top.component.html',
++  changeDetection: ChangeDetectionStrategy.OnPush,
++})
++export class BackToTopComponent implements OnInit, OnDestroy {
++  iconType = ICON_TYPE;
++
++  /**
++   * Indicates whether the page is scrolled beyond the display threshold.
++   */
++  isVisible = false;
++
++  protected subscription = new Subscription();
++
++  constructor(
++    protected componentData: CmsComponentData<CmsBackToTopComponent>,
++    protected config: BackToTopConfig,
++    protected winRef: WindowRef,
++    protected ngZone: NgZone,
++    protected cd: ChangeDetectorRef
++  ) {}
++
++  ngOnInit(): void {
++    const win = this.winRef.nativeWindow;
++    if (!win) {
++      // there's nothing to scroll during server side rendering
++      return;
++    }
++
++    // Scroll events fire at a high rate, so we listen to them outside of the
++    // Angular zone and only re-enter the zone when the visibility changes.
++    this.ngZone.runOutsideAngular(() => {
++      this.subscription.add(
++        combineLatest([this.getThreshold(), this.getScrollPosition(win)])
++          .pipe(
++            map(([threshold, position]) => position > threshold),
++            distinctUntilChanged()
++          )
++          .subscribe((visible) =>
++            this.ngZone.run(() => {
++              this.isVisible = visible;
++              this.cd.markForCheck();
++            })
++          )
++      );
++    });
++  }
++
++  /**
++   * Scrolls (smoothly) to the top of the page and moves the focus to the
++   * start of the document, so that keyboard users continue from the top
++   * rather than from the button, which disappears once the top is reached.
++   */
++  scrollToTop(): void {
++    const win = this.winRef.nativeWindow;
++    if (!win) {
++      return;
++    }
++    win.scrollTo({ top: 0, behavior: this.getScrollBehavior(win) });
++    this.focusDocumentStart();
++  }
++
++  ngOnDestroy(): void {
++    this.subscription.unsubscribe();
++  }
++
++  protected getThreshold(): Observable<number> {
++    return this.componentData.data$.pipe(
++      map((data) => this.resolveThreshold(data?.displayThreshold)),
++      distinctUntilChanged()
++    );
++  }
++
++  protected getScrollPosition(win: Window): Observable<number> {
++    return fromEvent(win, 'scroll', { passive: true }).pipe(
++      auditTime(SCROLL_AUDIT_TIME),
++      map(() => win.pageYOffset),
++      // emit the initial position, as the page might be scrolled already
++      startWith(win.pageYOffset)
++    );
++  }
++
++  /**
++   * Resolves the threshold from the CMS data. Falls back to the configured
++   * threshold when the CMS value is missing or invalid.
++   */
++  protected resolveThreshold(cmsThreshold?: number | string): number {
++    const threshold = parseFloat(String(cmsThreshold));
++    if (threshold >= 0) {
++      return threshold;
++    }
++    return (
++      this.config.backToTop?.displayThreshold ??
++      defaultBackToTopConfig.backToTop.displayThreshold
++    );
++  }
++
++  /**
++   * Returns a smooth scroll behavior, unless the user has asked the system
++   * to minimize non-essential motion.
++   */
++  protected getScrollBehavior(win: Window): ScrollBehavior {
++    const reducedMotion = win.matchMedia?.('(prefers-reduced-motion: reduce)');
++    return reducedMotion?.matches ? 'auto' : 'smooth';
++  }
++
++  /**
++   * Moves the focus to the document body, so that the next tab stop is the
++   * first focusable element of the page.
++   */
++  protected focusDocumentStart(): void {
++    const body = this.winRef.document.body;
++    if (!body) {
++      return;
++    }
++    // the body is only focusable with a tabindex, which we add temporarily
++    const hasTabindex = body.hasAttribute('tabindex');
++    if (!hasTabindex) {
++      body.setAttribute('tabindex', '-1');
++    }
++    body.focus({ preventScroll: true });
++    if (!hasTabindex) {
++      body.removeAttribute('tabindex');
++    }
++  }
++}
+diff --git a/projects/storefrontlib/src/cms-components/navigation/back-to-top/back-to-top.model.ts b/projects/storefrontlib/src/cms-components/navigation/back-to-top/back-to-top.model.ts
+new file mode 100644
+index 0000000000..0ffc1360dd
+--- /dev/null
++++ b/projects/storefrontlib/src/cms-components/navigation/back-to-top/back-to-top.model.ts
+@@ -0,0 +1,12 @@
++import { CmsComponent } from '@spartacus/core';
++
++export interface CmsBackToTopComponent extends CmsComponent {
++  /**
++   * The vertical scroll distance (in pixels) after which the button is shown.
++   * Overrides the global `backToTop.displayThreshold` configuration.
++   *
++   * CMS attributes are not always delivered as numbers, which is why a
++   * string representation is accepted as well.
++   */
++  displayThreshold?: number | string;
++}
+diff --git a/projects/storefrontlib/src/cms-components/navigation/back-to-top/back-to-top.module.ts b/projects/storefrontlib/src/cms-components/navigation/back-to-top/back-to-top.module.ts
+new file mode 100644
+index 0000000000..ac69429228
+--- /dev/null
++++ b/projects/storefrontlib/src/cms-components/navigation/back-to-top/back-to-top.module.ts
+@@ -0,0 +1,24 @@
++import { CommonModule } from '@angular/common';
++import { NgModule } from '@angular/core';
++import { CmsConfig, I18nModule, provideDefaultConfig } from '@spartacus/core';
++import { IconModule } from '../../misc/icon/icon.module';
++import { BackToTopComponent } from './back-to-top.component';
++import { defaultBackToTopConfig } from './config/default-back-to-top-config';
++
++@NgModule({
++  imports: [CommonModule, I18nModule, IconModule],
++  providers: [
++    provideDefaultConfig(<CmsConfig>{
++      cmsComponents: {
++        BackToTopComponent: {
++          component: BackToTopComponent,
++        },
++      },
++    }),
++    provideDefaultConfig(defaultBackToTopConfig),
++  ],
++  declarations: [BackToTopComponent],
++  exports: [BackToTopComponent],
++  entryComponents: [BackToTopComponent],
++})
++export class BackToTopModule {}
+diff --git a/projects/storefrontlib/src/cms-components/navigation/back-to-top/config/back-to-top-config.ts b/projects/storefrontlib/src/cms-components/navigation/back-to-top/config/back-to-top-config.ts
+new file mode 100644
+index 0000000000..73306b5a83
+--- /dev/null
++++ b/projects/storefrontlib/src/cms-components/navigation/back-to-top/config/back-to-top-config.ts
+@@ -0,0 +1,22 @@
++import { Injectable } from '@angular/core';
++import { Config } from '@spartacus/core';
++
++/**
++ * Configuration options for the back to top component.
++ */
++@Injectable({
++  providedIn: 'root',
++  useExisting: Config,
++})
++export abstract class BackToTopConfig {
++  backToTop?: {
++    /**
++     * The vertical scroll distance (in pixels) after which the back to top
++     * button is shown. The value can be overridden for a single component
++     * by the `displayThreshold` property of the CMS component data.
++     *
++     * Defaults to 400.
++     */
++    displayThreshold?: number;
++  };
++}
+diff --git a/projects/storefrontlib/src/cms-components/navigation/back-to-top/config/default-back-to-top-config.ts b/projects/storefrontlib/src/cms-components/navigation/back-to-top/config/default-back-to-top-config.ts
+new file mode 100644
+index 0000000000..92d0c25518
+--- /dev/null
++++ b/projects/storefrontlib/src/cms-components/navigation/back-to-top/config/default-back-to-top-config.ts
+@@ -0,0 +1,7 @@
++import { BackToTopConfig } from './back-to-top-config';
++
++export const defaultBackToTopConfig: BackToTopConfig = {
++  backToTop: {
++    displayThreshold: 400,
++  },
++};
+diff --git a/projects/storefrontlib/src/cms-components/navigation/back-to-top/index.ts b/projects/storefrontlib/src/cms-components/navigation/back-to-top/index.ts
+new file mode 100644
+index 0000000000..fd2b952d6e
+--- /dev/null
++++ b/projects/storefrontlib/src/cms-components/navigation/back-to-top/index.ts
+@@ -0,0 +1,5 @@
++export * from './back-to-top.component';
++export * from './back-to-top.model';
++export * from './back-to-top.module';
++export * from './config/back-to-top-config';
++export * from './config/default-back-to-top-config';
+diff --git a/projects/storefrontlib/src/cms-components/navigation/index.ts b/projects/storefrontlib/src/cms-components/navigation/index.ts
+index 49cc632d1c..6a046651b0 100644
+--- a/projects/storefrontlib/src/cms-components/navigation/index.ts
++++ b/projects/storefrontlib/src/cms-components/navigation/index.ts
+@@ -1,3 +1,4 @@
++export * from './back-to-top/index';
+ export * from './breadcrumb/breadcrumb.component';
+ export * from './breadcrumb/breadcrumb.module';
+ export * from './category-navigation/category-navigation.component';
+-- 
+2.43.0
+

@@ -5,9 +5,12 @@ fe-directus-char-counter	ai-default	directus/directus	14ac17f8ce69487639b14e8a00
 fe-dspace-copy-handle	ai-default	DSpace/dspace-angular	e867badcb5a126365fe8ed8583029c1c1e440809	Copy to clipboard buttons for URI and DOI	opus
 fe-excalidraw-recent-colors	ai-default	excalidraw/excalidraw	aef3644c93eea3434357dfed4eaf16cdeb4a81c7	Show recent colors in the color picker	opus
 fe-hoppscotch-history-search	ai-default	hoppscotch/hoppscotch	603a888e2ef7bda5ef69c429b6c20fd5e8f1fa1a	Add searchable history with method/status filters	sonnet
+fe-mattermost-mute-channel	ai-default	mattermost/mattermost-webapp	7d7ebc77f483d0a79ae663c2d879f65f97153beb	Add Mute Channel For submenu to the channel header menu	opus
+fe-misskey-reading-time	ai-default	misskey-dev/misskey	393ac6c203dd884b6fe0a9076c672b27d8147c67	Show estimated reading time on long notes	opus
 fe-posthog-csv-export	ai-default	PostHog/posthog	51b291602e718e1bf213438f33a4cb7248761851	Export trends insight to CSV	opus
 fe-reactadmin-copy-button	ai-default	marmelab/react-admin	58c2d77e0e3589c815966d303ca6fdb7e74cc4f4	Add CopyToClipboardButton component	opus
 fe-redash-duplicate-dashboard	ai-default	getredash/redash	dcdff66e6260517e954785bb34da47e565402f1a	Add Duplicate action to dashboard page	opus
+fe-spartacus-back-to-top	ai-default	SAP/spartacus	c6d9076037c8275af30b0a8fe2e8e2cfb170f08c	feat: add back to top CMS component	opus
 fe-vkui-rating	ai-default	VKCOM/VKUI	bfccc2015100836574aabe3cc55b42c3bb88c5a6	Rating: add star rating component	opus
 fe-gauzy-birthdays-masked	ai-masked	ever-co/ever-gauzy	a821fa463067c42899691bbfd93b91125a0ed92e	feat: upcoming birthdays widget on dashboard	opus
 fe-jitsi-ru-masked	ai-masked	jitsi/jitsi-meet	76b4899c3966b1c8c972e029169735ae9330edbb	таймер встречи: можно скрыть в настройках	opus

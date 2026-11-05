@@ -9,7 +9,7 @@ public static class Evaluation
     public static async Task<int> RunEvalAsync(CliOptions o)
     {
         var root = o.Target ?? "corpus";
-        var items = await CorpusEvaluator.LoadCorpusAsync(root);
+        var items = (await CorpusEvaluator.LoadCorpusAsync(root)).Where(i => !o.Exclude.Contains(i.Category)).ToList();
         if (items.Count == 0)
         {
             Console.Error.WriteLine($"В {root} нет размеченных MR (ожидаются подкаталоги human*/ и ai*/ с *.json).");
@@ -30,10 +30,18 @@ public static class Evaluation
 
         Console.WriteLine();
         PrintMetrics("Весь корпус", scored.Select(s => (s.Item.Label, s.Probability)).ToList());
+        var humanCats = scored.Where(s => s.Item.Label == 0).Select(s => s.Item.Category).Distinct().ToList();
         foreach (var cat in scored.Select(s => s.Item.Category).Distinct().Where(c => c.StartsWith("ai", StringComparison.OrdinalIgnoreCase)))
         {
             var subset = scored.Where(s => s.Item.Category == cat || s.Item.Label == 0).Select(s => (s.Item.Label, s.Probability)).ToList();
             PrintMetrics($"{cat} против human", subset);
+            if (humanCats.Count > 1)
+            {
+                foreach (var hc in humanCats)
+                {
+                    PrintMetrics($"  {cat} против {hc}", scored.Where(s => s.Item.Category == cat || s.Item.Category == hc).Select(s => (s.Item.Label, s.Probability)).ToList());
+                }
+            }
         }
 
         if (o.Verbose)
@@ -52,7 +60,7 @@ public static class Evaluation
     public static async Task<int> RunCalibrateAsync(CliOptions o)
     {
         var root = o.Target ?? "corpus";
-        var items = await CorpusEvaluator.LoadCorpusAsync(root);
+        var items = (await CorpusEvaluator.LoadCorpusAsync(root)).Where(i => !o.Exclude.Contains(i.Category)).ToList();
         if (items.Count < 6)
         {
             Console.Error.WriteLine("Для калибровки нужно хотя бы 6 размеченных MR (лучше 30+).");

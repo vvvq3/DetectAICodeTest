@@ -39,7 +39,9 @@ def ensure_clone(repos_dir, slug, timeout):
 
 def code_added(repo, base, head, ext, gen):
     added = deleted = files = 0
-    for line in git(repo, "diff", "--numstat", "-M", base, head).splitlines():
+    # Только файлы кода нужного языка и без поиска переименований: иначе git докачивает большие файлы (lock, бандлы) по сети.
+    pathspec = ["*" + e for e in ext]
+    for line in git(repo, "diff", "--numstat", "--no-renames", base, head, "--", *pathspec).splitlines():
         parts = line.split("\t")
         if len(parts) < 3 or not parts[0].isdigit():
             continue
@@ -112,7 +114,7 @@ def main():
             else:
                 continue
             if subdir:
-                changed = git(repo, "diff", "--name-only", mb, head)
+                changed = git(repo, "diff", "--name-only", "--no-renames", mb, head)
                 if not any(p.startswith(subdir) for p in changed.splitlines()):
                     continue
             a, d, nfiles = code_added(repo, mb, head, cfg["ext"], gen)

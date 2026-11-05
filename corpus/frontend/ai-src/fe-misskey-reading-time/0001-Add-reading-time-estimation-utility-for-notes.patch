@@ -1,0 +1,299 @@
+From a3d606720637226e393ae67fb36d49dbd891549a Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Thu, 5 Nov 2026 22:17:30 +0000
+Subject: [PATCH 1/2] Add reading time estimation utility for notes
+
+Extracts plain text from a note's MFM (dropping URLs, emojis and
+markup) and estimates how long it takes to read it. CJK text
+(kanji, kana, hangul) is counted per character at 500 chars/min and
+everything else per word at 200 words/min. getReadingTime returns
+null for notes whose plain text is 500 characters or shorter.
+---
+ src/client/scripts/reading-time.ts | 118 +++++++++++++++++++++++
+ test/reading-time.ts               | 149 +++++++++++++++++++++++++++++
+ 2 files changed, 267 insertions(+)
+ create mode 100644 src/client/scripts/reading-time.ts
+ create mode 100644 test/reading-time.ts
+
+diff --git a/src/client/scripts/reading-time.ts b/src/client/scripts/reading-time.ts
+new file mode 100644
+index 0000000000..767676c3f8
+--- /dev/null
++++ b/src/client/scripts/reading-time.ts
+@@ -0,0 +1,118 @@
++// test is located in test/reading-time.ts
++
++import { MfmForest, MfmTree } from '../../mfm/prelude';
++import { parse } from '../../mfm/parse';
++
++/**
++ * この文字数(プレーンテキスト換算)を超えるノートにのみ読了時間を表示する
++ */
++export const READING_TIME_THRESHOLD = 500;
++
++/**
++ * 分かち書きされる言語(英語など)の1分あたりの読書速度(単語)
++ */
++export const WORDS_PER_MINUTE = 200;
++
++/**
++ * CJK(漢字・かな・ハングル)の1分あたりの読書速度(文字)
++ */
++export const CJK_CHARS_PER_MINUTE = 500;
++
++/**
++ * 単語ではなく1文字ずつ数える文字
++ * - Hangul Jamo (U+1100-11FF)
++ * - 々〆〇 (U+3005-3007)
++ * - Hiragana, Katakana (U+3040-30FF)
++ * - Bopomofo, Hangul Compatibility Jamo (U+3100-318F)
++ * - Katakana Phonetic Extensions (U+31F0-31FF)
++ * - CJK Unified Ideographs Extension A, CJK Unified Ideographs (U+3400-4DBF, U+4E00-9FFF)
++ * - Hangul Syllables (U+AC00-D7AF)
++ * - CJK Compatibility Ideographs (U+F900-FAFF)
++ * - Halfwidth Katakana (U+FF66-FF9F)
++ * - CJK Unified Ideographs Extension B-F, CJK Compatibility Ideographs Supplement (U+20000-2FA1F)
++ */
++const CJK_REGEX = /[ᄀ-ᇿ々-〇぀-ヿ㄀-㆏ㇰ-ㇿ㐀-䶿一-鿿가-힯豈-﫿ｦ-ﾟ\u{20000}-\u{2fa1f}]/gu;
++
++/**
++ * 句読点・記号・絵文字のみからなるトークンは単語として数えない
++ */
++const SYMBOLS_ONLY_REGEX = /^[\x21-\x2f\x3a-\x40\x5b-\x60\x7b-\x7e¡-¿×÷ -⯿　-〿︀-️︰-﹏！-／：-＠［-｀｛-･\u{1f000}-\u{1faff}]+$/u;
++
++function treeToPlainText(tree: MfmTree): string {
++	const { type, props } = tree.node;
++
++	switch (type) {
++		case 'text': return props.text;
++		case 'mention': return props.acct;
++		case 'hashtag': return `#${props.hashtag}`;
++		case 'inlineCode': return props.code;
++		case 'mathInline': return props.formula;
++
++		// ブロック要素は行として区切る
++		case 'blockCode': return `${props.code}\n`;
++		case 'mathBlock': return `${props.formula}\n`;
++		case 'search': return `${props.query}\n`;
++		case 'quote':
++		case 'center': return `${forestToPlainText(tree.children)}\n`;
++
++		// URLや絵文字は「読む」ものではないので除外する
++		case 'url':
++		case 'emoji': return '';
++
++		// bold, small, italic, strike, fn, link など
++		default: return forestToPlainText(tree.children);
++	}
++}
++
++function forestToPlainText(forest: MfmForest): string {
++	return forest.map(treeToPlainText).join('');
++}
++
++/**
++ * MFMの構文木から、装飾・URL・絵文字を取り除いたプレーンテキストを得ます
++ */
++export function toPlainText(forest: MfmForest | null): string {
++	if (forest == null) return '';
++	return forestToPlainText(forest).trim();
++}
++
++/**
++ * テキストに含まれるCJKの文字数と、それ以外の単語数を数えます
++ */
++export function countReadingUnits(text: string): { cjkChars: number; words: number; } {
++	const cjkChars = (text.match(CJK_REGEX) || []).length;
++
++	const words = text
++		.replace(CJK_REGEX, ' ')
++		.split(/\s+/)
++		.filter(token => token !== '' && !SYMBOLS_ONLY_REGEX.test(token))
++		.length;
++
++	return { cjkChars, words };
++}
++
++/**
++ * プレーンテキストを読むのに掛かる時間を分単位(切り上げ)で推定します
++ * 読むものが何もなければ0、そうでなければ最低でも1を返します
++ */
++export function estimateReadingMinutes(text: string): number {
++	const { cjkChars, words } = countReadingUnits(text);
++	if (cjkChars === 0 && words === 0) return 0;
++
++	const minutes = (cjkChars / CJK_CHARS_PER_MINUTE) + (words / WORDS_PER_MINUTE);
++	return Math.max(1, Math.ceil(minutes));
++}
++
++/**
++ * ノート本文(MFM)の読了時間を分単位で推定します
++ * 本文が短い(READING_TIME_THRESHOLD文字以下の)場合は null を返します
++ */
++export function getReadingTime(text: string | null | undefined): number | null {
++	// プレーンテキストが元の本文より長くなることはないので、短い本文はパースせずに弾く
++	if (text == null || text.length <= READING_TIME_THRESHOLD) return null;
++
++	const plainText = toPlainText(parse(text));
++	if (Array.from(plainText).length <= READING_TIME_THRESHOLD) return null;
++
++	return estimateReadingMinutes(plainText);
++}
+diff --git a/test/reading-time.ts b/test/reading-time.ts
+new file mode 100644
+index 0000000000..a648d8ec40
+--- /dev/null
++++ b/test/reading-time.ts
+@@ -0,0 +1,149 @@
++/*
++ * Tests of reading time estimation
++ *
++ * How to run the tests:
++ * > npx cross-env TS_NODE_FILES=true TS_NODE_TRANSPILE_ONLY=true npx mocha test/reading-time.ts --require ts-node/register
++ *
++ * To specify test:
++ * > npx cross-env TS_NODE_FILES=true TS_NODE_TRANSPILE_ONLY=true npx mocha test/reading-time.ts --require ts-node/register -g 'test name'
++ */
++
++import * as assert from 'assert';
++
++import { parse } from '../src/mfm/parse';
++import { toPlainText, countReadingUnits, estimateReadingMinutes, getReadingTime } from '../src/client/scripts/reading-time';
++
++function words(n: number): string {
++	return Array(n).fill('word').join(' ');
++}
++
++describe('Reading time', () => {
++	describe('toPlainText', () => {
++		it('null', () => {
++			assert.strictEqual(toPlainText(null), '');
++		});
++
++		it('strips decorations', () => {
++			assert.strictEqual(toPlainText(parse('Hello **world** and <small>small</small> ~~text~~')), 'Hello world and small text');
++		});
++
++		it('strips urls and emojis', () => {
++			assert.strictEqual(toPlainText(parse('Hello :misskey: 🍮 https://example.com')), 'Hello');
++		});
++
++		it('keeps only the label of links', () => {
++			assert.strictEqual(toPlainText(parse('[Misskey](https://misskey.io) is fun')), 'Misskey is fun');
++		});
++
++		it('keeps mentions and hashtags', () => {
++			assert.strictEqual(toPlainText(parse('@alice #misskey')), '@alice #misskey');
++		});
++
++		it('keeps code', () => {
++			assert.strictEqual(toPlainText(parse('Run `yarn build` first')), 'Run yarn build first');
++		});
++
++		it('separates blocks with newlines', () => {
++			assert.strictEqual(toPlainText(parse('> quoted\nafter')), 'quoted\nafter');
++		});
++	});
++
++	describe('countReadingUnits', () => {
++		it('empty', () => {
++			assert.deepStrictEqual(countReadingUnits(''), { cjkChars: 0, words: 0 });
++		});
++
++		it('counts words separated by whitespace', () => {
++			assert.deepStrictEqual(countReadingUnits('The quick  brown\nfox\tjumps'), { cjkChars: 0, words: 5 });
++		});
++
++		it('does not count punctuation-only tokens as words', () => {
++			assert.deepStrictEqual(countReadingUnits('Hello , world ! — ...'), { cjkChars: 0, words: 2 });
++		});
++
++		it('counts non-latin words', () => {
++			assert.deepStrictEqual(countReadingUnits('Привет мир'), { cjkChars: 0, words: 2 });
++		});
++
++		it('counts japanese by characters', () => {
++			assert.deepStrictEqual(countReadingUnits('吾輩は猫である。名前はまだ無い。'), { cjkChars: 14, words: 0 });
++		});
++
++		it('counts chinese by characters', () => {
++			assert.deepStrictEqual(countReadingUnits('你好，世界'), { cjkChars: 4, words: 0 });
++		});
++
++		it('counts korean by characters', () => {
++			assert.deepStrictEqual(countReadingUnits('안녕하세요 세계'), { cjkChars: 7, words: 0 });
++		});
++
++		it('counts surrogate pair ideographs as one character', () => {
++			assert.deepStrictEqual(countReadingUnits('𠮷野家'), { cjkChars: 3, words: 0 });
++		});
++
++		it('mixed', () => {
++			assert.deepStrictEqual(countReadingUnits('今日はMisskeyのbuildを試した'), { cjkChars: 8, words: 2 });
++		});
++	});
++
++	describe('estimateReadingMinutes', () => {
++		it('nothing to read', () => {
++			assert.strictEqual(estimateReadingMinutes(''), 0);
++			assert.strictEqual(estimateReadingMinutes('... !!'), 0);
++		});
++
++		it('at least 1 minute', () => {
++			assert.strictEqual(estimateReadingMinutes('word'), 1);
++		});
++
++		it('words', () => {
++			assert.strictEqual(estimateReadingMinutes(words(400)), 2);
++			assert.strictEqual(estimateReadingMinutes(words(401)), 3);
++		});
++
++		it('cjk characters', () => {
++			assert.strictEqual(estimateReadingMinutes('あ'.repeat(1000)), 2);
++			assert.strictEqual(estimateReadingMinutes('あ'.repeat(1001)), 3);
++		});
++
++		it('mixed', () => {
++			// 250 / 500 + 100 / 200 = 1
++			assert.strictEqual(estimateReadingMinutes(`${'あ'.repeat(250)} ${words(100)}`), 1);
++			assert.strictEqual(estimateReadingMinutes(`${'あ'.repeat(251)} ${words(100)}`), 2);
++		});
++	});
++
++	describe('getReadingTime', () => {
++		it('no text', () => {
++			assert.strictEqual(getReadingTime(null), null);
++			assert.strictEqual(getReadingTime(undefined), null);
++			assert.strictEqual(getReadingTime(''), null);
++		});
++
++		it('short note', () => {
++			assert.strictEqual(getReadingTime('Hello, world!'), null);
++		});
++
++		it('threshold', () => {
++			assert.strictEqual(getReadingTime('a'.repeat(500)), null);
++			assert.strictEqual(getReadingTime('a'.repeat(501)), 1);
++		});
++
++		it('long english note', () => {
++			// 9 words * 50 = 450 words
++			const text = 'The quick brown fox jumps over the lazy dog. '.repeat(50);
++			assert.strictEqual(getReadingTime(text), 3);
++		});
++
++		it('long japanese note', () => {
++			// 14 chars * 50 = 700 chars
++			const text = '吾輩は猫である。名前はまだ無い。'.repeat(50);
++			assert.strictEqual(getReadingTime(text), 2);
++		});
++
++		it('ignores markup when deciding whether the note is long', () => {
++			const text = `Look at this https://example.com/${'a'.repeat(600)}`;
++			assert.strictEqual(getReadingTime(text), null);
++		});
++	});
++});
+-- 
+2.43.0
+

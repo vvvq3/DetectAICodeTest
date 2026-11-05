@@ -9,6 +9,7 @@
 Для каждого языка (каталог corpus/<язык>/):
 - manifest-human.tsv (name, repo, base, head, title) — человеческие MR из публичных репозиториев GitHub → fetch --git;
 - manifest-ai.tsv (name, category, repo, base, title) + патчи ai-src/<имя>/*.patch — ИИ-образцы: worktree на base + git am → fetch --git;
+- manifest-human-modern.tsv — человеческие MR 2022–2024 годов (до Claude Code) → corpus/<язык>/human-modern;
 - manifest-wild.tsv (name, repo, base, head, …) — настоящие коммиты Claude Code из публичных репозиториев → corpus/<язык>/ai-wild.
 Клоны публичных репозиториев кладутся в --repos (partial clone, без больших бинарных файлов).
 """
@@ -129,6 +130,9 @@ def main():
         if args.only in (None, "human"):
             for row in read_tsv(os.path.join(lang_dir, "manifest-human.tsv"))[: args.limit or None]:
                 jobs.append((human_job, (cli, args, lang_dir, row)))
+            # Современный человеческий код (до Claude Code): контроль «возраста» кода против дикой выборки.
+            for row in read_tsv(os.path.join(lang_dir, "manifest-human-modern.tsv"))[: args.limit or None]:
+                jobs.append((human_job, (cli, args, lang_dir, row, "human-modern")))
         if args.only in (None, "ai"):
             for row in read_tsv(os.path.join(lang_dir, "manifest-ai.tsv"))[: args.limit or None]:
                 jobs.append((ai_job, (cli, args, lang_dir, row)))

@@ -1,0 +1,160 @@
+From 53422ab695e1bd1bbdef26225f8f95ce611ddd04 Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Thu, 5 Nov 2026 22:17:31 +0000
+Subject: [PATCH 2/2] Show estimated reading time on long notes
+
+Display "n min read" next to the timestamp of long notes, in the note
+header (timeline, replies, quoted notes) and in the detailed note view.
+It can be hidden with the new "showReadingTime" appearance setting,
+which takes effect without reloading.
+---
+ locales/ja-JP.yml                       |  3 +++
+ src/client/components/note-detailed.vue | 13 ++++++++++++-
+ src/client/components/note-header.vue   | 14 ++++++++++++++
+ src/client/pages/settings/general.vue   |  2 ++
+ src/client/store.ts                     |  4 ++++
+ 5 files changed, 35 insertions(+), 1 deletion(-)
+
+diff --git a/locales/ja-JP.yml b/locales/ja-JP.yml
+index 9135cfda8a..4eee7e6b99 100644
+--- a/locales/ja-JP.yml
++++ b/locales/ja-JP.yml
+@@ -677,6 +677,9 @@ clearCache: "キャッシュをクリア"
+ onlineUsersCount: "{n}人がオンライン"
+ nUsers: "{n}ユーザー"
+ nNotes: "{n}ノート"
++readingTime: "{n}分で読了"
++estimatedReadingTime: "読了時間の目安"
++showReadingTime: "長いノートに読了時間の目安を表示"
+ 
+ _aboutMisskey:
+   about: "Misskeyはsyuiloによって2014年から開発されている、オープンソースのソフトウェアです。"
+diff --git a/src/client/components/note-detailed.vue b/src/client/components/note-detailed.vue
+index 3a3718c7dc..82c317c752 100644
+--- a/src/client/components/note-detailed.vue
++++ b/src/client/components/note-detailed.vue
+@@ -81,6 +81,7 @@
+ 				<div class="info">
+ 					<span class="mobile" v-if="note.viaMobile"><Fa :icon="faMobileAlt"/></span>
+ 					<MkTime class="created-at" :time="note.createdAt" mode="detail"/>
++					<span class="reading-time" v-if="readingTime != null" :title="$ts.estimatedReadingTime">{{ $t('readingTime', { n: readingTime }) }}</span>
+ 				</div>
+ 				<XReactionsViewer :note="appearNote" ref="reactionsViewer"/>
+ 				<button @click="reply()" class="button _button">
+@@ -137,6 +138,7 @@ import { focusPrev, focusNext } from '@/scripts/focus';
+ import { url } from '@/config';
+ import copyToClipboard from '@/scripts/copy-to-clipboard';
+ import { checkWordMute } from '@/scripts/check-word-mute';
++import { getReadingTime } from '@/scripts/reading-time';
+ import { userPage } from '@/filters/user';
+ import * as os from '@/os';
+ import { noteActions, noteViewInterruptors } from '@/store';
+@@ -275,7 +277,12 @@ export default defineComponent({
+ 			if (this.$store.state.instanceTicker === 'always') return true;
+ 			if (this.$store.state.instanceTicker === 'remote' && this.appearNote.user.instance) return true;
+ 			return false;
+-		}
++		},
++
++		readingTime(): number | null {
++			if (!this.$store.reactiveState.showReadingTime.value) return null;
++			return getReadingTime(this.appearNote.text);
++		},
+ 	},
+ 
+ 	async created() {
+@@ -1090,6 +1097,10 @@ export default defineComponent({
+ 					margin: 16px 0;
+ 					opacity: 0.7;
+ 					font-size: 0.9em;
++
++					> .reading-time {
++						margin-left: 8px;
++					}
+ 				}
+ 
+ 				> .button {
+diff --git a/src/client/components/note-header.vue b/src/client/components/note-header.vue
+index 1f7a07bac3..6842de366d 100644
+--- a/src/client/components/note-header.vue
++++ b/src/client/components/note-header.vue
+@@ -9,6 +9,7 @@
+ 	<span class="moderator" v-if="!note.user.isAdmin && note.user.isModerator"><Fa :icon="farBookmark"/></span>
+ 	<div class="info">
+ 		<span class="mobile" v-if="note.viaMobile"><Fa :icon="faMobileAlt"/></span>
++		<span class="reading-time" v-if="readingTime != null" :title="$ts.estimatedReadingTime">{{ $t('readingTime', { n: readingTime }) }}</span>
+ 		<MkA class="created-at" :to="notePage(note)">
+ 			<MkTime :time="note.createdAt"/>
+ 		</MkA>
+@@ -28,6 +29,7 @@ import { faHome, faUnlock, faEnvelope, faMobileAlt, faBookmark, faBiohazard } fr
+ import { faBookmark as farBookmark } from '@fortawesome/free-regular-svg-icons';
+ import notePage from '../filters/note';
+ import { userPage } from '../filters/user';
++import { getReadingTime } from '@/scripts/reading-time';
+ import * as os from '@/os';
+ 
+ export default defineComponent({
+@@ -44,6 +46,13 @@ export default defineComponent({
+ 		};
+ 	},
+ 
++	computed: {
++		readingTime(): number | null {
++			if (!this.$store.reactiveState.showReadingTime.value) return null;
++			return getReadingTime(this.note.text);
++		},
++	},
++
+ 	methods: {
+ 		notePage,
+ 		userPage
+@@ -102,6 +111,11 @@ export default defineComponent({
+ 			margin-right: 8px;
+ 		}
+ 
++		> .reading-time {
++			margin-right: 8px;
++			opacity: 0.7;
++		}
++
+ 		> .visibility {
+ 			margin-left: 8px;
+ 		}
+diff --git a/src/client/pages/settings/general.vue b/src/client/pages/settings/general.vue
+index d89abb6576..77fde6f46d 100644
+--- a/src/client/pages/settings/general.vue
++++ b/src/client/pages/settings/general.vue
+@@ -35,6 +35,7 @@
+ 		<FormSwitch v-model:value="reduceAnimation">{{ $ts.reduceUiAnimation }}</FormSwitch>
+ 		<FormSwitch v-model:value="useBlurEffectForModal">{{ $ts.useBlurEffectForModal }}</FormSwitch>
+ 		<FormSwitch v-model:value="showGapBetweenNotesInTimeline">{{ $ts.showGapBetweenNotesInTimeline }}</FormSwitch>
++		<FormSwitch v-model:value="showReadingTime">{{ $ts.showReadingTime }}</FormSwitch>
+ 		<FormSwitch v-model:value="loadRawImages">{{ $ts.loadRawImages }}</FormSwitch>
+ 		<FormSwitch v-model:value="disableShowingAnimatedImages">{{ $ts.disableShowingAnimatedImages }}</FormSwitch>
+ 		<FormSwitch v-model:value="useSystemFont">{{ $ts.useSystemFont }}</FormSwitch>
+@@ -130,6 +131,7 @@ export default defineComponent({
+ 		reduceAnimation: defaultStore.makeGetterSetter('animation', v => !v, v => !v),
+ 		useBlurEffectForModal: defaultStore.makeGetterSetter('useBlurEffectForModal'),
+ 		showGapBetweenNotesInTimeline: defaultStore.makeGetterSetter('showGapBetweenNotesInTimeline'),
++		showReadingTime: defaultStore.makeGetterSetter('showReadingTime'),
+ 		disableAnimatedMfm: defaultStore.makeGetterSetter('animatedMfm', v => !v, v => !v),
+ 		useOsNativeEmojis: defaultStore.makeGetterSetter('useOsNativeEmojis'),
+ 		disableShowingAnimatedImages: defaultStore.makeGetterSetter('disableShowingAnimatedImages'),
+diff --git a/src/client/store.ts b/src/client/store.ts
+index 2f134d8f48..a7bb8c745a 100644
+--- a/src/client/store.ts
++++ b/src/client/store.ts
+@@ -156,6 +156,10 @@ export const defaultStore = markRaw(new Storage('base', {
+ 		where: 'device',
+ 		default: 'remote' as 'none' | 'remote' | 'always'
+ 	},
++	showReadingTime: {
++		where: 'device',
++		default: true
++	},
+ 	reactionPickerWidth: {
+ 		where: 'device',
+ 		default: 1
+-- 
+2.43.0
+

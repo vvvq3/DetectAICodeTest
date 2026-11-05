@@ -1,0 +1,1248 @@
+From 0d2436331ddaaa38138133504f1e6c05a6b5bbe9 Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Thu, 5 Nov 2026 22:19:48 +0000
+Subject: [PATCH 1/2] Add client-side expiry for timed channel mutes
+
+Channels can now be muted for a limited time. The time at which each
+channel should be unmuted is kept in redux (views.channelMute) and in
+localStorage so that it survives reloads, and expired mutes are lifted
+automatically.
+
+- muteChannelFor mutes a channel and records when it should be unmuted.
+- checkChannelMuteExpiries runs once the user is logged in. It reloads
+  the expiries from localStorage, unmutes any channel whose time has
+  passed and schedules the next check. Checks run at least once a minute
+  while timed mutes exist so that sleeping computers and changes made in
+  other tabs are picked up.
+- Channels whose membership isn't loaded yet (e.g. on another team) are
+  fetched before unmuting. Expiries for channels we can no longer access
+  are dropped, while other failures are retried on the next check.
+- muteChannel and unmuteChannel clear any pending expiry so that a
+  manual mute or unmute isn't undone later by an old timer.
+---
+ actions/channel_actions.jsx             |  30 +-
+ actions/channel_actions.test.js         |  64 ++++
+ actions/views/channel_mute.test.js      | 370 ++++++++++++++++++++++++
+ actions/views/channel_mute.ts           | 177 ++++++++++++
+ components/logged_in/index.js           |   2 +
+ components/logged_in/logged_in.jsx      |   4 +
+ components/logged_in/logged_in.test.jsx |   7 +
+ reducers/views/channel_mute.test.ts     | 143 +++++++++
+ reducers/views/channel_mute.ts          |  52 ++++
+ reducers/views/index.js                 |   2 +
+ selectors/views/channel_mute.ts         |  14 +
+ stores/local_storage_store.jsx          |  54 ++++
+ stores/local_storage_store.test.jsx     |  69 +++++
+ types/store/views.ts                    |   6 +
+ utils/constants.jsx                     |  11 +
+ 15 files changed, 999 insertions(+), 6 deletions(-)
+ create mode 100644 actions/views/channel_mute.test.js
+ create mode 100644 actions/views/channel_mute.ts
+ create mode 100644 reducers/views/channel_mute.test.ts
+ create mode 100644 reducers/views/channel_mute.ts
+ create mode 100644 selectors/views/channel_mute.ts
+
+diff --git a/actions/channel_actions.jsx b/actions/channel_actions.jsx
+index 639f32cce..e6a138399 100644
+--- a/actions/channel_actions.jsx
++++ b/actions/channel_actions.jsx
+@@ -13,6 +13,7 @@ import {getCurrentUserId} from 'mattermost-redux/selectors/entities/users';
+ 
+ import {trackEvent} from 'actions/telemetry_actions.jsx';
+ import {loadNewDMIfNeeded, loadNewGMIfNeeded, loadProfilesForSidebar} from 'actions/user_actions.jsx';
++import {clearChannelMuteExpiry} from 'actions/views/channel_mute';
+ import {browserHistory} from 'utils/browser_history';
+ import {Constants, Preferences, NotificationLevels} from 'utils/constants';
+ import {getDirectChannelName} from 'utils/utils';
+@@ -161,13 +162,30 @@ export function addUsersToChannel(channelId, userIds) {
+ }
+ 
+ export function unmuteChannel(userId, channelId) {
+-    return ChannelActions.updateChannelNotifyProps(userId, channelId, {
+-        mark_unread: NotificationLevels.ALL,
+-    });
++    return async (dispatch) => {
++        const result = await dispatch(ChannelActions.updateChannelNotifyProps(userId, channelId, {
++            mark_unread: NotificationLevels.ALL,
++        }));
++
++        if (!result.error) {
++            dispatch(clearChannelMuteExpiry(channelId));
++        }
++
++        return result;
++    };
+ }
+ 
++// muteChannel mutes a channel until it's manually unmuted. Use muteChannelFor to mute it for a limited time.
+ export function muteChannel(userId, channelId) {
+-    return ChannelActions.updateChannelNotifyProps(userId, channelId, {
+-        mark_unread: NotificationLevels.MENTION,
+-    });
++    return async (dispatch) => {
++        const result = await dispatch(ChannelActions.updateChannelNotifyProps(userId, channelId, {
++            mark_unread: NotificationLevels.MENTION,
++        }));
++
++        if (!result.error) {
++            dispatch(clearChannelMuteExpiry(channelId));
++        }
++
++        return result;
++    };
+ }
+diff --git a/actions/channel_actions.test.js b/actions/channel_actions.test.js
+index 006076848..39e3eea67 100644
+--- a/actions/channel_actions.test.js
++++ b/actions/channel_actions.test.js
+@@ -6,6 +6,8 @@ import configureStore from 'redux-mock-store';
+ 
+ import * as Actions from 'actions/channel_actions';
+ import {loadProfilesForSidebar} from 'actions/user_actions.jsx';
++import LocalStorageStore from 'stores/local_storage_store';
++import {ActionTypes} from 'utils/constants';
+ 
+ const mockStore = configureStore([thunk]);
+ 
+@@ -115,6 +117,7 @@ jest.mock('mattermost-redux/actions/channels', () => ({
+     addChannelMember: (...args) => ({type: 'MOCK_ADD_CHANNEL_MEMBER', args}),
+     createDirectChannel: (...args) => ({type: 'MOCK_CREATE_DIRECT_CHANNEL', args}),
+     createGroupChannel: (...args) => ({type: 'MOCK_CREATE_GROUP_CHANNEL', args}),
++    updateChannelNotifyProps: (...args) => ({type: 'MOCK_UPDATE_CHANNEL_NOTIFY_PROPS', args}),
+ }));
+ 
+ jest.mock('actions/user_actions.jsx', () => ({
+@@ -290,4 +293,65 @@ describe('Actions.Channel', () => {
+         await testStore.dispatch(Actions.openGroupChannelToUserIds(fakeData.userIds));
+         expect(testStore.getActions()).toEqual(expectedActions);
+     });
++
++    describe('muteChannel and unmuteChannel', () => {
++        const muteExpiresAt = 1600000000000;
++        const stateWithMuteExpiry = {
++            ...initialState,
++            views: {
++                channelMute: {
++                    expiries: {
++                        current_channel_id: muteExpiresAt,
++                    },
++                },
++            },
++        };
++
++        beforeEach(() => {
++            jest.useFakeTimers();
++            localStorage.clear();
++            LocalStorageStore.setChannelMuteExpiry('current_user_id', 'current_channel_id', muteExpiresAt);
++        });
++
++        afterEach(() => {
++            jest.clearAllTimers();
++            jest.useRealTimers();
++        });
++
++        test('muteChannel should mute the channel until it is unmuted', async () => {
++            const testStore = await mockStore(stateWithMuteExpiry);
++
++            await testStore.dispatch(Actions.muteChannel('current_user_id', 'current_channel_id'));
++
++            expect(testStore.getActions()).toEqual([
++                {
++                    type: 'MOCK_UPDATE_CHANNEL_NOTIFY_PROPS',
++                    args: ['current_user_id', 'current_channel_id', {mark_unread: 'mention'}],
++                },
++                {
++                    type: ActionTypes.REMOVE_CHANNEL_MUTE_EXPIRY,
++                    data: {channelId: 'current_channel_id'},
++                },
++            ]);
++            expect(LocalStorageStore.getChannelMuteExpiries('current_user_id')).toEqual({});
++        });
++
++        test('unmuteChannel should unmute the channel and stop it from being unmuted again later', async () => {
++            const testStore = await mockStore(stateWithMuteExpiry);
++
++            await testStore.dispatch(Actions.unmuteChannel('current_user_id', 'current_channel_id'));
++
++            expect(testStore.getActions()).toEqual([
++                {
++                    type: 'MOCK_UPDATE_CHANNEL_NOTIFY_PROPS',
++                    args: ['current_user_id', 'current_channel_id', {mark_unread: 'all'}],
++                },
++                {
++                    type: ActionTypes.REMOVE_CHANNEL_MUTE_EXPIRY,
++                    data: {channelId: 'current_channel_id'},
++                },
++            ]);
++            expect(LocalStorageStore.getChannelMuteExpiries('current_user_id')).toEqual({});
++        });
++    });
+ });
+diff --git a/actions/views/channel_mute.test.js b/actions/views/channel_mute.test.js
+new file mode 100644
+index 000000000..d9388e2c9
+--- /dev/null
++++ b/actions/views/channel_mute.test.js
+@@ -0,0 +1,370 @@
++// Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
++// See LICENSE.txt for license information.
++
++import {applyMiddleware, combineReducers, createStore} from 'redux';
++import thunk from 'redux-thunk';
++
++import {getMyChannelMember, updateChannelNotifyProps} from 'mattermost-redux/actions/channels';
++
++import {
++    checkChannelMuteExpiries,
++    clearChannelMuteExpiry,
++    muteChannelFor,
++    MAX_EXPIRY_CHECK_INTERVAL,
++} from 'actions/views/channel_mute';
++import channelMuteReducer from 'reducers/views/channel_mute';
++import {getChannelMuteExpiries} from 'selectors/views/channel_mute';
++import LocalStorageStore from 'stores/local_storage_store';
++import {ChannelMuteDurations} from 'utils/constants';
++
++jest.mock('mattermost-redux/actions/channels', () => ({
++    getMyChannelMember: jest.fn(),
++    updateChannelNotifyProps: jest.fn(),
++}));
++
++jest.mock('stores/redux_store', () => ({
++    dispatch: jest.fn(),
++    getState: () => ({
++        entities: {
++            general: {
++                config: {},
++            },
++        },
++    }),
++}));
++
++const SECOND = 1000;
++const MINUTE = 60 * SECOND;
++const HOUR = 60 * MINUTE;
++
++const now = 1600000000000;
++const userId = 'user1';
++
++function mutedMember(channelId) {
++    return {channel_id: channelId, user_id: userId, notify_props: {mark_unread: 'mention'}};
++}
++
++function unmutedMember(channelId) {
++    return {channel_id: channelId, user_id: userId, notify_props: {mark_unread: 'all'}};
++}
++
++// The mute expiry actions read and write views.channelMute, so use the real reducer for that while keeping the rest
++// of the state fixed.
++function configureTestStore({currentUserId = userId, myMembers = {}} = {}) {
++    const entities = {
++        users: {currentUserId},
++        channels: {myMembers},
++    };
++
++    return createStore(
++        combineReducers({
++            entities: (state = entities) => state,
++            views: combineReducers({
++                channelMute: channelMuteReducer,
++            }),
++        }),
++        applyMiddleware(thunk),
++    );
++}
++
++// The expiry checks chain several promises together, so give them a few turns to finish after a timer fires
++async function flushPromises() {
++    for (let i = 0; i < 10; i++) {
++        await Promise.resolve(); // eslint-disable-line no-await-in-loop
++    }
++}
++
++describe('actions/views/channel_mute', () => {
++    beforeEach(() => {
++        jest.useFakeTimers();
++        jest.spyOn(Date, 'now').mockReturnValue(now);
++
++        delete window.basename;
++        localStorage.clear();
++
++        updateChannelNotifyProps.mockImplementation(() => () => Promise.resolve({data: true}));
++        getMyChannelMember.mockImplementation((channelId) => () => Promise.resolve({data: mutedMember(channelId)}));
++    });
++
++    afterEach(() => {
++        jest.clearAllTimers();
++        jest.useRealTimers();
++        jest.restoreAllMocks();
++    });
++
++    describe('muteChannelFor', () => {
++        test('should mute the channel and save when it should be unmuted', async () => {
++            const store = configureTestStore();
++
++            const result = await store.dispatch(muteChannelFor(userId, 'channel1', ChannelMuteDurations.EIGHT_HOURS));
++
++            expect(result).toEqual({data: true});
++            expect(updateChannelNotifyProps).toHaveBeenCalledTimes(1);
++            expect(updateChannelNotifyProps).toHaveBeenCalledWith(userId, 'channel1', {mark_unread: 'mention'});
++
++            expect(getChannelMuteExpiries(store.getState())).toEqual({channel1: now + (8 * HOUR)});
++            expect(LocalStorageStore.getChannelMuteExpiries(userId)).toEqual({channel1: now + (8 * HOUR)});
++        });
++
++        test('should replace an earlier expiry for the same channel', async () => {
++            const store = configureTestStore();
++
++            await store.dispatch(muteChannelFor(userId, 'channel1', ChannelMuteDurations.TWENTY_FOUR_HOURS));
++            await store.dispatch(muteChannelFor(userId, 'channel1', ChannelMuteDurations.ONE_HOUR));
++
++            expect(getChannelMuteExpiries(store.getState())).toEqual({channel1: now + HOUR});
++            expect(LocalStorageStore.getChannelMuteExpiries(userId)).toEqual({channel1: now + HOUR});
++        });
++
++        test('should not save an expiry when the channel could not be muted', async () => {
++            const error = {message: 'Something went wrong'};
++            updateChannelNotifyProps.mockImplementation(() => () => Promise.resolve({error}));
++
++            const store = configureTestStore();
++
++            const result = await store.dispatch(muteChannelFor(userId, 'channel1', ChannelMuteDurations.ONE_HOUR));
++
++            expect(result).toEqual({error});
++            expect(getChannelMuteExpiries(store.getState())).toEqual({});
++            expect(LocalStorageStore.getChannelMuteExpiries(userId)).toEqual({});
++            expect(jest.getTimerCount()).toBe(0);
++        });
++
++        test('should automatically unmute the channel once the time has passed', async () => {
++            const store = configureTestStore({myMembers: {channel1: mutedMember('channel1')}});
++
++            await store.dispatch(muteChannelFor(userId, 'channel1', 30 * SECOND));
++            updateChannelNotifyProps.mockClear();
++
++            expect(setTimeout).toHaveBeenLastCalledWith(expect.any(Function), 30 * SECOND);
++
++            Date.now.mockReturnValue(now + (30 * SECOND));
++            jest.runOnlyPendingTimers();
++            await flushPromises();
++
++            expect(updateChannelNotifyProps).toHaveBeenCalledTimes(1);
++            expect(updateChannelNotifyProps).toHaveBeenCalledWith(userId, 'channel1', {mark_unread: 'all'});
++
++            expect(getChannelMuteExpiries(store.getState())).toEqual({});
++            expect(LocalStorageStore.getChannelMuteExpiries(userId)).toEqual({});
++
++            // Nothing is left to check, so there's no need to keep the timer running
++            expect(jest.getTimerCount()).toBe(0);
++        });
++
++        test('should check at least once a minute until the channel should be unmuted', async () => {
++            const store = configureTestStore({myMembers: {channel1: mutedMember('channel1')}});
++
++            await store.dispatch(muteChannelFor(userId, 'channel1', ChannelMuteDurations.ONE_HOUR));
++            updateChannelNotifyProps.mockClear();
++
++            expect(setTimeout).toHaveBeenLastCalledWith(expect.any(Function), MAX_EXPIRY_CHECK_INTERVAL);
++
++            Date.now.mockReturnValue(now + MAX_EXPIRY_CHECK_INTERVAL);
++            jest.runOnlyPendingTimers();
++            await flushPromises();
++
++            // The channel is still muted, and we'll keep checking on it
++            expect(updateChannelNotifyProps).not.toHaveBeenCalled();
++            expect(getChannelMuteExpiries(store.getState())).toEqual({channel1: now + HOUR});
++            expect(jest.getTimerCount()).toBe(1);
++        });
++    });
++
++    describe('clearChannelMuteExpiry', () => {
++        test('should stop the channel from being unmuted automatically', async () => {
++            const store = configureTestStore({myMembers: {channel1: mutedMember('channel1')}});
++
++            await store.dispatch(muteChannelFor(userId, 'channel1', ChannelMuteDurations.ONE_HOUR));
++            updateChannelNotifyProps.mockClear();
++
++            const result = store.dispatch(clearChannelMuteExpiry('channel1'));
++
++            expect(result).toEqual({data: true});
++            expect(getChannelMuteExpiries(store.getState())).toEqual({});
++            expect(LocalStorageStore.getChannelMuteExpiries(userId)).toEqual({});
++            expect(jest.getTimerCount()).toBe(0);
++        });
++
++        test('should only clear the given channel', async () => {
++            const store = configureTestStore();
++
++            await store.dispatch(muteChannelFor(userId, 'channel1', ChannelMuteDurations.ONE_HOUR));
++            await store.dispatch(muteChannelFor(userId, 'channel2', ChannelMuteDurations.EIGHT_HOURS));
++
++            store.dispatch(clearChannelMuteExpiry('channel1'));
++
++            expect(getChannelMuteExpiries(store.getState())).toEqual({channel2: now + (8 * HOUR)});
++            expect(LocalStorageStore.getChannelMuteExpiries(userId)).toEqual({channel2: now + (8 * HOUR)});
++            expect(jest.getTimerCount()).toBe(1);
++        });
++
++        test('should clear an expiry that was saved from another tab', () => {
++            LocalStorageStore.setChannelMuteExpiry(userId, 'channel1', now + HOUR);
++
++            const store = configureTestStore();
++
++            const result = store.dispatch(clearChannelMuteExpiry('channel1'));
++
++            expect(result).toEqual({data: false});
++            expect(LocalStorageStore.getChannelMuteExpiries(userId)).toEqual({});
++        });
++    });
++
++    describe('checkChannelMuteExpiries', () => {
++        test('should load saved expiries', async () => {
++            LocalStorageStore.setChannelMuteExpiry(userId, 'channel1', now + HOUR);
++            LocalStorageStore.setChannelMuteExpiry(userId, 'channel2', now + (8 * HOUR));
++
++            const store = configureTestStore();
++
++            await store.dispatch(checkChannelMuteExpiries());
++
++            expect(getChannelMuteExpiries(store.getState())).toEqual({
++                channel1: now + HOUR,
++                channel2: now + (8 * HOUR),
++            });
++            expect(updateChannelNotifyProps).not.toHaveBeenCalled();
++            expect(jest.getTimerCount()).toBe(1);
++        });
++
++        test('should only load expiries saved for the current user', async () => {
++            LocalStorageStore.setChannelMuteExpiry('otherUser', 'channel1', now - SECOND);
++
++            const store = configureTestStore({myMembers: {channel1: mutedMember('channel1')}});
++
++            await store.dispatch(checkChannelMuteExpiries());
++
++            expect(getChannelMuteExpiries(store.getState())).toEqual({});
++            expect(updateChannelNotifyProps).not.toHaveBeenCalled();
++            expect(LocalStorageStore.getChannelMuteExpiries('otherUser')).toEqual({channel1: now - SECOND});
++        });
++
++        test('should unmute channels whose mute has expired', async () => {
++            LocalStorageStore.setChannelMuteExpiry(userId, 'channel1', now - SECOND);
++            LocalStorageStore.setChannelMuteExpiry(userId, 'channel2', now + HOUR);
++
++            const store = configureTestStore({
++                myMembers: {
++                    channel1: mutedMember('channel1'),
++                    channel2: mutedMember('channel2'),
++                },
++            });
++
++            await store.dispatch(checkChannelMuteExpiries());
++
++            expect(updateChannelNotifyProps).toHaveBeenCalledTimes(1);
++            expect(updateChannelNotifyProps).toHaveBeenCalledWith(userId, 'channel1', {mark_unread: 'all'});
++
++            expect(getChannelMuteExpiries(store.getState())).toEqual({channel2: now + HOUR});
++            expect(LocalStorageStore.getChannelMuteExpiries(userId)).toEqual({channel2: now + HOUR});
++        });
++
++        test('should forget the expiry without unmuting a channel that was already unmuted some other way', async () => {
++            LocalStorageStore.setChannelMuteExpiry(userId, 'channel1', now - SECOND);
++
++            const store = configureTestStore({myMembers: {channel1: unmutedMember('channel1')}});
++
++            await store.dispatch(checkChannelMuteExpiries());
++
++            expect(updateChannelNotifyProps).not.toHaveBeenCalled();
++            expect(getChannelMuteExpiries(store.getState())).toEqual({});
++            expect(LocalStorageStore.getChannelMuteExpiries(userId)).toEqual({});
++            expect(jest.getTimerCount()).toBe(0);
++        });
++
++        test('should load the channel membership when it has not been loaded yet', async () => {
++            LocalStorageStore.setChannelMuteExpiry(userId, 'channel1', now - SECOND);
++
++            const store = configureTestStore();
++
++            await store.dispatch(checkChannelMuteExpiries());
++
++            expect(getMyChannelMember).toHaveBeenCalledWith('channel1');
++            expect(updateChannelNotifyProps).toHaveBeenCalledWith(userId, 'channel1', {mark_unread: 'all'});
++            expect(getChannelMuteExpiries(store.getState())).toEqual({});
++        });
++
++        test('should forget the expiry for a channel that can no longer be accessed', async () => {
++            getMyChannelMember.mockImplementation(() => () => Promise.resolve({error: {status_code: 403}}));
++            LocalStorageStore.setChannelMuteExpiry(userId, 'channel1', now - SECOND);
++
++            const store = configureTestStore();
++
++            await store.dispatch(checkChannelMuteExpiries());
++
++            expect(updateChannelNotifyProps).not.toHaveBeenCalled();
++            expect(getChannelMuteExpiries(store.getState())).toEqual({});
++            expect(LocalStorageStore.getChannelMuteExpiries(userId)).toEqual({});
++        });
++
++        test('should keep the expiry and try again later when the channel membership could not be loaded', async () => {
++            getMyChannelMember.mockImplementation(() => () => Promise.resolve({error: {message: 'Network error'}}));
++            LocalStorageStore.setChannelMuteExpiry(userId, 'channel1', now - SECOND);
++
++            const store = configureTestStore();
++
++            await store.dispatch(checkChannelMuteExpiries());
++
++            expect(updateChannelNotifyProps).not.toHaveBeenCalled();
++            expect(getChannelMuteExpiries(store.getState())).toEqual({channel1: now - SECOND});
++            expect(setTimeout).toHaveBeenLastCalledWith(expect.any(Function), MAX_EXPIRY_CHECK_INTERVAL);
++        });
++
++        test('should keep the expiry and try again later when the channel could not be unmuted', async () => {
++            updateChannelNotifyProps.mockImplementation(() => () => Promise.resolve({error: {message: 'Network error'}}));
++            LocalStorageStore.setChannelMuteExpiry(userId, 'channel1', now - SECOND);
++
++            const store = configureTestStore({myMembers: {channel1: mutedMember('channel1')}});
++
++            await store.dispatch(checkChannelMuteExpiries());
++
++            expect(updateChannelNotifyProps).toHaveBeenCalledTimes(1);
++            expect(getChannelMuteExpiries(store.getState())).toEqual({channel1: now - SECOND});
++            expect(LocalStorageStore.getChannelMuteExpiries(userId)).toEqual({channel1: now - SECOND});
++            expect(setTimeout).toHaveBeenLastCalledWith(expect.any(Function), MAX_EXPIRY_CHECK_INTERVAL);
++
++            // Once the server is reachable again, the next check unmutes the channel
++            updateChannelNotifyProps.mockImplementation(() => () => Promise.resolve({data: true}));
++            Date.now.mockReturnValue(now + MAX_EXPIRY_CHECK_INTERVAL);
++            jest.runOnlyPendingTimers();
++            await flushPromises();
++
++            expect(updateChannelNotifyProps).toHaveBeenCalledTimes(2);
++            expect(getChannelMuteExpiries(store.getState())).toEqual({});
++            expect(LocalStorageStore.getChannelMuteExpiries(userId)).toEqual({});
++        });
++
++        test('should pick up changes made from other tabs', async () => {
++            LocalStorageStore.setChannelMuteExpiry(userId, 'channel1', now + HOUR);
++
++            const store = configureTestStore({myMembers: {channel1: mutedMember('channel1')}});
++
++            await store.dispatch(checkChannelMuteExpiries());
++            expect(getChannelMuteExpiries(store.getState())).toEqual({channel1: now + HOUR});
++
++            // Another tab unmutes the channel and mutes a different one
++            LocalStorageStore.removeChannelMuteExpiry(userId, 'channel1');
++            LocalStorageStore.setChannelMuteExpiry(userId, 'channel2', now + (8 * HOUR));
++
++            Date.now.mockReturnValue(now + MAX_EXPIRY_CHECK_INTERVAL);
++            jest.runOnlyPendingTimers();
++            await flushPromises();
++
++            expect(getChannelMuteExpiries(store.getState())).toEqual({channel2: now + (8 * HOUR)});
++            expect(updateChannelNotifyProps).not.toHaveBeenCalled();
++        });
++
++        test('should do nothing when nobody is logged in', async () => {
++            LocalStorageStore.setChannelMuteExpiry('', 'channel1', now - SECOND);
++
++            const store = configureTestStore({currentUserId: ''});
++
++            const result = await store.dispatch(checkChannelMuteExpiries());
++
++            expect(result).toEqual({data: false});
++            expect(getChannelMuteExpiries(store.getState())).toEqual({});
++            expect(updateChannelNotifyProps).not.toHaveBeenCalled();
++        });
++    });
++});
+diff --git a/actions/views/channel_mute.ts b/actions/views/channel_mute.ts
+new file mode 100644
+index 000000000..5d9a19f56
+--- /dev/null
++++ b/actions/views/channel_mute.ts
+@@ -0,0 +1,177 @@
++// Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
++// See LICENSE.txt for license information.
++
++import {getMyChannelMember as fetchMyChannelMember, updateChannelNotifyProps} from 'mattermost-redux/actions/channels';
++import {getMyChannelMemberships} from 'mattermost-redux/selectors/entities/channels';
++import {getCurrentUserId} from 'mattermost-redux/selectors/entities/users';
++import {ActionResult, DispatchFunc, GetStateFunc} from 'mattermost-redux/types/actions';
++import {ChannelMembership} from 'mattermost-redux/types/channels';
++import {isChannelMuted} from 'mattermost-redux/utils/channel_utils';
++
++import {getChannelMuteExpiries, getChannelMuteExpiry} from 'selectors/views/channel_mute';
++import LocalStorageStore from 'stores/local_storage_store';
++import {GlobalState} from 'types/store';
++import {ActionTypes, NotificationLevels} from 'utils/constants';
++
++// Mute expiries are checked at least this often while any channel is muted for a limited time, even if none of
++// them are due yet. This keeps us from unmuting channels too late when timers are delayed (for example, while the
++// computer is asleep), and it lets us pick up changes made from other tabs.
++export const MAX_EXPIRY_CHECK_INTERVAL = 60 * 1000;
++
++let expiryCheckTimeout: ReturnType<typeof setTimeout> | null = null;
++
++// muteChannelFor mutes a channel and schedules it to be unmuted again after the given duration (in milliseconds).
++export function muteChannelFor(userId: string, channelId: string, duration: number) {
++    return async (dispatch: DispatchFunc, getState: GetStateFunc) => {
++        const result = await dispatch(updateChannelNotifyProps(userId, channelId, {
++            mark_unread: NotificationLevels.MENTION as 'mention',
++        }));
++        if (result.error) {
++            return result;
++        }
++
++        const expiresAt = Date.now() + duration;
++
++        LocalStorageStore.setChannelMuteExpiry(userId, channelId, expiresAt);
++        dispatch({
++            type: ActionTypes.SET_CHANNEL_MUTE_EXPIRY,
++            data: {channelId, expiresAt},
++        });
++
++        scheduleExpiryCheck(dispatch, getState);
++
++        return {data: true};
++    };
++}
++
++// clearChannelMuteExpiry stops a channel from being unmuted automatically. It should be called whenever a channel is
++// muted or unmuted manually so that an old expiry doesn't unmute it later on.
++export function clearChannelMuteExpiry(channelId: string) {
++    return (dispatch: DispatchFunc, getState: GetStateFunc) => {
++        const state = getState() as GlobalState;
++        const userId = getCurrentUserId(state);
++
++        // Always clear localStorage since another tab may have set an expiry that we haven't picked up yet
++        LocalStorageStore.removeChannelMuteExpiry(userId, channelId);
++
++        if (getChannelMuteExpiry(state, channelId) === undefined) {
++            return {data: false};
++        }
++
++        dispatch({
++            type: ActionTypes.REMOVE_CHANNEL_MUTE_EXPIRY,
++            data: {channelId},
++        });
++
++        scheduleExpiryCheck(dispatch, getState);
++
++        return {data: true};
++    };
++}
++
++// checkChannelMuteExpiries loads the mute expiries saved in localStorage, unmutes any channels whose mute has
++// expired, and then schedules the next check. It only needs to be called once on startup since it'll keep
++// rescheduling itself for as long as there are channels muted for a limited time.
++export function checkChannelMuteExpiries() {
++    return async (dispatch: DispatchFunc, getState: GetStateFunc) => {
++        const userId = getCurrentUserId(getState());
++        if (!userId) {
++            return {data: false};
++        }
++
++        // Other tabs share the same localStorage and may have changed it since we last looked, so treat it as the
++        // source of truth.
++        dispatch({
++            type: ActionTypes.RECEIVED_CHANNEL_MUTE_EXPIRIES,
++            data: LocalStorageStore.getChannelMuteExpiries(userId),
++        });
++
++        const now = Date.now();
++        const expiries = getChannelMuteExpiries(getState() as GlobalState);
++        const expired = Object.entries(expiries).filter(([, expiresAt]) => expiresAt <= now);
++
++        const results = await Promise.all(expired.map(([channelId, expiresAt]) => {
++            return dispatch(unmuteExpiredChannel(userId, channelId, expiresAt));
++        }));
++
++        // Anything that failed to unmute still has an expiry in the past, so wait a while before trying it again
++        const failed = results.some((result) => Boolean(result.error));
++        scheduleExpiryCheck(dispatch, getState, failed ? MAX_EXPIRY_CHECK_INTERVAL : 0);
++
++        return {data: true};
++    };
++}
++
++function unmuteExpiredChannel(userId: string, channelId: string, expiresAt: number) {
++    return async (dispatch: DispatchFunc, getState: GetStateFunc): Promise<ActionResult> => {
++        let member: ChannelMembership | undefined = getMyChannelMemberships(getState())[channelId];
++
++        if (!member) {
++            // Channel memberships are only loaded for the current team, so we may need to ask the server for it
++            const result = await dispatch(fetchMyChannelMember(channelId));
++
++            if (result.error) {
++                if (isClientError(result.error)) {
++                    // We can't access the channel anymore (for example, because we've left it), so there's nothing
++                    // left to unmute
++                    removeExpiryIfUnchanged(dispatch, getState, userId, channelId, expiresAt);
++                    return {data: false};
++                }
++
++                return result;
++            }
++
++            member = result.data;
++        }
++
++        if (member && isChannelMuted(member)) {
++            const result = await dispatch(updateChannelNotifyProps(userId, channelId, {
++                mark_unread: NotificationLevels.ALL as 'all',
++            }));
++            if (result.error) {
++                return result;
++            }
++        }
++
++        removeExpiryIfUnchanged(dispatch, getState, userId, channelId, expiresAt);
++
++        return {data: true};
++    };
++}
++
++function removeExpiryIfUnchanged(dispatch: DispatchFunc, getState: GetStateFunc, userId: string, channelId: string, expiresAt: number) {
++    // The channel may have been muted again while we were waiting on the server, and we don't want to lose that
++    if (getChannelMuteExpiry(getState() as GlobalState, channelId) !== expiresAt) {
++        return;
++    }
++
++    LocalStorageStore.removeChannelMuteExpiry(userId, channelId);
++    dispatch({
++        type: ActionTypes.REMOVE_CHANNEL_MUTE_EXPIRY,
++        data: {channelId},
++    });
++}
++
++function scheduleExpiryCheck(dispatch: DispatchFunc, getState: GetStateFunc, minDelay = 0) {
++    if (expiryCheckTimeout) {
++        clearTimeout(expiryCheckTimeout);
++        expiryCheckTimeout = null;
++    }
++
++    const expiresAts = Object.values(getChannelMuteExpiries(getState() as GlobalState));
++    if (expiresAts.length === 0) {
++        return;
++    }
++
++    const nextExpiresAt = Math.min(...expiresAts);
++    const delay = Math.min(Math.max(nextExpiresAt - Date.now(), minDelay), MAX_EXPIRY_CHECK_INTERVAL);
++
++    expiryCheckTimeout = setTimeout(() => {
++        expiryCheckTimeout = null;
++        dispatch(checkChannelMuteExpiries());
++    }, delay);
++}
++
++function isClientError(error: {status_code?: number}) {
++    return Boolean(error.status_code && error.status_code >= 400 && error.status_code < 500);
++}
+diff --git a/components/logged_in/index.js b/components/logged_in/index.js
+index 613438446..2e9b0cc12 100644
+--- a/components/logged_in/index.js
++++ b/components/logged_in/index.js
+@@ -8,6 +8,7 @@ import {getCurrentChannelId} from 'mattermost-redux/selectors/entities/channels'
+ import {getLicense, getConfig} from 'mattermost-redux/selectors/entities/general';
+ import {getCurrentUser, shouldShowTermsOfService} from 'mattermost-redux/selectors/entities/users';
+ 
++import {checkChannelMuteExpiries} from 'actions/views/channel_mute';
+ import {browserHistory} from 'utils/browser_history';
+ import {checkIfMFARequired} from 'utils/route';
+ import {getChannelURL} from 'utils/utils';
+@@ -36,6 +37,7 @@ function mapDispatchToProps(dispatch) {
+         actions: bindActionCreators({
+             autoUpdateTimezone,
+             getChannelURLAction,
++            checkChannelMuteExpiries,
+         }, dispatch),
+     };
+ }
+diff --git a/components/logged_in/logged_in.jsx b/components/logged_in/logged_in.jsx
+index 8eee08d99..9123fa0ed 100644
+--- a/components/logged_in/logged_in.jsx
++++ b/components/logged_in/logged_in.jsx
+@@ -31,6 +31,7 @@ export default class LoggedIn extends React.PureComponent {
+         actions: PropTypes.shape({
+             autoUpdateTimezone: PropTypes.func.isRequired,
+             getChannelURLAction: PropTypes.func.isRequired,
++            checkChannelMuteExpiries: PropTypes.func.isRequired,
+         }).isRequired,
+         showTermsOfService: PropTypes.bool.isRequired,
+     }
+@@ -97,6 +98,9 @@ export default class LoggedIn extends React.PureComponent {
+ 
+         if (this.isValidState()) {
+             BrowserStore.signalLogin();
++
++            // Unmute any channels that were muted for a limited time which has since passed
++            this.props.actions.checkChannelMuteExpiries();
+         }
+     }
+ 
+diff --git a/components/logged_in/logged_in.test.jsx b/components/logged_in/logged_in.test.jsx
+index c1f2111d1..455437548 100644
+--- a/components/logged_in/logged_in.test.jsx
++++ b/components/logged_in/logged_in.test.jsx
+@@ -23,6 +23,7 @@ describe('components/logged_in/LoggedIn', () => {
+         actions: {
+             autoUpdateTimezone: jest.fn(),
+             getChannelURLAction: jest.fn(),
++            checkChannelMuteExpiries: jest.fn(),
+         },
+         showTermsOfService: false,
+         location: {
+@@ -167,6 +168,12 @@ describe('components/logged_in/LoggedIn', () => {
+         expect(BrowserStore.signalLogin).toBeCalledTimes(1);
+     });
+ 
++    it('should check for channels whose mute has expired once logged in', () => {
++        shallow(<LoggedIn {...baseProps}>{children}</LoggedIn>);
++
++        expect(baseProps.actions.checkChannelMuteExpiries).toBeCalledTimes(1);
++    });
++
+     it('should set state to unfocused if it starts in the background', () => {
+         document.hasFocus = jest.fn(() => false);
+         GlobalActions.emitBrowserFocus = jest.fn();
+diff --git a/reducers/views/channel_mute.test.ts b/reducers/views/channel_mute.test.ts
+new file mode 100644
+index 000000000..f01398642
+--- /dev/null
++++ b/reducers/views/channel_mute.test.ts
+@@ -0,0 +1,143 @@
++// Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
++// See LICENSE.txt for license information.
++
++import {UserTypes} from 'mattermost-redux/action_types';
++
++import channelMuteReducer from 'reducers/views/channel_mute';
++import {ActionTypes} from 'utils/constants';
++
++describe('Reducers.views.channelMute', () => {
++    test('initial state', () => {
++        const nextState = channelMuteReducer(undefined, {type: 'unknown'});
++
++        expect(nextState).toEqual({
++            expiries: {},
++        });
++    });
++
++    describe('expiries', () => {
++        test('should replace all expiries when they are received', () => {
++            const state = {
++                expiries: {
++                    channel1: 1000,
++                    channel2: 2000,
++                },
++            };
++
++            const nextState = channelMuteReducer(state, {
++                type: ActionTypes.RECEIVED_CHANNEL_MUTE_EXPIRIES,
++                data: {
++                    channel2: 2500,
++                    channel3: 3000,
++                },
++            });
++
++            expect(nextState.expiries).toEqual({
++                channel2: 2500,
++                channel3: 3000,
++            });
++        });
++
++        test('should add a new expiry', () => {
++            const state = {
++                expiries: {
++                    channel1: 1000,
++                },
++            };
++
++            const nextState = channelMuteReducer(state, {
++                type: ActionTypes.SET_CHANNEL_MUTE_EXPIRY,
++                data: {channelId: 'channel2', expiresAt: 2000},
++            });
++
++            expect(nextState.expiries).toEqual({
++                channel1: 1000,
++                channel2: 2000,
++            });
++        });
++
++        test('should replace an existing expiry', () => {
++            const state = {
++                expiries: {
++                    channel1: 1000,
++                },
++            };
++
++            const nextState = channelMuteReducer(state, {
++                type: ActionTypes.SET_CHANNEL_MUTE_EXPIRY,
++                data: {channelId: 'channel1', expiresAt: 5000},
++            });
++
++            expect(nextState.expiries).toEqual({
++                channel1: 5000,
++            });
++        });
++
++        test('should not change state when setting the same expiry', () => {
++            const state = {
++                expiries: {
++                    channel1: 1000,
++                },
++            };
++
++            const nextState = channelMuteReducer(state, {
++                type: ActionTypes.SET_CHANNEL_MUTE_EXPIRY,
++                data: {channelId: 'channel1', expiresAt: 1000},
++            });
++
++            expect(nextState.expiries).toBe(state.expiries);
++        });
++
++        test('should remove an expiry', () => {
++            const state = {
++                expiries: {
++                    channel1: 1000,
++                    channel2: 2000,
++                },
++            };
++
++            const nextState = channelMuteReducer(state, {
++                type: ActionTypes.REMOVE_CHANNEL_MUTE_EXPIRY,
++                data: {channelId: 'channel1'},
++            });
++
++            expect(nextState.expiries).toEqual({
++                channel2: 2000,
++            });
++            expect(state.expiries).toEqual({
++                channel1: 1000,
++                channel2: 2000,
++            });
++        });
++
++        test('should not change state when removing an expiry that does not exist', () => {
++            const state = {
++                expiries: {
++                    channel1: 1000,
++                },
++            };
++
++            const nextState = channelMuteReducer(state, {
++                type: ActionTypes.REMOVE_CHANNEL_MUTE_EXPIRY,
++                data: {channelId: 'channel2'},
++            });
++
++            expect(nextState.expiries).toBe(state.expiries);
++        });
++
++        test('should clear all expiries on logout', () => {
++            const state = {
++                expiries: {
++                    channel1: 1000,
++                    channel2: 2000,
++                },
++            };
++
++            const nextState = channelMuteReducer(state, {
++                type: UserTypes.LOGOUT_SUCCESS,
++            });
++
++            expect(nextState.expiries).toEqual({});
++        });
++    });
++});
+diff --git a/reducers/views/channel_mute.ts b/reducers/views/channel_mute.ts
+new file mode 100644
+index 000000000..fa9d937ce
+--- /dev/null
++++ b/reducers/views/channel_mute.ts
+@@ -0,0 +1,52 @@
++// Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
++// See LICENSE.txt for license information.
++
++import {combineReducers} from 'redux';
++
++import {UserTypes} from 'mattermost-redux/action_types';
++import {GenericAction} from 'mattermost-redux/types/actions';
++
++import {ActionTypes} from 'utils/constants';
++
++// expiries maps channel IDs to the time (in milliseconds) at which the channel should be automatically
++// unmuted. Channels that are muted indefinitely don't have an entry.
++export function expiries(state: Record<string, number> = {}, action: GenericAction): Record<string, number> {
++    switch (action.type) {
++    case ActionTypes.RECEIVED_CHANNEL_MUTE_EXPIRIES:
++        return {...action.data};
++
++    case ActionTypes.SET_CHANNEL_MUTE_EXPIRY: {
++        const {channelId, expiresAt} = action.data;
++
++        if (state[channelId] === expiresAt) {
++            return state;
++        }
++
++        return {
++            ...state,
++            [channelId]: expiresAt,
++        };
++    }
++
++    case ActionTypes.REMOVE_CHANNEL_MUTE_EXPIRY: {
++        const {channelId} = action.data;
++
++        if (!state.hasOwnProperty(channelId)) {
++            return state;
++        }
++
++        const nextState = {...state};
++        Reflect.deleteProperty(nextState, channelId);
++        return nextState;
++    }
++
++    case UserTypes.LOGOUT_SUCCESS:
++        return {};
++    default:
++        return state;
++    }
++}
++
++export default combineReducers({
++    expiries,
++});
+diff --git a/reducers/views/index.js b/reducers/views/index.js
+index f37edb2ab..6805ee145 100644
+--- a/reducers/views/index.js
++++ b/reducers/views/index.js
+@@ -22,6 +22,7 @@ import marketplace from './marketplace';
+ import channelSidebar from './channel_sidebar';
+ import textbox from './textbox';
+ import nextSteps from './next_steps';
++import channelMute from './channel_mute';
+ 
+ export default combineReducers({
+     admin,
+@@ -43,4 +44,5 @@ export default combineReducers({
+     textbox,
+     channelSidebar,
+     nextSteps,
++    channelMute,
+ });
+diff --git a/selectors/views/channel_mute.ts b/selectors/views/channel_mute.ts
+new file mode 100644
+index 000000000..e78ef6759
+--- /dev/null
++++ b/selectors/views/channel_mute.ts
+@@ -0,0 +1,14 @@
++// Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
++// See LICENSE.txt for license information.
++
++import {GlobalState} from 'types/store';
++
++export function getChannelMuteExpiries(state: GlobalState): Record<string, number> {
++    return state.views.channelMute.expiries;
++}
++
++// getChannelMuteExpiry returns the time at which the given channel will be automatically unmuted or
++// undefined if it isn't muted for a limited time.
++export function getChannelMuteExpiry(state: GlobalState, channelId: string): number | undefined {
++    return getChannelMuteExpiries(state)[channelId];
++}
+diff --git a/stores/local_storage_store.jsx b/stores/local_storage_store.jsx
+index 070ee0e00..e8c160c21 100644
+--- a/stores/local_storage_store.jsx
++++ b/stores/local_storage_store.jsx
+@@ -9,6 +9,7 @@ const getPreviousTeamIdKey = (userId) => ['user_prev_team', userId].join(':');
+ const getPreviousChannelNameKey = (userId, teamId) => ['user_team_prev_channel', userId, teamId].join(':');
+ export const getPenultimateChannelNameKey = (userId, teamId) => ['user_team_penultimate_channel', userId, teamId].join(':');
+ const getRecentEmojisKey = (userId) => ['recent_emojis', userId].join(':');
++const getChannelMuteExpiriesKey = (userId) => ['channel_mute_expiries', userId].join(':');
+ const getWasLoggedInKey = () => 'was_logged_in';
+ 
+ const getPathScopedKey = (path, key) => {
+@@ -96,6 +97,59 @@ class LocalStorageStoreClass {
+         }
+     }
+ 
++    // getChannelMuteExpiries returns a map of channel IDs to the time (in milliseconds) at which
++    // the channel should be automatically unmuted.
++    getChannelMuteExpiries(userId) {
++        const stored = this.getItem(getChannelMuteExpiriesKey(userId));
++        if (!stored) {
++            return {};
++        }
++
++        let parsed;
++        try {
++            parsed = JSON.parse(stored);
++        } catch (e) {
++            return {};
++        }
++
++        if (!parsed || typeof parsed !== 'object') {
++            return {};
++        }
++
++        const expiries = {};
++        for (const [channelId, expiresAt] of Object.entries(parsed)) {
++            if (Number.isFinite(expiresAt)) {
++                expiries[channelId] = expiresAt;
++            }
++        }
++
++        return expiries;
++    }
++
++    // Expiries are updated one channel at a time instead of being written out as a whole so that
++    // multiple tabs don't overwrite each other's changes.
++    setChannelMuteExpiry(userId, channelId, expiresAt) {
++        const expiries = this.getChannelMuteExpiries(userId);
++        expiries[channelId] = expiresAt;
++
++        this.setItem(getChannelMuteExpiriesKey(userId), JSON.stringify(expiries));
++    }
++
++    removeChannelMuteExpiry(userId, channelId) {
++        const expiries = this.getChannelMuteExpiries(userId);
++        if (!expiries.hasOwnProperty(channelId)) {
++            return;
++        }
++
++        delete expiries[channelId];
++
++        if (Object.keys(expiries).length === 0) {
++            this.removeItem(getChannelMuteExpiriesKey(userId));
++        } else {
++            this.setItem(getChannelMuteExpiriesKey(userId), JSON.stringify(expiries));
++        }
++    }
++
+     setWasLoggedIn(wasLoggedIn) {
+         if (wasLoggedIn) {
+             this.setItem(getWasLoggedInKey(), 'true');
+diff --git a/stores/local_storage_store.test.jsx b/stores/local_storage_store.test.jsx
+index e9677047c..275b5fc15 100644
+--- a/stores/local_storage_store.test.jsx
++++ b/stores/local_storage_store.test.jsx
+@@ -173,4 +173,73 @@ describe('stores/LocalStorageStore', () => {
+             assert.equal(LocalStorageStore.getItem(getPenultimateChannelNameKey(userId1, teamId1)), undefined);
+         });
+     });
++
++    describe('channel mute expiries', () => {
++        beforeEach(() => {
++            delete window.basename;
++            localStorage.clear();
++        });
++
++        test('should be empty initially', () => {
++            assert.deepEqual(LocalStorageStore.getChannelMuteExpiries('userId'), {});
++        });
++
++        test('should persist expiries per user', () => {
++            LocalStorageStore.setChannelMuteExpiry('userId1', 'channel1', 1000);
++            LocalStorageStore.setChannelMuteExpiry('userId1', 'channel2', 2000);
++            LocalStorageStore.setChannelMuteExpiry('userId2', 'channel1', 3000);
++
++            assert.deepEqual(LocalStorageStore.getChannelMuteExpiries('userId1'), {channel1: 1000, channel2: 2000});
++            assert.deepEqual(LocalStorageStore.getChannelMuteExpiries('userId2'), {channel1: 3000});
++        });
++
++        test('should replace an existing expiry', () => {
++            LocalStorageStore.setChannelMuteExpiry('userId', 'channel1', 1000);
++            LocalStorageStore.setChannelMuteExpiry('userId', 'channel1', 5000);
++
++            assert.deepEqual(LocalStorageStore.getChannelMuteExpiries('userId'), {channel1: 5000});
++        });
++
++        test('should remove a single expiry', () => {
++            LocalStorageStore.setChannelMuteExpiry('userId', 'channel1', 1000);
++            LocalStorageStore.setChannelMuteExpiry('userId', 'channel2', 2000);
++
++            LocalStorageStore.removeChannelMuteExpiry('userId', 'channel1');
++            assert.deepEqual(LocalStorageStore.getChannelMuteExpiries('userId'), {channel2: 2000});
++
++            // Removing something that isn't there does nothing
++            LocalStorageStore.removeChannelMuteExpiry('userId', 'channel1');
++            assert.deepEqual(LocalStorageStore.getChannelMuteExpiries('userId'), {channel2: 2000});
++        });
++
++        test('should remove the stored item once there are no expiries left', () => {
++            LocalStorageStore.setChannelMuteExpiry('userId', 'channel1', 1000);
++            LocalStorageStore.removeChannelMuteExpiry('userId', 'channel1');
++
++            assert.equal(LocalStorageStore.getItem('channel_mute_expiries:userId'), null);
++        });
++
++        test('should ignore invalid stored data', () => {
++            LocalStorageStore.setItem('channel_mute_expiries:userId', 'not json');
++            assert.deepEqual(LocalStorageStore.getChannelMuteExpiries('userId'), {});
++
++            LocalStorageStore.setItem('channel_mute_expiries:userId', JSON.stringify(['channel1']));
++            assert.deepEqual(LocalStorageStore.getChannelMuteExpiries('userId'), {});
++
++            LocalStorageStore.setItem('channel_mute_expiries:userId', JSON.stringify({channel1: 1000, channel2: 'soon', channel3: null}));
++            assert.deepEqual(LocalStorageStore.getChannelMuteExpiries('userId'), {channel1: 1000});
++        });
++
++        test('should persist separately for different subpaths', () => {
++            LocalStorageStore.setChannelMuteExpiry('userId', 'channel1', 1000);
++
++            window.basename = '/subpath';
++            assert.deepEqual(LocalStorageStore.getChannelMuteExpiries('userId'), {});
++            LocalStorageStore.setChannelMuteExpiry('userId', 'channel2', 2000);
++            assert.deepEqual(LocalStorageStore.getChannelMuteExpiries('userId'), {channel2: 2000});
++
++            delete window.basename;
++            assert.deepEqual(LocalStorageStore.getChannelMuteExpiries('userId'), {channel1: 1000});
++        });
++    });
+ });
+diff --git a/types/store/views.ts b/types/store/views.ts
+index 854db3371..223f1b840 100644
+--- a/types/store/views.ts
++++ b/types/store/views.ts
+@@ -137,4 +137,10 @@ export type ViewsState = {
+     nextSteps: {
+         show: boolean;
+     };
++
++    channelMute: {
++        expiries: {
++            [channelId: string]: number;
++        };
++    };
+ };
+diff --git a/utils/constants.jsx b/utils/constants.jsx
+index c976bd778..8434ef9e0 100644
+--- a/utils/constants.jsx
++++ b/utils/constants.jsx
+@@ -217,6 +217,10 @@ export const ActionTypes = keyMirror({
+     PREFETCH_POSTS_FOR_CHANNEL: null,
+ 
+     SET_SHOW_NEXT_STEPS_VIEW: null,
++
++    RECEIVED_CHANNEL_MUTE_EXPIRIES: null,
++    SET_CHANNEL_MUTE_EXPIRY: null,
++    REMOVE_CHANNEL_MUTE_EXPIRY: null,
+ });
+ 
+ export const PostRequestTypes = keyMirror({
+@@ -619,6 +623,13 @@ export const NotificationLevels = {
+     NONE: 'none',
+ };
+ 
++// How long a channel can be muted for from the channel header's "Mute Channel For..." menu, in milliseconds
++export const ChannelMuteDurations = {
++    ONE_HOUR: 60 * 60 * 1000,
++    EIGHT_HOURS: 8 * 60 * 60 * 1000,
++    TWENTY_FOUR_HOURS: 24 * 60 * 60 * 1000,
++};
++
+ export const IgnoreChannelMentions = {
+     ON: 'on',
+     OFF: 'off',
+-- 
+2.43.0
+

@@ -40,6 +40,9 @@ public sealed class CliOptions
 
     public bool LanguageGiven { get; private set; }
 
+    /// <summary>Категории корпуса, которые не учитывать в eval/calibrate (например, ai-wild).</summary>
+    public List<string> Exclude { get; } = [];
+
     public static CliOptions Parse(string[] args)
     {
         var o = new CliOptions();
@@ -140,6 +143,9 @@ public sealed class CliOptions
                 case "--no-browser":
                     o.OpenBrowser = false;
                     break;
+                case "--exclude":
+                    o.Exclude.AddRange(Next().Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+                    break;
                 case "--lang" or "--language" or "-l":
                     o.Language = Next();
                     o.LanguageGiven = true;
@@ -178,7 +184,7 @@ public sealed class CliOptions
           aidetect --git <репо> --base <ветка> --head <ветка>   анализ диапазона коммитов локального git
           aidetect --load mr.json                      анализ сохранённого MR
           aidetect fetch <ссылка> --save mr.json       только скачать MR в JSON (без анализа)
-          aidetect eval <каталог корпуса>              точность на размеченном корпусе (human/, ai/)
+          aidetect eval <каталог корпуса> [--exclude ai-wild]   точность на размеченном корпусе (human*/, ai*/)
           aidetect calibrate <каталог корпуса> -o weights.frontend.json --lang frontend
                                                        подбор весов языка на своих размеченных MR
 

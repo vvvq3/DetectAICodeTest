@@ -1,0 +1,95 @@
+From 312c5fd2dfb6223642653809b71b10bacf15186f Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Thu, 5 Nov 2026 22:19:05 +0000
+Subject: [PATCH 3/3] style: add back to top component styles
+
+Position the back to top button fixed in the bottom end corner (with
+RTL support), fade it in when it appears and disable the animation for
+users who prefer reduced motion.
+---
+ .../scss/components/content/_index.scss       |  2 +-
+ .../content/navigation/_back-to-top.scss      | 52 +++++++++++++++++++
+ .../components/content/navigation/_index.scss |  1 +
+ 3 files changed, 54 insertions(+), 1 deletion(-)
+ create mode 100644 projects/storefrontstyles/scss/components/content/navigation/_back-to-top.scss
+
+diff --git a/projects/storefrontstyles/scss/components/content/_index.scss b/projects/storefrontstyles/scss/components/content/_index.scss
+index 796b22379e..73876db388 100644
+--- a/projects/storefrontstyles/scss/components/content/_index.scss
++++ b/projects/storefrontstyles/scss/components/content/_index.scss
+@@ -6,4 +6,4 @@
+ 
+ $content-components-whitelist: cx-banner, cx-link, cx-media, cx-carousel,
+   cx-banner-carousel, cx-global-message, cx-navigation-ui, cx-footer-navigation,
+-  cx-category-navigation, cx-breadcrumb !default;
++  cx-category-navigation, cx-breadcrumb, cx-back-to-top !default;
+diff --git a/projects/storefrontstyles/scss/components/content/navigation/_back-to-top.scss b/projects/storefrontstyles/scss/components/content/navigation/_back-to-top.scss
+new file mode 100644
+index 0000000000..49a29ae662
+--- /dev/null
++++ b/projects/storefrontstyles/scss/components/content/navigation/_back-to-top.scss
+@@ -0,0 +1,52 @@
++%cx-back-to-top {
++  --cx-back-to-top-size: 48px;
++  --cx-back-to-top-offset: 2rem;
++
++  position: fixed;
++  bottom: var(--cx-back-to-top-offset);
++  right: var(--cx-back-to-top-offset);
++  z-index: 10;
++
++  @include media-breakpoint-down(sm) {
++    --cx-back-to-top-offset: 1rem;
++  }
++
++  [dir='rtl'] & {
++    right: auto;
++    left: var(--cx-back-to-top-offset);
++  }
++
++  button {
++    display: flex;
++    align-items: center;
++    justify-content: center;
++    width: var(--cx-back-to-top-size);
++    height: var(--cx-back-to-top-size);
++    padding: 0;
++    border: none;
++    border-radius: 50%;
++    background-color: var(--cx-color-primary);
++    color: var(--cx-color-inverse);
++    font-size: 1.5rem;
++    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
++    cursor: pointer;
++    animation: cx-back-to-top-fade-in 0.3s ease-in;
++
++    &:hover {
++      @include cx-darken(88);
++    }
++
++    @media (prefers-reduced-motion: reduce) {
++      animation: none;
++    }
++  }
++}
++
++@keyframes cx-back-to-top-fade-in {
++  from {
++    opacity: 0;
++  }
++  to {
++    opacity: 1;
++  }
++}
+diff --git a/projects/storefrontstyles/scss/components/content/navigation/_index.scss b/projects/storefrontstyles/scss/components/content/navigation/_index.scss
+index 2181233da6..514e9c2535 100644
+--- a/projects/storefrontstyles/scss/components/content/navigation/_index.scss
++++ b/projects/storefrontstyles/scss/components/content/navigation/_index.scss
+@@ -3,3 +3,4 @@
+ @import './navigation-ui';
+ @import './category-navigation';
+ @import './footer-navigation';
++@import './back-to-top';
+-- 
+2.43.0
+
