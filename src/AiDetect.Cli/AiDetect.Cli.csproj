@@ -4,6 +4,7 @@
     <OutputType>Exe</OutputType>
     <AssemblyName>aidetect</AssemblyName>
     <RootNamespace>AiDetect.Cli</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>

@@ -4,28 +4,37 @@
 
 Анализ полностью **локальный**: код MR никуда, кроме вашего GitLab, не отправляется. Внешних ИИ-сервисов нет. Алгоритм построен на исследовании «Как отличить C#-код, написанный человеком, от кода Claude Code» (выжимка — [docs/RESEARCH.md](docs/RESEARCH.md)).
 
-## Быстрый старт на Mac
+## Быстрый старт
+
+Нужны только интернет (при первом запуске) и токен GitLab. .NET ставить не надо: скрипт запуска сам скачает .NET SDK 10 в папку пользователя (без прав администратора, около 200 МБ) и соберёт программу. Последующие запуски занимают секунды.
+
+Скачать проект: `git clone https://github.com/vvvq3/DetectAICodeTest.git` (папка `DetectAICodeTest`) или без git — [ZIP-архив](https://github.com/vvvq3/DetectAICodeTest/archive/refs/heads/claude/inspiring-lamport-i2ixa7.zip) (распаковать в любую папку; она будет называться `DetectAICodeTest-claude-inspiring-lamport-i2ixa7`). Дальше все команды выполняются из папки проекта.
+
+### macOS (Терминал)
 
 ```bash
-git clone -b claude/inspiring-lamport-i2ixa7 https://github.com/vvvq3/DetectAICodeTest.git
-cd DetectAICodeTest
-export GITLAB_TOKEN=glpat-xxxxxxxxxxxxxxxx      # токен с правом read_api
-./run.sh https://gitlab.company.com/group/project/-/merge_requests/123
+cd ~/Downloads/DetectAICodeTest          # ваша папка проекта
+export GITLAB_TOKEN=glpat-xxxxxxxxxxxxxxxx
+bash run.sh https://gitlab.company.com/group/project/-/merge_requests/123
 ```
 
-`run.sh` при первом запуске сам ставит .NET SDK 10 в `~/.dotnet` (без sudo, около 200 МБ) и собирает программу. Последующие запуски занимают секунды. Если .NET 10+ уже стоит (`brew install --cask dotnet-sdk`), используется он. При первой сборке скачиваются пакеты с nuget.org (Roslyn, DiffPlex). За корпоративным прокси задайте `HTTPS_PROXY`.
+- Веб-страница с полем для ссылки: `bash run.sh web`.
+- Несколько MR сразу (файл со ссылками, по одной в строке): `bash run.sh batch mrs.txt --html reports/`.
 
-Веб-интерфейс: откроется страница с полем для ссылки на MR.
+### Windows (PowerShell)
 
-```bash
-./run.sh web
+```powershell
+cd $HOME\Downloads\DetectAICodeTest       # ваша папка проекта
+$env:GITLAB_TOKEN = "glpat-xxxxxxxxxxxxxxxx"
+.\run.cmd https://gitlab.company.com/group/project/-/merge_requests/123
 ```
 
-Несколько MR сразу: файл со ссылками, по одной в строке. Вывод — сводная таблица, плюс HTML-отчёт по каждому MR.
+- Веб-страница: `.\run.cmd web`.
+- Несколько MR: `.\run.cmd batch mrs.txt --html reports\`.
+- В обычной командной строке (cmd) токен задаётся командой `set GITLAB_TOKEN=glpat-...`.
+- `run.cmd` сам запускает PowerShell-скрипт `run.ps1` в обход политики выполнения, менять настройки Windows не нужно.
 
-```bash
-./run.sh batch mrs.txt --html reports/
-```
+При первой сборке скачиваются пакеты с nuget.org (Roslyn, DiffPlex). За корпоративным прокси задайте `HTTPS_PROXY`. Если .NET SDK 10+ уже установлен, используется он.
 
 ### Токен GitLab
 GitLab → аватар → **Edit profile → Access Tokens** → *Add new token*, scope **`read_api`** (достаточно; `read_repository` не нужен). Токен передаётся через переменную `GITLAB_TOKEN` или параметр `--token`.
@@ -33,7 +42,7 @@ GitLab → аватар → **Edit profile → Access Tokens** → *Add new toke
 Для собственного сервера:
 - самоподписанный сертификат — флаг `--insecure` (или `GITLAB_INSECURE=1`);
 - GitLab в подкаталоге (`https://host/gitlab/...`) — `--api-url https://host/gitlab/api/v4`;
-- сервер за VPN — достаточно, чтобы VPN был включён на Mac.
+- сервер за VPN — достаточно, чтобы VPN был включён на компьютере.
 
 ## Что показывает отчёт
 

@@ -119,7 +119,7 @@ static async Task<int> AnalyzeAsync(CliOptions o)
     }
     else
     {
-        bool color = !o.NoColor && !Console.IsOutputRedirected && Environment.GetEnvironmentVariable("NO_COLOR") is null;
+        bool color = !o.NoColor && !Console.IsOutputRedirected && Environment.GetEnvironmentVariable("NO_COLOR") is null && WindowsConsole.TryEnableColors();
         Console.WriteLine();
         Console.WriteLine(new ConsoleReportWriter(color, o.Verbose).Render(report));
     }
