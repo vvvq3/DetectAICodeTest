@@ -20,9 +20,26 @@ public static class WebServer
     {
         var builder = WebApplication.CreateSlimBuilder();
         builder.Logging.SetMinimumLevel(LogLevel.Warning);
-        builder.WebHost.UseUrls($"http://127.0.0.1:{o.Port}");
+        builder.WebHost.UseUrls($"http://{o.Host}:{o.Port}");
         var app = builder.Build();
 
+        if (!string.IsNullOrEmpty(o.Password))
+        {
+            app.Use(async (http, next) =>
+            {
+                if (IsAuthorized(http.Request, o.Password))
+                {
+                    await next(http);
+                    return;
+                }
+
+                http.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                http.Response.Headers.WWWAuthenticate = "Basic realm=\"AI code detector\", charset=\"UTF-8\"";
+                await http.Response.WriteAsync("Нужен пароль (имя пользователя — любое).");
+            });
+        }
+
+        string? allowedHost = NormalizeHost(o.GitLabHost);
         bool serverHasToken = !string.IsNullOrEmpty(o.Token);
         app.MapGet("/", () => Results.Content(Page(serverHasToken), "text/html; charset=utf-8"));
         app.MapPost("/api/analyze", async (HttpContext http) =>
@@ -31,6 +48,11 @@ public static class WebServer
             string url = form["url"].ToString().Trim();
             string? token = form["token"].ToString().Trim() is { Length: > 0 } t ? t : o.Token;
             bool noArtifacts = form["noArtifacts"].ToString() == "on";
+            if (allowedHost is not null && NormalizeHost(url) != allowedHost)
+            {
+                return Results.Text($"Здесь можно проверять только MR с {allowedHost}.", "text/plain; charset=utf-8", statusCode: StatusCodes.Status400BadRequest);
+            }
+
             try
             {
                 using var source = new GitLabMergeRequestSource(url, token, o.Insecure, apiBaseOverride: o.ApiUrl);
@@ -56,9 +78,28 @@ public static class WebServer
 
         var address = $"http://127.0.0.1:{o.Port}/";
         Console.WriteLine($"Веб-интерфейс детектора: {address}  (Ctrl+C — остановить)");
-        if (!serverHasToken)
+        bool shared = o.Host is not ("127.0.0.1" or "localhost" or "::1");
+        if (shared)
         {
-            Console.WriteLine("Токен GitLab введите один раз на странице (или задайте GITLAB_TOKEN до запуска).");
+            foreach (var ip in LocalAddresses())
+            {
+                Console.WriteLine($"  для коллег в вашей сети: http://{ip}:{o.Port}/");
+            }
+        }
+
+        Console.WriteLine(string.IsNullOrEmpty(o.Password)
+            ? "  пароль на страницу не задан" + (shared ? " — ВНИМАНИЕ: страница открыта всем, кто видит этот компьютер в сети (добавьте --password)." : ".")
+            : "  вход по паролю: имя пользователя любое, пароль — заданный в --password.");
+        Console.WriteLine(allowedHost is null
+            ? "  принимаются MR с любого GitLab" + (shared ? " (лучше ограничить: --gitlab-host gitlab.company.com)." : ".")
+            : $"  принимаются только MR с {allowedHost}.");
+        if (serverHasToken && (shared || !string.IsNullOrEmpty(o.Password)))
+        {
+            Console.WriteLine("  ВНИМАНИЕ: задан GITLAB_TOKEN — все, у кого есть доступ к странице, смогут проверять MR с вашими правами в GitLab.");
+        }
+        else if (!serverHasToken)
+        {
+            Console.WriteLine("  токен GitLab каждый вводит один раз на странице (или задайте GITLAB_TOKEN до запуска).");
         }
 
         if (o.OpenBrowser)
@@ -188,6 +229,63 @@ public static class WebServer
           });
         })();
         """;
+
+    private static bool IsAuthorized(HttpRequest request, string password)
+    {
+        var header = request.Headers.Authorization.ToString();
+        if (!header.StartsWith("Basic ", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        try
+        {
+            var decoded = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(header[6..].Trim()));
+            var given = decoded[(decoded.IndexOf(':') + 1)..];
+            return System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(
+                System.Text.Encoding.UTF8.GetBytes(given), System.Text.Encoding.UTF8.GetBytes(password));
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>«https://GitLab.company.com:8443/x/y» → «gitlab.company.com:8443»; строка без схемы считается именем хоста.</summary>
+    private static string? NormalizeHost(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var v = value.Trim();
+        if (!v.Contains("://", StringComparison.Ordinal))
+        {
+            v = "https://" + v;
+        }
+
+        return Uri.TryCreate(v, UriKind.Absolute, out var uri) ? uri.Authority.ToLowerInvariant() : value.Trim().ToLowerInvariant();
+    }
+
+    private static IEnumerable<string> LocalAddresses()
+    {
+        try
+        {
+            return System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces()
+                .Where(n => n.OperationalStatus == System.Net.NetworkInformation.OperationalStatus.Up &&
+                            n.NetworkInterfaceType != System.Net.NetworkInformation.NetworkInterfaceType.Loopback)
+                .SelectMany(n => n.GetIPProperties().UnicastAddresses)
+                .Where(a => a.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+                .Select(a => a.Address.ToString())
+                .Distinct()
+                .ToList();
+        }
+        catch (Exception)
+        {
+            return [];
+        }
+    }
 
     private static void TryOpenBrowser(string url)
     {

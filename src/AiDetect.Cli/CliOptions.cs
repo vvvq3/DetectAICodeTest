@@ -27,6 +27,9 @@ public sealed class CliOptions
     public string? Description { get; private set; }
     public string? Branch { get; private set; }
     public int Port { get; private set; } = 5057;
+    public string Host { get; private set; } = Environment.GetEnvironmentVariable("AIDETECT_HOST") ?? "127.0.0.1";
+    public string? Password { get; private set; } = Environment.GetEnvironmentVariable("AIDETECT_PASSWORD");
+    public string? GitLabHost { get; private set; } = Environment.GetEnvironmentVariable("AIDETECT_GITLAB_HOST");
     public double Lambda { get; private set; } = 16.0;
     public bool Balanced { get; private set; }
     public bool OpenBrowser { get; private set; } = true;
@@ -110,6 +113,15 @@ public sealed class CliOptions
                 case "--port":
                     o.Port = int.Parse(Next());
                     break;
+                case "--host":
+                    o.Host = Next();
+                    break;
+                case "--password":
+                    o.Password = Next();
+                    break;
+                case "--gitlab-host":
+                    o.GitLabHost = Next();
+                    break;
                 case "--lambda":
                     o.Lambda = double.Parse(Next(), System.Globalization.CultureInfo.InvariantCulture);
                     break;
@@ -145,6 +157,8 @@ public sealed class CliOptions
         Использование:
           aidetect <ссылка на MR>                      анализ MR из GitLab
           aidetect web [--port 5057]                   локальная веб-страница с полем для ссылки
+          aidetect web --host 0.0.0.0 --password P --gitlab-host gitlab.company.com
+                                                       веб-страница для коллег (по сети/туннелю) с паролем
           aidetect batch mrs.txt [--html отчёты/]      несколько MR из файла (по ссылке в строке) — сводная таблица
           aidetect --git <репо> --base <ветка> --head <ветка>   анализ диапазона коммитов локального git
           aidetect --load mr.json                      анализ сохранённого MR
