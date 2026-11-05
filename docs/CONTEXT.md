@@ -112,10 +112,10 @@
 
 ## 3а. Версии и откат
 
-- **Версия 1.0.0** (детектор C#) — ветка `v1` и тег `v1.0.0` на GitHub. Их не менять. Номер версии — `<Version>` в `Directory.Build.props`. Его показывают `aidetect --version`, подвал веб-страницы и HTML-отчёты. История версий — `CHANGELOG.md`.
+- **Версия 1.0.0** (детектор C#) — ветка `v1` на GitHub (коммит `f708083`). Её не менять. Тег `v1.0.0` из облачной сессии отправить нельзя: политика прокси отвечает 403 на push тегов. Пользователь создаёт его сам через GitHub → Releases → Draft a new release → тег `v1.0.0`, target `v1`. Номер версии — `<Version>` в `Directory.Build.props`. Его показывают `aidetect --version`, подвал веб-страницы и HTML-отчёты. История версий — `CHANGELOG.md`.
 - **Откат:**
   - `git checkout v1` (или `git checkout v1.0.0`), затем `bash run.sh …`;
-  - ZIP: https://github.com/vvvq3/DetectAICodeTest/archive/refs/tags/v1.0.0.zip
+  - ZIP: https://github.com/vvvq3/DetectAICodeTest/archive/refs/heads/v1.zip
 - **Новая версия:** увеличить `<Version>`, дописать `CHANGELOG.md`, создать ветку `vN` и тег `vN.0.0` (только по просьбе пользователя).
 - **Тестовые инструменты** (раньше были только во временной папке) теперь в `tests/web`:
   - `mock_gitlab.py` — поддельный GitLab API из JSON корпуса;
