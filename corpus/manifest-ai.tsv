@@ -1,0 +1,20 @@
+name	category	repo	base	title
+bitwarden-folder-cleanup	ai-default	bitwarden/server	edf30974dca30dc8aaf79cf15fa7b6a8086bffc0	Folder cleanup
+cleanarch-due-dates	ai-default	jasontaylordev/CleanArchitecture	57f83f84f28cfccf6d4e8de1d7bfebc87553b5cd	Add due dates for todo items
+eshop-catalog-reviews	ai-default	dotnet-architecture/eshoponcontainers	0b4f44659dc7e8fc6e2a942b16caf02c87532b9a	Add catalog item reviews
+eshop-notifications-service	ai-default	dotnet-architecture/eshoponcontainers	0b4f44659dc7e8fc6e2a942b16caf02c87532b9a	Add Notifications.API microservice
+eshop-order-history-search	ai-default	dotnet-architecture/eshoponcontainers	0b4f44659dc7e8fc6e2a942b16caf02c87532b9a	Add order history search
+eshop-refund-order	ai-default	dotnet-architecture/eshoponcontainers	0b4f44659dc7e8fc6e2a942b16caf02c87532b9a	Add RefundOrderCommand
+eshopweb-basket-limits-refactor	ai-default	dotnet-architecture/eShopOnWeb	6041a1f183e05618db8a26bedd3418795c6a7b2c	Limit basket item quantity
+eshopweb-cancel-order	ai-default	dotnet-architecture/eShopOnWeb	6041a1f183e05618db8a26bedd3418795c6a7b2c	Add order cancellation
+jellyfin-watch-history	ai-default	jellyfin/jellyfin	ffd45b8df75b13f1327fa9aafed21bbb5850f5d4	Add watch history export endpoint
+nop-product-view-stats	ai-default	nopSolutions/nopCommerce	53ce63fb0014b414f4f26427f961da0ba8d75b84	Add product view statistics service
+polly-backoff-helper	ai-default	App-vNext/Polly	52968c25f2e13e2708898174c15aafc9cb915020	Add Backoff helper
+sonarr-blacklist-expiry	ai-default	Sonarr/Sonarr	dafcba733611e0115a64afcef7d251dcabcbbd38	Clean up expired blacklist entries
+eshop-basket-merge-humanized	ai-masked	dotnet-architecture/eshoponcontainers	0b4f44659dc7e8fc6e2a942b16caf02c87532b9a	Basket merge
+eshopweb-orders-export-ru	ai-masked	dotnet-architecture/eShopOnWeb	6041a1f183e05618db8a26bedd3418795c6a7b2c	Экспорт заказов в CSV
+eshopweb-wishlist-masked	ai-masked	dotnet-architecture/eShopOnWeb	6041a1f183e05618db8a26bedd3418795c6a7b2c	Wishlist
+jellyfin-playback-stats-masked	ai-masked	jellyfin/jellyfin	ffd45b8df75b13f1327fa9aafed21bbb5850f5d4	Add playback stats endpoint
+mmddd-pin-comment-masked	ai-masked	kgrzybek/modular-monolith-with-ddd	c45909b754d0c07ff45c3ed6fcfe7f14923190de	Pin meeting comment
+nop-auto-cancel-masked	ai-masked	nopSolutions/nopCommerce	53ce63fb0014b414f4f26427f961da0ba8d75b84	Auto cancel pending orders
+squidex-app-image-cleanup	ai-masked	Squidex/squidex	41315bca557f254129cdff5c59d489510e96c970	Clean up images of deleted apps
