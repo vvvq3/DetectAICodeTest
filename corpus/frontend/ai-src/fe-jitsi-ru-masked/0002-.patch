@@ -1,0 +1,59 @@
+From 110e8da6bc3fdd2bbb64a26f6f54eab485e1d269 Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Thu, 5 Nov 2026 22:15:20 +0000
+Subject: [PATCH 2/2] =?UTF-8?q?=D0=BF=D0=B5=D1=80=D0=B5=D0=B2=D0=BE=D0=B4?=
+ =?UTF-8?q?=D1=8B=20=D0=B4=D0=BB=D1=8F=20=D0=BD=D0=B0=D1=81=D1=82=D1=80?=
+ =?UTF-8?q?=D0=BE=D0=B9=D0=BA=D0=B8=20=D1=82=D0=B0=D0=B9=D0=BC=D0=B5=D1=80?=
+ =?UTF-8?q?=D0=B0?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ lang/main-ru.json | 2 ++
+ lang/main.json    | 2 ++
+ 2 files changed, 4 insertions(+)
+
+diff --git a/lang/main-ru.json b/lang/main-ru.json
+index 7e5f01c14..2f3049bc0 100644
+--- a/lang/main-ru.json
++++ b/lang/main-ru.json
+@@ -660,6 +660,7 @@
+             "signedIn": "Доступ к событиям календаря включен для email - адреса {{email}}. Нажмите кнопку Отключить для отключения доступа к событиям календаря.",
+             "title": "Календарь"
+         },
++        "conferenceTimer": "Таймер встречи",
+         "devices": "Устройства",
+         "followMe": "Все следуют за мной",
+         "language": "Язык",
+@@ -672,6 +673,7 @@
+         "selectAudioOutput": "Звуковой выход",
+         "selectCamera": "Камера",
+         "selectMic": "Микрофон",
++        "showConferenceTimer": "Показывать длительность встречи",
+         "speakers": "Динамики",
+         "startAudioMuted": "Все начинают с выключенным звуком",
+         "startVideoMuted": "Все начинают в скрытом режиме",
+diff --git a/lang/main.json b/lang/main.json
+index 597ed21d4..f6e69b509 100644
+--- a/lang/main.json
++++ b/lang/main.json
+@@ -625,6 +625,7 @@
+             "signedIn": "Currently accessing calendar events for {{email}}. Click the Disconnect button below to stop accessing calendar events.",
+             "title": "Calendar"
+         },
++        "conferenceTimer": "Meeting timer",
+         "devices": "Devices",
+         "followMe": "Everyone follows me",
+         "language": "Language",
+@@ -637,6 +638,7 @@
+         "selectAudioOutput": "Audio output",
+         "selectCamera": "Camera",
+         "selectMic": "Microphone",
++        "showConferenceTimer": "Show meeting duration",
+         "speakers": "Speakers",
+         "startAudioMuted": "Everyone starts muted",
+         "startVideoMuted": "Everyone starts hidden",
+-- 
+2.43.0
+

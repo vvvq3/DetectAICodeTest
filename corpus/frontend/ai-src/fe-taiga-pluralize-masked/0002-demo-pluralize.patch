@@ -1,0 +1,135 @@
+From d683a69db0666b17a1b50191f4ac59a5175255e8 Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Thu, 5 Nov 2026 22:14:03 +0000
+Subject: [PATCH 2/2] =?UTF-8?q?demo:=20=D0=BF=D1=80=D0=B8=D0=BC=D0=B5?=
+ =?UTF-8?q?=D1=80=20=D0=B4=D0=BB=D1=8F=20pluralize?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ .../pipes/pluralize/examples/1/index.html        |  3 +++
+ .../modules/pipes/pluralize/examples/1/index.ts  | 16 ++++++++++++++++
+ .../pipes/pluralize/pluralize.component.ts       |  9 +++++++++
+ .../modules/pipes/pluralize/pluralize.module.ts  |  6 ++++--
+ .../pipes/pluralize/pluralize.template.html      | 13 ++++++++++++-
+ 5 files changed, 44 insertions(+), 3 deletions(-)
+ create mode 100644 projects/demo/src/modules/pipes/pluralize/examples/1/index.html
+ create mode 100644 projects/demo/src/modules/pipes/pluralize/examples/1/index.ts
+
+diff --git a/projects/demo/src/modules/pipes/pluralize/examples/1/index.html b/projects/demo/src/modules/pipes/pluralize/examples/1/index.html
+new file mode 100644
+index 0000000000..43096d9273
+--- /dev/null
++++ b/projects/demo/src/modules/pipes/pluralize/examples/1/index.html
+@@ -0,0 +1,3 @@
++<p *ngFor="let value of values">
++    {{value | tuiFormatNumber}} {{value | tuiPluralize: files}}
++</p>
+diff --git a/projects/demo/src/modules/pipes/pluralize/examples/1/index.ts b/projects/demo/src/modules/pipes/pluralize/examples/1/index.ts
+new file mode 100644
+index 0000000000..b0c9133eb6
+--- /dev/null
++++ b/projects/demo/src/modules/pipes/pluralize/examples/1/index.ts
+@@ -0,0 +1,16 @@
++import {Component} from '@angular/core';
++import {TuiPluralize} from '@taiga-ui/core';
++import {changeDetection} from '../../../../../change-detection-strategy';
++import {encapsulation} from '../../../../../view-encapsulation';
++
++@Component({
++    selector: 'tui-pluralize-example-1',
++    templateUrl: './index.html',
++    changeDetection,
++    encapsulation,
++})
++export class TuiPluralizeExample1 {
++    readonly values = [1, 2, 5, 21, 112, -1, -24, 0.5, 1.5];
++
++    readonly files: TuiPluralize = ['файл', 'файла', 'файлов'];
++}
+diff --git a/projects/demo/src/modules/pipes/pluralize/pluralize.component.ts b/projects/demo/src/modules/pipes/pluralize/pluralize.component.ts
+index 33d6288ac2..e6f087b9b9 100644
+--- a/projects/demo/src/modules/pipes/pluralize/pluralize.component.ts
++++ b/projects/demo/src/modules/pipes/pluralize/pluralize.component.ts
+@@ -1,9 +1,13 @@
++import {default as example1Html} from '!!raw-loader!./examples/1/index.html';
++import {default as example1Ts} from '!!raw-loader!./examples/1/index.ts';
++
+ import {default as exampleImportModule} from '!!raw-loader!./examples/import/import-module.txt';
+ import {default as exampleInsertTemplate} from '!!raw-loader!./examples/import/insert-template.txt';
+ 
+ import {Component} from '@angular/core';
+ import {TuiPluralize} from '@taiga-ui/core';
+ import {changeDetection} from '../../../change-detection-strategy';
++import {FrontEndExample} from '../../interfaces/front-end-example';
+ 
+ @Component({
+     selector: 'example-tui-pluralize',
+@@ -15,6 +19,11 @@ export class ExampleTuiPluralizeComponent {
+     readonly exampleImportModule = exampleImportModule;
+     readonly exampleInsertTemplate = exampleInsertTemplate;
+ 
++    readonly example1: FrontEndExample = {
++        TypeScript: example1Ts,
++        HTML: example1Html,
++    };
++
+     index = 10;
+ 
+     pluralizeVariants: ReadonlyArray<TuiPluralize> = [
+diff --git a/projects/demo/src/modules/pipes/pluralize/pluralize.module.ts b/projects/demo/src/modules/pipes/pluralize/pluralize.module.ts
+index 00e72da3dc..61a450290b 100644
+--- a/projects/demo/src/modules/pipes/pluralize/pluralize.module.ts
++++ b/projects/demo/src/modules/pipes/pluralize/pluralize.module.ts
+@@ -3,13 +3,15 @@ import {NgModule} from '@angular/core';
+ import {FormsModule, ReactiveFormsModule} from '@angular/forms';
+ import {RouterModule} from '@angular/router';
+ import {generateRoutes, TUI_DOC_PAGE_MODULES} from '@taiga-ui/addon-doc';
+-import {TuiPluralizePipeModule} from '@taiga-ui/core';
++import {TuiFormatNumberPipeModule, TuiPluralizePipeModule} from '@taiga-ui/core';
+ import {TuiInputSliderModule} from '@taiga-ui/kit';
++import {TuiPluralizeExample1} from './examples/1';
+ import {ExampleTuiPluralizeComponent} from './pluralize.component';
+ 
+ @NgModule({
+     imports: [
+         TuiPluralizePipeModule,
++        TuiFormatNumberPipeModule,
+         TuiInputSliderModule,
+         ReactiveFormsModule,
+         FormsModule,
+@@ -17,7 +19,7 @@ import {ExampleTuiPluralizeComponent} from './pluralize.component';
+         ...TUI_DOC_PAGE_MODULES,
+         RouterModule.forChild(generateRoutes(ExampleTuiPluralizeComponent)),
+     ],
+-    declarations: [ExampleTuiPluralizeComponent],
++    declarations: [ExampleTuiPluralizeComponent, TuiPluralizeExample1],
+     exports: [ExampleTuiPluralizeComponent],
+ })
+ export class ExampleTuiPluralizeModule {}
+diff --git a/projects/demo/src/modules/pipes/pluralize/pluralize.template.html b/projects/demo/src/modules/pipes/pluralize/pluralize.template.html
+index 790f3a6abf..15f9213bf7 100644
+--- a/projects/demo/src/modules/pipes/pluralize/pluralize.template.html
++++ b/projects/demo/src/modules/pipes/pluralize/pluralize.template.html
+@@ -1,5 +1,16 @@
+ <tui-doc-page header="Pluralize" package="CORE">
+-    <ng-template i18n pageTab> Pipe to pluralize plural nouns </ng-template>
++    <ng-template pageTab>
++        <p i18n>Pipe to pluralize plural nouns</p>
++
++        <tui-doc-example
++            id="base"
++            i18n-heading
++            heading="Basic"
++            [content]="example1"
++        >
++            <tui-pluralize-example-1></tui-pluralize-example-1>
++        </tui-doc-example>
++    </ng-template>
+ 
+     <ng-template pageTab>
+         <p class="text b-full-width">
+-- 
+2.43.0
+

@@ -9,6 +9,12 @@ const { chromium } = require('playwright');
   const ok = (name, cond) => console.log((cond ? 'OK   ' : 'FAIL ') + name);
   await p.goto(base);
 
+  // Выбор языка после ссылки: C#, JS/TS, Авто
+  const langs = await p.$$eval('#lang option', os => os.map(o => o.value));
+  ok('в списке языков C#, JS/TS и Авто', langs.join(',') === 'csharp,frontend,auto');
+  ok('по умолчанию выбрано Авто', (await p.inputValue('#lang')) === 'auto');
+  await p.selectOption('#lang', 'csharp');
+
   // Токен и галочка вводятся один раз
   await p.fill('#token', 'glpat-test-token');
   await p.dispatchEvent('#token', 'input');
@@ -35,6 +41,9 @@ const { chromium } = require('playwright');
   ok('поле ссылки очищено', (await p.inputValue('#url')) === '');
   ok('токен остался', (await p.inputValue('#token')) === 'glpat-test-token');
   ok('галочка осталась', await p.isChecked('#noArtifacts'));
+  ok('язык остался выбранным', (await p.inputValue('#lang')) === 'csharp');
+  ok('в отчёте указаны язык и стек', (await p.textContent('#result .stack')).includes('C# (.NET)') && (await p.textContent('#result .stack')).includes('Стек'));
+  ok('в списке сессии отмечен язык', (await p.textContent('#hist')).includes('C#'));
 
   // Второй MR: новый отчёт заменяет прошлый, оба в списке сессии
   await p.fill('#url', mr(2));
@@ -54,5 +63,6 @@ const { chromium } = require('playwright');
   await p.reload();
   ok('после перезагрузки токен восстановлен', (await p.inputValue('#token')) === 'glpat-test-token');
   ok('после перезагрузки галочка восстановлена', await p.isChecked('#noArtifacts'));
+  ok('после перезагрузки язык восстановлен', (await p.inputValue('#lang')) === 'csharp');
   await b.close();
 })().catch(e => { console.error('ERROR', e.message); process.exit(1); });

@@ -80,6 +80,7 @@ public sealed partial class CSharpLanguage : ILanguageAnalyzer
         ("IdentityServer4", "IdentityServer", "identityserver"),
         ("Duende.IdentityServer", "IdentityServer", "identityserver"),
         ("Npgsql", "PostgreSQL", "postgres"),
+        ("Microsoft.EntityFrameworkCore.SqlServer", "SQL Server", "sqlserver"),
         ("Microsoft.Data.SqlClient", "SQL Server", "sqlserver"),
         ("System.Data.SqlClient", "SQL Server", "sqlserver"),
         ("MongoDB.Driver", "MongoDB", "mongodb"),

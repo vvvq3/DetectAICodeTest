@@ -1,0 +1,681 @@
+From 893c4c5cd482058b3eaa4c2c1711029de0cec9f9 Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Thu, 5 Nov 2026 17:27:25 +0000
+Subject: [PATCH] Add 'Recently viewed' panel to the sidebar navigation
+
+Track the last 10 files opened in the viewer via RecentlyViewedService
+(persisted in localStorage) and list them in the expanded sidenav with
+icon, name and relative time. Clicking an item opens the file in the viewer.
+Includes i18n strings and unit tests for the service, component and preview hook.
+---
+ .../preview/preview.component.spec.ts         |  26 ++++
+ .../components/preview/preview.component.ts   |   8 ++
+ .../components/recently-viewed.component.html |  17 +++
+ .../recently-viewed.component.spec.ts         | 105 +++++++++++++++
+ .../components/recently-viewed.component.ts   |  54 ++++++++
+ .../components/sidenav/sidenav.component.html |   4 +
+ .../components/sidenav/sidenav.component.scss |  69 ++++++++++
+ src/app/components/sidenav/sidenav.module.ts  |   3 +
+ .../services/recently-viewed.service.spec.ts  | 126 ++++++++++++++++++
+ src/app/services/recently-viewed.service.ts   | 103 ++++++++++++++
+ src/assets/i18n/en.json                       |   5 +
+ 11 files changed, 520 insertions(+)
+ create mode 100644 src/app/components/sidenav/components/recently-viewed.component.html
+ create mode 100644 src/app/components/sidenav/components/recently-viewed.component.spec.ts
+ create mode 100644 src/app/components/sidenav/components/recently-viewed.component.ts
+ create mode 100644 src/app/services/recently-viewed.service.spec.ts
+ create mode 100644 src/app/services/recently-viewed.service.ts
+
+diff --git a/src/app/components/preview/preview.component.spec.ts b/src/app/components/preview/preview.component.spec.ts
+index e7f2258c..903d331e 100644
+--- a/src/app/components/preview/preview.component.spec.ts
++++ b/src/app/components/preview/preview.component.spec.ts
+@@ -34,6 +34,7 @@ import { NodeEffects } from '../../store/effects/node.effects';
+ import { AppTestingModule } from '../../testing/app-testing.module';
+ import { ContentApiService } from '@alfresco/aca-shared';
+ import { ContentManagementService } from '../../services/content-management.service';
++import { RecentlyViewedService } from '../../services/recently-viewed.service';
+ import { Store } from '@ngrx/store';
+ import { Node, NodePaging, FavoritePaging, SharedLinkPaging, PersonEntry, ResultSetPaging } from '@alfresco/js-api';
+ import { PreviewModule } from './preview.module';
+@@ -339,6 +340,31 @@ describe('PreviewComponent', () => {
+     expect(router.navigate).toHaveBeenCalledWith(['personal-files', 'folder1']);
+   });
+ 
++  it('should register viewed file in recently viewed list', async () => {
++    const recentlyViewed = TestBed.inject(RecentlyViewedService);
++    spyOn(recentlyViewed, 'add').and.stub();
++    spyOn(contentApi, 'getNodeInfo').and.returnValue(
++      of({ id: 'node1', name: 'file.txt', isFile: true, parentId: 'folder1', content: { mimeType: 'text/plain' } } as Node)
++    );
++    spyOn(component, 'getNearestNodes').and.returnValue(Promise.resolve({ left: null, right: null }));
++
++    await component.displayNode('node1');
++
++    expect(recentlyViewed.add).toHaveBeenCalledWith({ id: 'node1', name: 'file.txt', mimeType: 'text/plain' });
++  });
++
++  it('should not register a folder in recently viewed list', async () => {
++    const recentlyViewed = TestBed.inject(RecentlyViewedService);
++    spyOn(recentlyViewed, 'add').and.stub();
++    spyOn(router, 'navigate').and.stub();
++    spyOn(contentApi, 'getNodeInfo').and.returnValue(of({ id: 'f', isFile: false } as Node));
++
++    component.previewLocation = 'personal-files';
++    await component.displayNode('f');
++
++    expect(recentlyViewed.add).not.toHaveBeenCalled();
++  });
++
+   it('should navigate to original location if node is not a File', async () => {
+     spyOn(router, 'navigate').and.stub();
+     spyOn(contentApi, 'getNodeInfo').and.returnValue(
+diff --git a/src/app/components/preview/preview.component.ts b/src/app/components/preview/preview.component.ts
+index b4d0b192..4d0a53dc 100644
+--- a/src/app/components/preview/preview.component.ts
++++ b/src/app/components/preview/preview.component.ts
+@@ -37,6 +37,7 @@ import { ContentActionRef, ViewerExtensionRef } from '@alfresco/adf-extensions';
+ import { SearchRequest } from '@alfresco/js-api';
+ import { from } from 'rxjs';
+ import { Actions, ofType } from '@ngrx/effects';
++import { RecentlyViewedService } from '../../services/recently-viewed.service';
+ 
+ @Component({
+   selector: 'app-preview',
+@@ -96,6 +97,7 @@ export class PreviewComponent extends PageComponent implements OnInit, OnDestroy
+     private uploadService: UploadService,
+     private actions$: Actions,
+     private location: Location,
++    private recentlyViewed: RecentlyViewedService,
+     store: Store<AppStore>,
+     extensions: AppExtensionService,
+     content: ContentManagementService
+@@ -170,6 +172,12 @@ export class PreviewComponent extends PageComponent implements OnInit, OnDestroy
+         this.store.dispatch(new SetSelectedNodesAction([{ entry: this.node }]));
+ 
+         if (this.node && this.node.isFile) {
++          this.recentlyViewed.add({
++            id: this.node.id,
++            name: this.node.name,
++            mimeType: this.node.content && this.node.content.mimeType
++          });
++
+           const nearest = await this.getNearestNodes(this.node.id, this.node.parentId);
+ 
+           this.previousNodeId = nearest.left;
+diff --git a/src/app/components/sidenav/components/recently-viewed.component.html b/src/app/components/sidenav/components/recently-viewed.component.html
+new file mode 100644
+index 00000000..519db617
+--- /dev/null
++++ b/src/app/components/sidenav/components/recently-viewed.component.html
+@@ -0,0 +1,17 @@
++<div class="recently-viewed__title">{{ 'APP.RECENTLY_VIEWED.TITLE' | translate }}</div>
++
++<ng-container *ngIf="items$ | async as items">
++  <div *ngIf="!items.length" class="recently-viewed__empty">{{ 'APP.RECENTLY_VIEWED.EMPTY' | translate }}</div>
++
++  <ul *ngIf="items.length" class="recently-viewed__list">
++    <li *ngFor="let item of items; trackBy: trackById">
++      <button type="button" class="recently-viewed__item" [attr.data-automation-id]="'recently-viewed-' + item.id" [title]="item.name" (click)="open(item)">
++        <img class="recently-viewed__icon" [src]="getIcon(item)" alt="" />
++        <span class="recently-viewed__text">
++          <span class="recently-viewed__name">{{ item.name }}</span>
++          <span class="recently-viewed__time">{{ item.viewedAt | adfTimeAgo }}</span>
++        </span>
++      </button>
++    </li>
++  </ul>
++</ng-container>
+diff --git a/src/app/components/sidenav/components/recently-viewed.component.spec.ts b/src/app/components/sidenav/components/recently-viewed.component.spec.ts
+new file mode 100644
+index 00000000..5f1a08a9
+--- /dev/null
++++ b/src/app/components/sidenav/components/recently-viewed.component.spec.ts
+@@ -0,0 +1,105 @@
++/*!
++ * @license
++ * Alfresco Example Content Application
++ *
++ * Copyright (C) 2005 - 2020 Alfresco Software Limited
++ *
++ * This file is part of the Alfresco Example Content Application.
++ * If the software was purchased under a paid Alfresco license, the terms of
++ * the paid license agreement will prevail.  Otherwise, the software is
++ * provided under the following open source license terms:
++ *
++ * The Alfresco Example Content Application is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as published by
++ * the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ *
++ * The Alfresco Example Content Application is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public License
++ * along with Alfresco. If not, see <http://www.gnu.org/licenses/>.
++ */
++
++import { ComponentFixture, TestBed } from '@angular/core/testing';
++import { TranslateModule } from '@ngx-translate/core';
++import { Store } from '@ngrx/store';
++import { ThumbnailService } from '@alfresco/adf-core';
++import { ViewNodeAction } from '@alfresco/aca-shared/store';
++import { AppTestingModule } from '../../../testing/app-testing.module';
++import { AppSidenavModule } from '../sidenav.module';
++import { RecentlyViewedComponent } from './recently-viewed.component';
++import { RecentlyViewedService } from '../../../services/recently-viewed.service';
++
++describe('RecentlyViewedComponent', () => {
++  let fixture: ComponentFixture<RecentlyViewedComponent>;
++  let component: RecentlyViewedComponent;
++  let service: RecentlyViewedService;
++  let store: Store<any>;
++
++  beforeEach(() => {
++    localStorage.removeItem(RecentlyViewedService.STORAGE_KEY);
++
++    TestBed.configureTestingModule({
++      imports: [AppTestingModule, AppSidenavModule, TranslateModule.forRoot()]
++    });
++
++    service = TestBed.inject(RecentlyViewedService);
++    store = TestBed.inject(Store);
++    spyOn(TestBed.inject(ThumbnailService), 'getMimeTypeIcon').and.returnValue('icon.svg');
++    spyOn(store, 'dispatch');
++
++    fixture = TestBed.createComponent(RecentlyViewedComponent);
++    component = fixture.componentInstance;
++  });
++
++  afterEach(() => {
++    localStorage.removeItem(RecentlyViewedService.STORAGE_KEY);
++  });
++
++  it('should show the empty message when nothing was viewed', () => {
++    fixture.detectChanges();
++
++    const el: HTMLElement = fixture.nativeElement;
++    expect(el.querySelector('.recently-viewed__empty')).not.toBeNull();
++    expect(el.querySelectorAll('.recently-viewed__item').length).toBe(0);
++  });
++
++  it('should render a row with name, icon and time for each viewed file', () => {
++    service.add({ id: 'a', name: 'first.txt', mimeType: 'text/plain' });
++    service.add({ id: 'b', name: 'second.pdf', mimeType: 'application/pdf' });
++    fixture.detectChanges();
++
++    const el: HTMLElement = fixture.nativeElement;
++    const rows = el.querySelectorAll('.recently-viewed__item');
++    expect(rows.length).toBe(2);
++    expect(rows[0].querySelector('.recently-viewed__name').textContent).toBe('second.pdf');
++    expect(rows[1].querySelector('.recently-viewed__name').textContent).toBe('first.txt');
++    expect(rows[0].querySelector('.recently-viewed__icon').getAttribute('src')).toBe('icon.svg');
++    expect(rows[0].querySelector('.recently-viewed__time').textContent.trim()).not.toBe('');
++    expect(el.querySelector('.recently-viewed__empty')).toBeNull();
++  });
++
++  it('should open the file in the viewer on click', () => {
++    service.add({ id: 'a', name: 'first.txt' });
++    fixture.detectChanges();
++
++    (fixture.nativeElement.querySelector('.recently-viewed__item') as HTMLElement).click();
++
++    expect(store.dispatch).toHaveBeenCalledWith(new ViewNodeAction('a'));
++  });
++
++  it('should update the list when a new file is viewed', () => {
++    fixture.detectChanges();
++    service.add({ id: 'a', name: 'first.txt' });
++    fixture.detectChanges();
++
++    expect(fixture.nativeElement.querySelectorAll('.recently-viewed__item').length).toBe(1);
++  });
++
++  it('should track items by id', () => {
++    expect(component.trackById(0, { id: 'x', name: 'x', viewedAt: 0 })).toBe('x');
++  });
++});
+diff --git a/src/app/components/sidenav/components/recently-viewed.component.ts b/src/app/components/sidenav/components/recently-viewed.component.ts
+new file mode 100644
+index 00000000..e5a02ef6
+--- /dev/null
++++ b/src/app/components/sidenav/components/recently-viewed.component.ts
+@@ -0,0 +1,54 @@
++/*!
++ * @license
++ * Alfresco Example Content Application
++ *
++ * Copyright (C) 2005 - 2020 Alfresco Software Limited
++ *
++ * This file is part of the Alfresco Example Content Application.
++ * If the software was purchased under a paid Alfresco license, the terms of
++ * the paid license agreement will prevail.  Otherwise, the software is
++ * provided under the following open source license terms:
++ *
++ * The Alfresco Example Content Application is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as published by
++ * the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ *
++ * The Alfresco Example Content Application is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public License
++ * along with Alfresco. If not, see <http://www.gnu.org/licenses/>.
++ */
++
++import { Component, ViewEncapsulation } from '@angular/core';
++import { Store } from '@ngrx/store';
++import { ThumbnailService } from '@alfresco/adf-core';
++import { AppStore, ViewNodeAction } from '@alfresco/aca-shared/store';
++import { RecentlyViewedItem, RecentlyViewedService } from '../../../services/recently-viewed.service';
++
++@Component({
++  selector: 'app-recently-viewed',
++  templateUrl: './recently-viewed.component.html',
++  encapsulation: ViewEncapsulation.None,
++  host: { class: 'app-recently-viewed' }
++})
++export class RecentlyViewedComponent {
++  items$ = this.recentlyViewed.items$;
++
++  constructor(private recentlyViewed: RecentlyViewedService, private store: Store<AppStore>, private thumbnailService: ThumbnailService) {}
++
++  getIcon(item: RecentlyViewedItem): string {
++    return this.thumbnailService.getMimeTypeIcon(item.mimeType);
++  }
++
++  open(item: RecentlyViewedItem): void {
++    this.store.dispatch(new ViewNodeAction(item.id));
++  }
++
++  trackById(_: number, item: RecentlyViewedItem) {
++    return item.id;
++  }
++}
+diff --git a/src/app/components/sidenav/sidenav.component.html b/src/app/components/sidenav/sidenav.component.html
+index 5c47eaf9..1ac10a7b 100644
+--- a/src/app/components/sidenav/sidenav.component.html
++++ b/src/app/components/sidenav/sidenav.component.html
+@@ -29,5 +29,9 @@
+         </div>
+       </ng-container>
+     </div>
++
++    <div *ngSwitchCase="'expanded'" class="section section--recently-viewed">
++      <app-recently-viewed></app-recently-viewed>
++    </div>
+   </ng-container>
+ </div>
+diff --git a/src/app/components/sidenav/sidenav.component.scss b/src/app/components/sidenav/sidenav.component.scss
+index 760941a2..30c8dabf 100644
+--- a/src/app/components/sidenav/sidenav.component.scss
++++ b/src/app/components/sidenav/sidenav.component.scss
+@@ -43,6 +43,75 @@
+     height: 24px;
+   }
+ 
++  .section--recently-viewed {
++    overflow-y: auto;
++  }
++
++  .recently-viewed__title {
++    padding: 8px 10px;
++    font-size: 12px;
++    font-weight: 600;
++    text-transform: uppercase;
++    opacity: 0.7;
++  }
++
++  .recently-viewed__empty {
++    padding: 4px 10px;
++    font-size: 12px;
++    opacity: 0.7;
++  }
++
++  .recently-viewed__list {
++    list-style: none;
++    margin: 0;
++    padding: 0;
++  }
++
++  .recently-viewed__item {
++    display: flex;
++    align-items: center;
++    width: 100%;
++    padding: 6px 10px;
++    border: 0;
++    background: none;
++    color: inherit;
++    font: inherit;
++    text-align: start;
++    cursor: pointer;
++
++    &:hover {
++      background: rgba(0, 0, 0, 0.04);
++    }
++  }
++
++  .recently-viewed__icon {
++    width: 24px;
++    height: 24px;
++    margin-inline-end: 12px;
++  }
++
++  .recently-viewed__text {
++    display: flex;
++    flex-direction: column;
++    min-width: 0;
++  }
++
++  .recently-viewed__name,
++  .recently-viewed__time {
++    overflow: hidden;
++    text-overflow: ellipsis;
++    white-space: nowrap;
++  }
++
++  .recently-viewed__name {
++    font-size: 14px;
++  }
++
++  .recently-viewed__time {
++    font-size: 12px;
++    opacity: 0.6;
++  }
++
+   .menu {
+     display: flex;
+     flex: 1;
+diff --git a/src/app/components/sidenav/sidenav.module.ts b/src/app/components/sidenav/sidenav.module.ts
+index eb69b774..0eb6b84a 100644
+--- a/src/app/components/sidenav/sidenav.module.ts
++++ b/src/app/components/sidenav/sidenav.module.ts
+@@ -37,6 +37,7 @@ import { ActiveLinkDirective } from './directives/active-link.directive';
+ import { ExpandMenuComponent } from './components/expand-menu.component';
+ import { ButtonMenuComponent } from './components/button-menu.component';
+ import { ActionDirective } from './directives/action.directive';
++import { RecentlyViewedComponent } from './components/recently-viewed.component';
+ @NgModule({
+   imports: [CommonModule, CoreModule.forChild(), CoreExtensionsModule.forChild(), ExtensionsModule.forChild(), RouterModule, AppCreateMenuModule],
+   declarations: [
+@@ -46,6 +47,7 @@ import { ActionDirective } from './directives/action.directive';
+     ActionDirective,
+     ExpandMenuComponent,
+     ButtonMenuComponent,
++    RecentlyViewedComponent,
+     SidenavComponent
+   ],
+   exports: [
+@@ -55,6 +57,7 @@ import { ActionDirective } from './directives/action.directive';
+     ActionDirective,
+     ExpandMenuComponent,
+     ButtonMenuComponent,
++    RecentlyViewedComponent,
+     SidenavComponent
+   ]
+ })
+diff --git a/src/app/services/recently-viewed.service.spec.ts b/src/app/services/recently-viewed.service.spec.ts
+new file mode 100644
+index 00000000..ee29197d
+--- /dev/null
++++ b/src/app/services/recently-viewed.service.spec.ts
+@@ -0,0 +1,126 @@
++/*!
++ * @license
++ * Alfresco Example Content Application
++ *
++ * Copyright (C) 2005 - 2020 Alfresco Software Limited
++ *
++ * This file is part of the Alfresco Example Content Application.
++ * If the software was purchased under a paid Alfresco license, the terms of
++ * the paid license agreement will prevail.  Otherwise, the software is
++ * provided under the following open source license terms:
++ *
++ * The Alfresco Example Content Application is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as published by
++ * the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ *
++ * The Alfresco Example Content Application is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public License
++ * along with Alfresco. If not, see <http://www.gnu.org/licenses/>.
++ */
++
++import { TestBed } from '@angular/core/testing';
++import { RecentlyViewedService } from './recently-viewed.service';
++
++describe('RecentlyViewedService', () => {
++  const key = RecentlyViewedService.STORAGE_KEY;
++
++  beforeEach(() => {
++    localStorage.removeItem(key);
++  });
++
++  afterEach(() => {
++    localStorage.removeItem(key);
++  });
++
++  function createService(): RecentlyViewedService {
++    TestBed.configureTestingModule({});
++    return TestBed.inject(RecentlyViewedService);
++  }
++
++  it('should start with an empty list', () => {
++    expect(createService().items).toEqual([]);
++  });
++
++  it('should add an item and persist it to localStorage', () => {
++    const service = createService();
++    service.add({ id: 'a', name: 'a.txt', mimeType: 'text/plain' });
++
++    expect(service.items.length).toBe(1);
++    expect(service.items[0].id).toBe('a');
++    const stored = JSON.parse(localStorage.getItem(key));
++    expect(stored.length).toBe(1);
++    expect(stored[0].name).toBe('a.txt');
++  });
++
++  it('should move an already viewed item to the top without duplicating it', () => {
++    const service = createService();
++    service.add({ id: 'a', name: 'a.txt' });
++    service.add({ id: 'b', name: 'b.txt' });
++    service.add({ id: 'a', name: 'a.txt' });
++
++    expect(service.items.map((i) => i.id)).toEqual(['a', 'b']);
++  });
++
++  it('should keep only the last 10 items', () => {
++    const service = createService();
++    for (let i = 0; i < 12; i++) {
++      service.add({ id: `id-${i}`, name: `file-${i}` });
++    }
++
++    expect(service.items.length).toBe(10);
++    expect(service.items[0].id).toBe('id-11');
++    expect(service.items[9].id).toBe('id-2');
++  });
++
++  it('should ignore items without id', () => {
++    const service = createService();
++    service.add({ id: null, name: 'x' });
++    service.add(null);
++
++    expect(service.items).toEqual([]);
++  });
++
++  it('should load items stored previously', () => {
++    localStorage.setItem(key, JSON.stringify([{ id: 'a', name: 'a.txt', viewedAt: 1 }]));
++
++    expect(createService().items.length).toBe(1);
++  });
++
++  it('should ignore corrupted storage data', () => {
++    localStorage.setItem(key, '{not json');
++
++    expect(createService().items).toEqual([]);
++  });
++
++  it('should remove an item', () => {
++    const service = createService();
++    service.add({ id: 'a', name: 'a.txt' });
++    service.add({ id: 'b', name: 'b.txt' });
++    service.remove('a');
++
++    expect(service.items.map((i) => i.id)).toEqual(['b']);
++  });
++
++  it('should clear the list', () => {
++    const service = createService();
++    service.add({ id: 'a', name: 'a.txt' });
++    service.clear();
++
++    expect(service.items).toEqual([]);
++    expect(JSON.parse(localStorage.getItem(key))).toEqual([]);
++  });
++
++  it('should emit changes through items$', () => {
++    const service = createService();
++    let latest = [];
++    service.items$.subscribe((items) => (latest = items));
++    service.add({ id: 'a', name: 'a.txt' });
++
++    expect(latest.length).toBe(1);
++  });
++});
+diff --git a/src/app/services/recently-viewed.service.ts b/src/app/services/recently-viewed.service.ts
+new file mode 100644
+index 00000000..13602bd6
+--- /dev/null
++++ b/src/app/services/recently-viewed.service.ts
+@@ -0,0 +1,103 @@
++/*!
++ * @license
++ * Alfresco Example Content Application
++ *
++ * Copyright (C) 2005 - 2020 Alfresco Software Limited
++ *
++ * This file is part of the Alfresco Example Content Application.
++ * If the software was purchased under a paid Alfresco license, the terms of
++ * the paid license agreement will prevail.  Otherwise, the software is
++ * provided under the following open source license terms:
++ *
++ * The Alfresco Example Content Application is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as published by
++ * the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ *
++ * The Alfresco Example Content Application is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public License
++ * along with Alfresco. If not, see <http://www.gnu.org/licenses/>.
++ */
++
++import { Injectable } from '@angular/core';
++import { BehaviorSubject, Observable } from 'rxjs';
++
++export interface RecentlyViewedItem {
++  id: string;
++  name: string;
++  mimeType?: string;
++  viewedAt: number;
++}
++
++@Injectable({
++  providedIn: 'root'
++})
++export class RecentlyViewedService {
++  static readonly STORAGE_KEY = 'aca.recently-viewed';
++  static readonly MAX_ITEMS = 10;
++
++  private itemsSubject: BehaviorSubject<RecentlyViewedItem[]>;
++
++  get items$(): Observable<RecentlyViewedItem[]> {
++    return this.itemsSubject.asObservable();
++  }
++
++  get items(): RecentlyViewedItem[] {
++    return this.itemsSubject.value;
++  }
++
++  constructor() {
++    this.itemsSubject = new BehaviorSubject<RecentlyViewedItem[]>(this.load());
++  }
++
++  /**
++   * Registers a file as viewed. Moves it to the top of the list
++   * if already present and keeps only the latest items.
++   */
++  add(item: { id: string; name: string; mimeType?: string }): void {
++    if (!item || !item.id) {
++      return;
++    }
++
++    const entry: RecentlyViewedItem = {
++      id: item.id,
++      name: item.name,
++      mimeType: item.mimeType,
++      viewedAt: Date.now()
++    };
++
++    const items = [entry, ...this.items.filter((i) => i.id !== entry.id)].slice(0, RecentlyViewedService.MAX_ITEMS);
++    this.save(items);
++  }
++
++  remove(id: string): void {
++    this.save(this.items.filter((i) => i.id !== id));
++  }
++
++  clear(): void {
++    this.save([]);
++  }
++
++  private save(items: RecentlyViewedItem[]): void {
++    try {
++      localStorage.setItem(RecentlyViewedService.STORAGE_KEY, JSON.stringify(items));
++    } catch {
++      // storage may be unavailable or full, keep the in-memory list only
++    }
++    this.itemsSubject.next(items);
++  }
++
++  private load(): RecentlyViewedItem[] {
++    try {
++      const data = JSON.parse(localStorage.getItem(RecentlyViewedService.STORAGE_KEY));
++      if (Array.isArray(data)) {
++        return data.filter((i) => i && typeof i.id === 'string' && typeof i.name === 'string').slice(0, RecentlyViewedService.MAX_ITEMS);
++      }
++    } catch {}
++    return [];
++  }
++}
+diff --git a/src/assets/i18n/en.json b/src/assets/i18n/en.json
+index 4cb6a86e..850d7f4e 100644
+--- a/src/assets/i18n/en.json
++++ b/src/assets/i18n/en.json
+@@ -346,6 +346,11 @@
+             "EXIF_GROUP_TITLE": "Image EXIF",
+             "EFFECTIVITY_GROUP_TITLE": "Effectivity"
+         },
++        "RECENTLY_VIEWED": {
++            "TITLE": "Recently viewed",
++            "EMPTY": "No recently viewed files",
++            "CLEAR": "Clear recently viewed files"
++        },
+         "INFO_DRAWER": {
+             "TITLE": "Details",
+             "TABS": {
+-- 
+2.43.0
+
