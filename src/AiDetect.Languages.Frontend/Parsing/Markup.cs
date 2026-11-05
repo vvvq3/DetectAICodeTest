@@ -485,7 +485,13 @@ public static class CssScanner
             {
                 case '\n':
                     line++;
-                    buf.Append(' ');
+                    if (buf.Length > 0)
+                    {
+                        buf.Append(' ');
+                    }
+
+                    break;
+                case ' ' or '\t' or '\r' when buf.Length == 0:
                     break;
                 case '"' or '\'':
                     quote = c;

@@ -1,0 +1,101 @@
+From 78b6a97966d200a04d181507dad897a8510246a8 Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Thu, 5 Nov 2026 17:19:13 +0000
+Subject: [PATCH 2/2] [Doc] Document the CopyToClipboardButton component
+
+---
+ docs/Reference.md |  1 +
+ docs/Show.md      | 65 +++++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 66 insertions(+)
+
+diff --git a/docs/Reference.md b/docs/Reference.md
+index be825a92f..f14d87229 100644
+--- a/docs/Reference.md
++++ b/docs/Reference.md
+@@ -29,6 +29,7 @@ title: "Reference"
+ * `<CloneButton>`
+ * [`<CompleteCalendar>`](https://marmelab.com/ra-enterprise/modules/ra-calendar#completecalendar)<img class="icon" src="./img/premium.svg" />
+ * `<Confirm>`
++* [`<CopyToClipboardButton>`](./Show.md#the-copytoclipboardbutton-component)
+ * [`<Create>`](./CreateEdit.md#the-create-and-edit-components)
+ * `<CreateActions>`
+ * `<CreateButton>`
+diff --git a/docs/Show.md b/docs/Show.md
+index 2edc4d556..ba2870da3 100644
+--- a/docs/Show.md
++++ b/docs/Show.md
+@@ -357,6 +357,71 @@ export default ScrollableTabbedShowLayout;
+ 
+ ```
+ 
++## The `<CopyToClipboardButton>` component
++
++`<CopyToClipboardButton>` copies the value of a field of the current record to the clipboard, and displays a notification ("Copied to clipboard", or an error message if the browser refused the copy). Just like a field, it expects a `source` prop, and reads the `record` from its parent. That means you can use it in a `<SimpleShowLayout>`, in the actions of a `<Show>` view, or in a `<Datagrid>`:
++
++```jsx
++import {
++    Show,
++    SimpleShowLayout,
++    TextField,
++    TopToolbar,
++    EditButton,
++    CopyToClipboardButton,
++} from 'react-admin';
++
++const CustomerShowActions = ({ basePath, data }) => (
++    <TopToolbar>
++        <CopyToClipboardButton source="id" label="Copy id" />
++        <EditButton basePath={basePath} record={data} />
++    </TopToolbar>
++);
++
++export const CustomerShow = (props) => (
++    <Show actions={<CustomerShowActions />} {...props}>
++        <SimpleShowLayout>
++            <TextField source="email" />
++            <CopyToClipboardButton source="email" />
++        </SimpleShowLayout>
++    </Show>
++);
++```
++
++In a list, the button stops the click propagation, so it doesn't trigger the `rowClick` of the `<Datagrid>`:
++
++```jsx
++import { List, Datagrid, TextField, CopyToClipboardButton } from 'react-admin';
++import LinkIcon from '@material-ui/icons/Link';
++
++export const OrderList = (props) => (
++    <List {...props}>
++        <Datagrid rowClick="show">
++            <TextField source="reference" />
++            <CopyToClipboardButton
++                source="tracking_url"
++                label="Copy tracking link"
++                icon={<LinkIcon />}
++            />
++        </Datagrid>
++    </List>
++);
++```
++
++| Prop      | Required | Type           | Default             | Description |
++| --------- | -------- | -------------- | ------------------- | ----------- |
++| `source`  | Required | `string`       | -                   | Name of the record field to copy. Supports paths like `author.email` |
++| `label`   | Optional | `string`       | `'ra.action.copy'`  | Button label, translated if it's a translation key |
++| `icon`    | Optional | `ReactElement` | `<FileCopy>`        | Icon of the button |
++| `record`  | Optional | `Object`       | -                   | Record to copy the value from. Defaults to the record of the parent `<Datagrid>`, `<SimpleShowLayout>` or `<Show>` |
++| `onClick` | Optional | `Function`     | -                   | Called after the copy has started, with the click event |
++
++The button is disabled when the field is empty. Strings are copied as is, other values (numbers, booleans, objects and arrays) are converted to text, using JSON for objects and arrays.
++
++The notification messages use the `ra.notification.copied_to_clipboard` and `ra.notification.copy_to_clipboard_error` translation keys, and the default label uses `ra.action.copy`. You can override them in your `i18nProvider`.
++
++**Tip**: Browsers only expose the Clipboard API to pages served over HTTPS or from `localhost`. In other contexts, `<CopyToClipboardButton>` falls back to the legacy `document.execCommand('copy')`.
++
+ ## Third-Party Components
+ 
+ You can find components for react-admin in third-party repositories.
+-- 
+2.43.0
+

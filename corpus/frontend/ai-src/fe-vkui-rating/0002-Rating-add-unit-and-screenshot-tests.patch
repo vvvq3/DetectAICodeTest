@@ -1,0 +1,248 @@
+From bd66992c1be89c51b943cd0e2dcf92de80629d98 Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Thu, 5 Nov 2026 17:20:29 +0000
+Subject: [PATCH 2/2] Rating: add unit and screenshot tests
+
+Screenshots are not committed yet: generate them with
+`yarn test:e2e -u` or the "Update screenshots" workflow.
+---
+ src/components/Rating/Rating.e2e.tsx  |  16 ++
+ src/components/Rating/Rating.test.tsx | 203 ++++++++++++++++++++++++++
+ 2 files changed, 219 insertions(+)
+ create mode 100644 src/components/Rating/Rating.e2e.tsx
+ create mode 100644 src/components/Rating/Rating.test.tsx
+
+diff --git a/src/components/Rating/Rating.e2e.tsx b/src/components/Rating/Rating.e2e.tsx
+new file mode 100644
+index 0000000000..752efc0d81
+--- /dev/null
++++ b/src/components/Rating/Rating.e2e.tsx
+@@ -0,0 +1,16 @@
++import React from 'react';
++import { Rating, RatingProps } from './Rating';
++import { describeScreenshotFuzz } from '../../testing/e2e/utils';
++
++describe('Rating', () => {
++  describeScreenshotFuzz((props: RatingProps) => <Rating {...props} />, [{
++    value: [0, 3, 5],
++    disabled: [undefined, true],
++  }, {
++    value: [3.5],
++    readOnly: [true],
++  }, {
++    value: [3],
++    size: ['s', 'm', 'l'],
++  }]);
++});
+diff --git a/src/components/Rating/Rating.test.tsx b/src/components/Rating/Rating.test.tsx
+new file mode 100644
+index 0000000000..4222ef9ef2
+--- /dev/null
++++ b/src/components/Rating/Rating.test.tsx
+@@ -0,0 +1,203 @@
++import React, { useState } from 'react';
++import { fireEvent, render, screen } from '@testing-library/react';
++import userEvent from '@testing-library/user-event';
++import '@testing-library/jest-dom/extend-expect';
++import { baselineComponent } from '../../testing/utils';
++import { getValueByKey, Rating, RatingProps } from './Rating';
++
++const getStars = () => Array.from(document.querySelectorAll<HTMLElement>('.Rating__star'));
++const countActiveStars = () => document.querySelectorAll('.Rating__star--active').length;
++
++const ControlledRating = (props: RatingProps) => {
++  const [value, setValue] = useState(props.value);
++  return <Rating {...props} value={value} onChange={setValue} />;
++};
++
++describe('Rating', () => {
++  baselineComponent(Rating);
++
++  it('renders 5 empty stars by default', () => {
++    render(<Rating />);
++    expect(getStars()).toHaveLength(5);
++    expect(countActiveStars()).toBe(0);
++    expect(screen.getByRole('slider')).toHaveAttribute('aria-valuenow', '0');
++    expect(screen.getByRole('slider')).toHaveAttribute('aria-valuemax', '5');
++  });
++
++  it('renders max stars', () => {
++    render(<Rating max={10} defaultValue={7} />);
++    expect(getStars()).toHaveLength(10);
++    expect(countActiveStars()).toBe(7);
++  });
++
++  it('clamps value to [0, max]', () => {
++    const { rerender } = render(<Rating value={8} />);
++    expect(screen.getByRole('slider')).toHaveAttribute('aria-valuenow', '5');
++    rerender(<Rating value={-1} />);
++    expect(screen.getByRole('slider')).toHaveAttribute('aria-valuenow', '0');
++  });
++
++  describe('uncontrolled', () => {
++    it('changes value on click', () => {
++      const onChange = jest.fn();
++      render(<Rating defaultValue={2} onChange={onChange} />);
++      userEvent.click(getStars()[3]);
++      expect(onChange).toHaveBeenCalledTimes(1);
++      expect(onChange).toHaveBeenCalledWith(4, expect.anything());
++      expect(screen.getByRole('slider')).toHaveAttribute('aria-valuenow', '4');
++    });
++
++    it('does not call onChange when clicking current value', () => {
++      const onChange = jest.fn();
++      render(<Rating defaultValue={2} onChange={onChange} />);
++      userEvent.click(getStars()[1]);
++      expect(onChange).not.toHaveBeenCalled();
++    });
++  });
++
++  describe('controlled', () => {
++    it('does not change value by itself', () => {
++      const onChange = jest.fn();
++      render(<Rating value={2} onChange={onChange} />);
++      userEvent.click(getStars()[4]);
++      expect(onChange).toHaveBeenCalledWith(5, expect.anything());
++      expect(screen.getByRole('slider')).toHaveAttribute('aria-valuenow', '2');
++    });
++
++    it('follows value from parent', () => {
++      render(<ControlledRating value={1} />);
++      userEvent.click(getStars()[2]);
++      expect(screen.getByRole('slider')).toHaveAttribute('aria-valuenow', '3');
++    });
++  });
++
++  describe('hover preview', () => {
++    it('highlights stars up to hovered one', () => {
++      render(<Rating defaultValue={1} />);
++      userEvent.hover(getStars()[3]);
++      expect(countActiveStars()).toBe(4);
++      // предпросмотр не меняет значение
++      expect(screen.getByRole('slider')).toHaveAttribute('aria-valuenow', '1');
++      userEvent.unhover(screen.getByRole('slider'));
++      expect(countActiveStars()).toBe(1);
++    });
++
++    it('is disabled without mouse', () => {
++      render(<Rating defaultValue={1} hasMouse={false} />);
++      userEvent.hover(getStars()[3]);
++      expect(countActiveStars()).toBe(1);
++    });
++  });
++
++  describe('keyboard', () => {
++    it('is focusable', () => {
++      render(<Rating />);
++      userEvent.tab();
++      expect(screen.getByRole('slider')).toHaveFocus();
++    });
++
++    it('changes value with arrow keys, Home and End', () => {
++      const onChange = jest.fn();
++      render(<Rating defaultValue={3} onChange={onChange} />);
++      const slider = screen.getByRole('slider');
++
++      fireEvent.keyDown(slider, { key: 'ArrowRight' });
++      expect(slider).toHaveAttribute('aria-valuenow', '4');
++      fireEvent.keyDown(slider, { key: 'ArrowUp' });
++      expect(slider).toHaveAttribute('aria-valuenow', '5');
++      fireEvent.keyDown(slider, { key: 'ArrowRight' });
++      expect(slider).toHaveAttribute('aria-valuenow', '5');
++
++      fireEvent.keyDown(slider, { key: 'ArrowLeft' });
++      expect(slider).toHaveAttribute('aria-valuenow', '4');
++      fireEvent.keyDown(slider, { key: 'ArrowDown' });
++      expect(slider).toHaveAttribute('aria-valuenow', '3');
++
++      fireEvent.keyDown(slider, { key: 'Home' });
++      expect(slider).toHaveAttribute('aria-valuenow', '1');
++      fireEvent.keyDown(slider, { key: 'ArrowLeft' });
++      expect(slider).toHaveAttribute('aria-valuenow', '1');
++
++      fireEvent.keyDown(slider, { key: 'End' });
++      expect(slider).toHaveAttribute('aria-valuenow', '5');
++
++      expect(onChange.mock.calls.map(([value]) => value)).toEqual([4, 5, 4, 3, 1, 5]);
++    });
++
++    it('prevents page scroll only for handled keys', () => {
++      render(<Rating defaultValue={3} />);
++      const slider = screen.getByRole('slider');
++      expect(fireEvent.keyDown(slider, { key: 'ArrowRight' })).toBe(false);
++      expect(fireEvent.keyDown(slider, { key: 'Tab' })).toBe(true);
++    });
++
++    it('calls onKeyDown passed from outside', () => {
++      const onKeyDown = jest.fn();
++      render(<Rating onKeyDown={onKeyDown} />);
++      fireEvent.keyDown(screen.getByRole('slider'), { key: 'ArrowRight' });
++      expect(onKeyDown).toHaveBeenCalledTimes(1);
++    });
++  });
++
++  describe('readOnly', () => {
++    it('ignores clicks, hover and keyboard', () => {
++      const onChange = jest.fn();
++      render(<Rating value={2} readOnly onChange={onChange} />);
++      const rating = screen.getByRole('img');
++
++      userEvent.hover(getStars()[4]);
++      expect(countActiveStars()).toBe(2);
++      userEvent.click(getStars()[4]);
++      fireEvent.keyDown(rating, { key: 'ArrowRight' });
++      expect(onChange).not.toHaveBeenCalled();
++      expect(rating).not.toHaveAttribute('tabindex');
++    });
++
++    it('renders fractional value', () => {
++      render(<Rating value={3.5} readOnly />);
++      expect(screen.getByRole('img')).toHaveAttribute('aria-label', '3.5 / 5');
++      expect(countActiveStars()).toBe(4);
++      const fills = document.querySelectorAll<HTMLElement>('.Rating__fill');
++      expect(fills[2].style.width).toBe('100%');
++      expect(fills[3].style.width).toBe('50%');
++      expect(fills[4].style.width).toBe('0%');
++    });
++  });
++
++  it('ignores interaction when disabled', () => {
++    const onChange = jest.fn();
++    render(<Rating defaultValue={2} disabled onChange={onChange} />);
++    const slider = screen.getByRole('slider');
++    expect(slider).toHaveAttribute('aria-disabled', 'true');
++    expect(slider).not.toHaveAttribute('tabindex');
++
++    userEvent.click(getStars()[4]);
++    fireEvent.keyDown(slider, { key: 'End' });
++    expect(onChange).not.toHaveBeenCalled();
++    expect(slider).toHaveAttribute('aria-valuenow', '2');
++  });
++
++  it('renders hidden input for forms', () => {
++    const { container } = render(<Rating name="rating" defaultValue={2} />);
++    userEvent.click(getStars()[2]);
++    const input = container.querySelector<HTMLInputElement>('input[type="hidden"]');
++    expect(input.name).toBe('rating');
++    expect(input.value).toBe('3');
++  });
++});
++
++describe('getValueByKey', () => {
++  it('handles unknown keys', () => {
++    expect(getValueByKey('Enter', 3, 5)).toBeNull();
++  });
++
++  it('starts from 1 on unrated', () => {
++    expect(getValueByKey('ArrowRight', 0, 5)).toBe(1);
++    expect(getValueByKey('ArrowLeft', 0, 5)).toBe(0);
++  });
++
++  it('rounds fractional values to the nearest star in the direction of the key', () => {
++    expect(getValueByKey('ArrowRight', 2.5, 5)).toBe(3);
++    expect(getValueByKey('ArrowLeft', 2.5, 5)).toBe(2);
++  });
++});
+-- 
+2.43.0
+

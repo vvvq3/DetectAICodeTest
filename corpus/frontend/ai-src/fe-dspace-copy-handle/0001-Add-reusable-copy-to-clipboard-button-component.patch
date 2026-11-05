@@ -1,0 +1,459 @@
+From 724d7550ac74be21dbd24086c8a8ee8f70368514 Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Thu, 5 Nov 2026 17:20:27 +0000
+Subject: [PATCH 1/2] Add reusable copy to clipboard button component
+
+Add a ds-copy-to-clipboard component that copies its content to the
+user's clipboard. It uses the asynchronous Clipboard API when available
+and falls back to document.execCommand('copy') for older browsers and
+non-secure contexts.
+
+After a successful copy the button's tooltip briefly reads "Copied!"
+(also announced to screen readers through a live region). When the
+clipboard can't be accessed an error notification is shown instead.
+
+The component is declared and exported by the SharedModule.
+---
+ .../copy-to-clipboard.component.html          |  11 +
+ .../copy-to-clipboard.component.spec.ts       | 192 ++++++++++++++++++
+ .../copy-to-clipboard.component.ts            | 169 +++++++++++++++
+ src/app/shared/shared.module.ts               |   2 +
+ src/assets/i18n/en.json5                      |   9 +
+ 5 files changed, 383 insertions(+)
+ create mode 100644 src/app/shared/copy-to-clipboard/copy-to-clipboard.component.html
+ create mode 100644 src/app/shared/copy-to-clipboard/copy-to-clipboard.component.spec.ts
+ create mode 100644 src/app/shared/copy-to-clipboard/copy-to-clipboard.component.ts
+
+diff --git a/src/app/shared/copy-to-clipboard/copy-to-clipboard.component.html b/src/app/shared/copy-to-clipboard/copy-to-clipboard.component.html
+new file mode 100644
+index 000000000..0a1f216e0
+--- /dev/null
++++ b/src/app/shared/copy-to-clipboard/copy-to-clipboard.component.html
+@@ -0,0 +1,11 @@
++<ng-template #tooltipContent>{{ (copied ? 'copy-to-clipboard.success' : tooltipMsg) | translate }}</ng-template>
++<button type="button"
++        class="copy-to-clipboard btn btn-link btn-sm p-0 align-baseline"
++        [attr.aria-label]="tooltipMsg | translate"
++        [ngbTooltip]="tooltipContent"
++        #copyTooltip="ngbTooltip"
++        container="body"
++        (click)="copy()">
++  <i class="fa-fw" [ngClass]="copied ? 'fas fa-check' : 'far fa-copy'" aria-hidden="true"></i>
++</button>
++<span class="sr-only" aria-live="polite">{{ copied ? ('copy-to-clipboard.success' | translate) : '' }}</span>
+diff --git a/src/app/shared/copy-to-clipboard/copy-to-clipboard.component.spec.ts b/src/app/shared/copy-to-clipboard/copy-to-clipboard.component.spec.ts
+new file mode 100644
+index 000000000..26eeff570
+--- /dev/null
++++ b/src/app/shared/copy-to-clipboard/copy-to-clipboard.component.spec.ts
+@@ -0,0 +1,192 @@
++import { async, ComponentFixture, fakeAsync, flush, flushMicrotasks, TestBed, tick } from '@angular/core/testing';
++import { By } from '@angular/platform-browser';
++import { NgbModule } from '@ng-bootstrap/ng-bootstrap';
++import { TranslateModule } from '@ngx-translate/core';
++import { COPIED_FEEDBACK_DURATION, CopyToClipboardComponent } from './copy-to-clipboard.component';
++import { NativeWindowService } from '../../core/services/window.service';
++import { NotificationsService } from '../notifications/notifications.service';
++import { NotificationsServiceStub } from '../testing/notifications-service.stub';
++
++describe('CopyToClipboardComponent', () => {
++  let component: CopyToClipboardComponent;
++  let fixture: ComponentFixture<CopyToClipboardComponent>;
++
++  let notificationsService: NotificationsServiceStub;
++  let clipboard: { writeText: jasmine.Spy };
++  let nativeWindow: any;
++
++  const content = 'http://localhost:4000/handle/123456789/2';
++
++  beforeEach(async(() => {
++    notificationsService = new NotificationsServiceStub();
++    clipboard = {
++      writeText: jasmine.createSpy('writeText').and.callFake(() => Promise.resolve())
++    };
++    nativeWindow = {
++      navigator: { clipboard }
++    };
++
++    TestBed.configureTestingModule({
++      imports: [TranslateModule.forRoot(), NgbModule],
++      declarations: [CopyToClipboardComponent],
++      providers: [
++        { provide: NativeWindowService, useFactory: () => ({ nativeWindow }) },
++        { provide: NotificationsService, useValue: notificationsService }
++      ]
++    }).compileComponents();
++  }));
++
++  beforeEach(() => {
++    fixture = TestBed.createComponent(CopyToClipboardComponent);
++    component = fixture.componentInstance;
++    component.content = content;
++    fixture.detectChanges();
++  });
++
++  /**
++   * Click the copy button and wait for the clipboard to respond
++   */
++  function clickCopyButton() {
++    fixture.debugElement.query(By.css('button')).triggerEventHandler('click', null);
++    flushMicrotasks();
++    fixture.detectChanges();
++  }
++
++  function getIcon() {
++    return fixture.debugElement.query(By.css('button i')).nativeElement;
++  }
++
++  it('should render a button labelled with the tooltip message', () => {
++    const button = fixture.debugElement.query(By.css('button'));
++    expect(button).not.toBeNull();
++    expect(button.nativeElement.getAttribute('aria-label')).toEqual('copy-to-clipboard.button.tooltip');
++  });
++
++  it('should display a copy icon', () => {
++    expect(getIcon().classList).toContain('fa-copy');
++  });
++
++  describe('when the Clipboard API is available', () => {
++
++    it('should write the content to the clipboard', fakeAsync(() => {
++      clickCopyButton();
++      expect(clipboard.writeText).toHaveBeenCalledWith(content);
++      flush();
++    }));
++
++    it('should show the "Copied!" feedback', fakeAsync(() => {
++      clickCopyButton();
++      expect(component.copied).toBe(true);
++      expect(component.tooltip.isOpen()).toBe(true);
++      expect(getIcon().classList).toContain('fa-check');
++      flush();
++    }));
++
++    it('should not show an error notification', fakeAsync(() => {
++      clickCopyButton();
++      expect(notificationsService.error).not.toHaveBeenCalled();
++      flush();
++    }));
++
++    it('should hide the "Copied!" feedback again after a while', fakeAsync(() => {
++      clickCopyButton();
++      tick(COPIED_FEEDBACK_DURATION);
++      fixture.detectChanges();
++      expect(component.copied).toBe(false);
++      expect(component.tooltip.isOpen()).toBe(false);
++      expect(getIcon().classList).toContain('fa-copy');
++    }));
++
++    describe('but writing to it fails', () => {
++      beforeEach(() => {
++        clipboard.writeText.and.callFake(() => Promise.reject(new Error('Write permission denied')));
++      });
++
++      it('should fall back to document.execCommand', fakeAsync(() => {
++        spyOn(document, 'execCommand').and.returnValue(true);
++        clickCopyButton();
++        expect(document.execCommand).toHaveBeenCalledWith('copy');
++        expect(component.copied).toBe(true);
++        expect(notificationsService.error).not.toHaveBeenCalled();
++        flush();
++      }));
++
++      it('should show an error notification when the fallback fails too', fakeAsync(() => {
++        spyOn(document, 'execCommand').and.returnValue(false);
++        clickCopyButton();
++        expect(component.copied).toBe(false);
++        expect(notificationsService.error).toHaveBeenCalled();
++        flush();
++      }));
++    });
++  });
++
++  describe('when the Clipboard API is not available', () => {
++    beforeEach(() => {
++      delete nativeWindow.navigator.clipboard;
++    });
++
++    describe('and document.execCommand succeeds', () => {
++      beforeEach(() => {
++        spyOn(document, 'execCommand').and.returnValue(true);
++      });
++
++      it('should copy the content using a temporary textarea', fakeAsync(() => {
++        const textAreaCount = document.querySelectorAll('textarea').length;
++        let copiedText: string;
++        (document.execCommand as jasmine.Spy).and.callFake(() => {
++          copiedText = (document.body.lastElementChild as HTMLTextAreaElement).value;
++          return true;
++        });
++
++        clickCopyButton();
++
++        expect(document.execCommand).toHaveBeenCalledWith('copy');
++        expect(copiedText).toEqual(content);
++        expect(document.querySelectorAll('textarea').length).toEqual(textAreaCount);
++        flush();
++      }));
++
++      it('should show the "Copied!" feedback', fakeAsync(() => {
++        clickCopyButton();
++        expect(component.copied).toBe(true);
++        expect(component.tooltip.isOpen()).toBe(true);
++        expect(notificationsService.error).not.toHaveBeenCalled();
++        flush();
++      }));
++    });
++
++    describe('and document.execCommand fails', () => {
++      beforeEach(() => {
++        spyOn(document, 'execCommand').and.returnValue(false);
++      });
++
++      it('should show an error notification', fakeAsync(() => {
++        clickCopyButton();
++        expect(notificationsService.error).toHaveBeenCalled();
++        flush();
++      }));
++
++      it('should not show the "Copied!" feedback', fakeAsync(() => {
++        clickCopyButton();
++        expect(component.copied).toBe(false);
++        expect(component.tooltip.isOpen()).toBe(false);
++        flush();
++      }));
++    });
++  });
++
++  describe('when there is no content to copy', () => {
++    beforeEach(() => {
++      component.content = undefined;
++      fixture.detectChanges();
++    });
++
++    it('should not touch the clipboard', fakeAsync(() => {
++      clickCopyButton();
++      expect(clipboard.writeText).not.toHaveBeenCalled();
++      expect(component.copied).toBe(false);
++      expect(notificationsService.error).not.toHaveBeenCalled();
++    }));
++  });
++});
+diff --git a/src/app/shared/copy-to-clipboard/copy-to-clipboard.component.ts b/src/app/shared/copy-to-clipboard/copy-to-clipboard.component.ts
+new file mode 100644
+index 000000000..03a00e7fb
+--- /dev/null
++++ b/src/app/shared/copy-to-clipboard/copy-to-clipboard.component.ts
+@@ -0,0 +1,169 @@
++import { Component, Inject, Input, OnDestroy, ViewChild } from '@angular/core';
++import { DOCUMENT } from '@angular/common';
++import { NgbTooltip } from '@ng-bootstrap/ng-bootstrap';
++import { TranslateService } from '@ngx-translate/core';
++import { NativeWindowRef, NativeWindowService } from '../../core/services/window.service';
++import { NotificationsService } from '../notifications/notifications.service';
++import { hasValue, isEmpty } from '../empty.util';
++
++/**
++ * The amount of time (in ms) the "Copied!" feedback stays visible after a successful copy
++ */
++export const COPIED_FEEDBACK_DURATION = 2000;
++
++/**
++ * A small button that copies the given content to the user's clipboard.
++ * A "Copied!" tooltip is shown after a successful copy, an error notification
++ * is shown when the clipboard can't be accessed.
++ */
++@Component({
++  selector: 'ds-copy-to-clipboard',
++  templateUrl: './copy-to-clipboard.component.html'
++})
++export class CopyToClipboardComponent implements OnDestroy {
++
++  /**
++   * The text to copy to the clipboard
++   */
++  @Input() content: string;
++
++  /**
++   * A message for the tooltip and the accessible label of the button
++   * Supports i18n keys
++   */
++  @Input() tooltipMsg = 'copy-to-clipboard.button.tooltip';
++
++  /**
++   * The tooltip of the button, also used to give feedback after a successful copy
++   */
++  @ViewChild('copyTooltip', { static: false }) tooltip: NgbTooltip;
++
++  /**
++   * Whether the content has just been copied
++   */
++  copied = false;
++
++  /**
++   * The timeout that resets the "copied" state
++   */
++  private resetTimeout: any;
++
++  constructor(@Inject(NativeWindowService) protected _window: NativeWindowRef,
++              @Inject(DOCUMENT) protected document: Document,
++              protected notificationsService: NotificationsService,
++              protected translate: TranslateService) {
++  }
++
++  /**
++   * Copy the content to the clipboard and let the user know whether that worked
++   * @returns a promise that resolves once the user has been given feedback
++   */
++  copy(): Promise<void> {
++    if (isEmpty(this.content)) {
++      return Promise.resolve();
++    }
++    return this.writeToClipboard(this.content).then(
++      () => this.onCopySuccess(),
++      () => this.onCopyError()
++    );
++  }
++
++  /**
++   * Write the given text to the clipboard.
++   * Uses the asynchronous Clipboard API where available, and falls back to
++   * document.execCommand('copy') for browsers that don't support it or don't
++   * allow it (e.g. on pages that aren't served over https).
++   * @param text  The text to write to the clipboard
++   * @returns a promise that resolves when the text was copied, and rejects when it couldn't be
++   */
++  protected writeToClipboard(text: string): Promise<void> {
++    const nativeWindow = this._window.nativeWindow;
++    const clipboard = nativeWindow && nativeWindow.navigator ? nativeWindow.navigator.clipboard : undefined;
++    if (hasValue(clipboard) && typeof clipboard.writeText === 'function') {
++      return clipboard.writeText(text).catch(() => this.copyWithExecCommand(text));
++    }
++    return this.copyWithExecCommand(text);
++  }
++
++  /**
++   * Copy the given text using a temporary, invisible textarea and document.execCommand('copy')
++   * @param text  The text to write to the clipboard
++   * @returns a promise that resolves when the text was copied, and rejects when it couldn't be
++   */
++  protected copyWithExecCommand(text: string): Promise<void> {
++    const doc = this.document;
++    if (!hasValue(doc) || !hasValue(doc.body) || typeof doc.execCommand !== 'function') {
++      return Promise.reject(new Error('The clipboard is not available'));
++    }
++
++    const previouslyFocused = doc.activeElement as HTMLElement;
++    const textArea = doc.createElement('textarea');
++    textArea.value = text;
++    // Keep the textarea out of sight, and prevent the page from scrolling
++    // or a virtual keyboard from popping up while it's selected
++    textArea.setAttribute('readonly', '');
++    textArea.setAttribute('aria-hidden', 'true');
++    textArea.style.position = 'fixed';
++    textArea.style.top = '0';
++    textArea.style.left = '0';
++    textArea.style.opacity = '0';
++    doc.body.appendChild(textArea);
++
++    let succeeded: boolean;
++    try {
++      textArea.select();
++      textArea.setSelectionRange(0, text.length);
++      succeeded = doc.execCommand('copy');
++    } catch (e) {
++      succeeded = false;
++    } finally {
++      doc.body.removeChild(textArea);
++      if (hasValue(previouslyFocused) && typeof previouslyFocused.focus === 'function') {
++        previouslyFocused.focus();
++      }
++    }
++
++    return succeeded ? Promise.resolve() : Promise.reject(new Error('The clipboard is not available'));
++  }
++
++  /**
++   * Show the "Copied!" tooltip for a little while
++   */
++  protected onCopySuccess(): void {
++    this.copied = true;
++    if (hasValue(this.tooltip)) {
++      this.tooltip.open();
++    }
++    this.clearResetTimeout();
++    this.resetTimeout = setTimeout(() => {
++      this.copied = false;
++      this.resetTimeout = undefined;
++      if (hasValue(this.tooltip)) {
++        this.tooltip.close();
++      }
++    }, COPIED_FEEDBACK_DURATION);
++  }
++
++  /**
++   * Let the user know the content couldn't be copied
++   */
++  protected onCopyError(): void {
++    this.clearResetTimeout();
++    this.copied = false;
++    this.notificationsService.error(
++      this.translate.get('copy-to-clipboard.error.title'),
++      this.translate.get('copy-to-clipboard.error.content')
++    );
++  }
++
++  private clearResetTimeout(): void {
++    if (hasValue(this.resetTimeout)) {
++      clearTimeout(this.resetTimeout);
++      this.resetTimeout = undefined;
++    }
++  }
++
++  ngOnDestroy(): void {
++    this.clearResetTimeout();
++  }
++}
+diff --git a/src/app/shared/shared.module.ts b/src/app/shared/shared.module.ts
+index b575aecd7..ab379d615 100644
+--- a/src/app/shared/shared.module.ts
++++ b/src/app/shared/shared.module.ts
+@@ -215,6 +215,7 @@ import { CollectionSidebarSearchListElementComponent } from './object-list/sideb
+ import { CommunitySidebarSearchListElementComponent } from './object-list/sidebar-search-list-element/community/community-sidebar-search-list-element.component';
+ import { AuthorizedCollectionSelectorComponent } from './dso-selector/dso-selector/authorized-collection-selector/authorized-collection-selector.component';
+ import { DsoPageEditButtonComponent } from './dso-page/dso-page-edit-button/dso-page-edit-button.component';
++import { CopyToClipboardComponent } from './copy-to-clipboard/copy-to-clipboard.component';
+ import { HoverClassDirective } from './hover-class.directive';
+ import { ValidationSuggestionsComponent } from './input-suggestions/validation-suggestions/validation-suggestions.component';
+ import { ItemSearchResultGridElementComponent } from './object-grid/search-result-grid-element/item-search-result/item/item-search-result-grid-element.component';
+@@ -432,6 +433,7 @@ const COMPONENTS = [
+   ConfirmationModalComponent,
+   VocabularyTreeviewComponent,
+   AuthorizedCollectionSelectorComponent,
++  CopyToClipboardComponent,
+ ];
+ 
+ const ENTRY_COMPONENTS = [
+diff --git a/src/assets/i18n/en.json5 b/src/assets/i18n/en.json5
+index de764f4de..1b76ea61f 100644
+--- a/src/assets/i18n/en.json5
++++ b/src/assets/i18n/en.json5
+@@ -1064,6 +1064,15 @@
+   "cookies.consent.purpose.statistical": "Statistical",
+ 
+ 
++  "copy-to-clipboard.button.tooltip": "Copy to clipboard",
++
++  "copy-to-clipboard.success": "Copied!",
++
++  "copy-to-clipboard.error.title": "Copy failed",
++
++  "copy-to-clipboard.error.content": "Your browser did not allow access to the clipboard. Please select the text and copy it manually.",
++
++
+   "curation-task.task.checklinks.label":  "Check Links in Metadata",
+ 
+   "curation-task.task.noop.label": "NOOP",
+-- 
+2.43.0
+

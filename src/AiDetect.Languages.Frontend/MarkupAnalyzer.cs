@@ -121,7 +121,12 @@ internal sealed partial class MarkupAnalyzer(Ctx c)
                 {
                     c.Hit(FK.TestIds, a.Line);
                 }
-                else if (an == "*ngFor")
+                if (a.Value is { } av && Regex.IsMatch(av, @"\|\s*async\b"))
+                {
+                    c.Hit(FK.AsyncPipes, a.Line);
+                }
+
+                if (an == "*ngFor")
                 {
                     c.Count(FK.NgFor, a.Line);
                     if (a.Value?.Contains("trackBy", StringComparison.Ordinal) == true)

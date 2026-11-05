@@ -1,0 +1,208 @@
+From e31888b34e0f3fd8579277fce0120966c52303cf Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Thu, 5 Nov 2026 17:22:26 +0000
+Subject: [PATCH 1/2] feat: Persist recently picked colors in localStorage
+
+Add a small storage module that keeps the last 8 picked colors per color
+picker type (stroke, background, ...), most recent first, under the
+`excalidraw-recent-colors` localStorage key. Picking a color again moves
+it to the front instead of duplicating it, and unreadable or corrupted
+data is treated as an empty list.
+---
+ src/colors.ts                   |  6 ++-
+ src/constants.ts                |  1 +
+ src/data/recentColors.ts        | 66 ++++++++++++++++++++++++++++
+ src/tests/recentColors.test.tsx | 78 +++++++++++++++++++++++++++++++++
+ 4 files changed, 150 insertions(+), 1 deletion(-)
+ create mode 100644 src/data/recentColors.ts
+ create mode 100644 src/tests/recentColors.test.tsx
+
+diff --git a/src/colors.ts b/src/colors.ts
+index 63cd7283..50ab4c50 100644
+--- a/src/colors.ts
++++ b/src/colors.ts
+@@ -15,8 +15,12 @@ const shades = (index: number) => [
+   oc.orange[index],
+ ];
+ 
+-export default {
++const colors = {
+   canvasBackground: [oc.white, oc.gray[0], oc.gray[1], ...shades(0)],
+   elementBackground: ["transparent", oc.gray[4], oc.gray[6], ...shades(6)],
+   elementStroke: [oc.black, oc.gray[8], oc.gray[7], ...shades(9)],
+ };
++
++export type ColorPickerType = keyof typeof colors;
++
++export default colors;
+diff --git a/src/constants.ts b/src/constants.ts
+index 0a6a793c..c8f84e14 100644
+--- a/src/constants.ts
++++ b/src/constants.ts
+@@ -82,6 +82,7 @@ export const MIME_TYPES = {
+ 
+ export const STORAGE_KEYS = {
+   LOCAL_STORAGE_LIBRARY: "excalidraw-library",
++  LOCAL_STORAGE_RECENT_COLORS: "excalidraw-recent-colors",
+ };
+ 
+ // time in milliseconds
+diff --git a/src/data/recentColors.ts b/src/data/recentColors.ts
+new file mode 100644
+index 00000000..95a05df5
+--- /dev/null
++++ b/src/data/recentColors.ts
+@@ -0,0 +1,66 @@
++import { ColorPickerType } from "../colors";
++import { STORAGE_KEYS } from "../constants";
++
++export const MAX_RECENT_COLORS = 8;
++
++type RecentColors = Partial<Record<ColorPickerType, string[]>>;
++
++const sanitizeColors = (colors: unknown): string[] =>
++  Array.isArray(colors)
++    ? colors
++        .filter((color): color is string => typeof color === "string")
++        .slice(0, MAX_RECENT_COLORS)
++    : [];
++
++const loadRecentColors = (): RecentColors => {
++  try {
++    const data = localStorage.getItem(STORAGE_KEYS.LOCAL_STORAGE_RECENT_COLORS);
++    if (data) {
++      const recentColors = JSON.parse(data);
++      if (recentColors && typeof recentColors === "object") {
++        return Array.isArray(recentColors) ? {} : recentColors;
++      }
++    }
++  } catch (error) {
++    // Unable to access localStorage or the stored data is corrupted
++    console.error(error);
++  }
++  return {};
++};
++
++/**
++ * Returns colors recently picked in a color picker of given type, most
++ * recent first. Each picker type (stroke, background, …) has its own list.
++ */
++export const getRecentColors = (type: ColorPickerType): string[] =>
++  sanitizeColors(loadRecentColors()[type]);
++
++/**
++ * Moves `color` to the front of the recent colors of given picker type
++ * (dropping the oldest one once there are more than `MAX_RECENT_COLORS`),
++ * persists the result, and returns the updated list.
++ */
++export const addRecentColor = (
++  type: ColorPickerType,
++  color: string,
++): string[] => {
++  const allRecentColors = loadRecentColors();
++  const recentColors = [
++    color,
++    ...sanitizeColors(allRecentColors[type]).filter(
++      (recentColor) => recentColor !== color,
++    ),
++  ].slice(0, MAX_RECENT_COLORS);
++
++  try {
++    localStorage.setItem(
++      STORAGE_KEYS.LOCAL_STORAGE_RECENT_COLORS,
++      JSON.stringify({ ...allRecentColors, [type]: recentColors }),
++    );
++  } catch (error) {
++    // Unable to access localStorage
++    console.error(error);
++  }
++
++  return recentColors;
++};
+diff --git a/src/tests/recentColors.test.tsx b/src/tests/recentColors.test.tsx
+new file mode 100644
+index 00000000..bef47aae
+--- /dev/null
++++ b/src/tests/recentColors.test.tsx
+@@ -0,0 +1,78 @@
++import colors from "../colors";
++import { STORAGE_KEYS } from "../constants";
++import {
++  addRecentColor,
++  getRecentColors,
++  MAX_RECENT_COLORS,
++} from "../data/recentColors";
++
++const getStoredRecentColors = () =>
++  JSON.parse(localStorage.getItem(STORAGE_KEYS.LOCAL_STORAGE_RECENT_COLORS)!);
++
++describe("recent colors storage", () => {
++  beforeEach(() => {
++    localStorage.clear();
++  });
++
++  it("is empty when nothing was picked yet", () => {
++    expect(getRecentColors("elementStroke")).toEqual([]);
++    expect(getRecentColors("elementBackground")).toEqual([]);
++  });
++
++  it("keeps the most recent color first", () => {
++    addRecentColor("elementStroke", "#c92a2a");
++    addRecentColor("elementStroke", "#5f3dc4");
++
++    expect(getRecentColors("elementStroke")).toEqual(["#5f3dc4", "#c92a2a"]);
++  });
++
++  it("moves a color picked again to the front instead of duplicating it", () => {
++    addRecentColor("elementStroke", "#c92a2a");
++    addRecentColor("elementStroke", "#5f3dc4");
++    addRecentColor("elementStroke", "#c92a2a");
++
++    expect(getRecentColors("elementStroke")).toEqual(["#c92a2a", "#5f3dc4"]);
++  });
++
++  it(`keeps at most ${MAX_RECENT_COLORS} colors`, () => {
++    const picked = colors.elementStroke.slice(0, MAX_RECENT_COLORS + 2);
++    picked.forEach((color) => addRecentColor("elementStroke", color));
++
++    expect(getRecentColors("elementStroke")).toEqual(
++      picked.reverse().slice(0, MAX_RECENT_COLORS),
++    );
++  });
++
++  it("keeps stroke and background colors separately", () => {
++    addRecentColor("elementStroke", "#c92a2a");
++    addRecentColor("elementBackground", "#fa5252");
++
++    expect(getRecentColors("elementStroke")).toEqual(["#c92a2a"]);
++    expect(getRecentColors("elementBackground")).toEqual(["#fa5252"]);
++    expect(getStoredRecentColors()).toEqual({
++      elementStroke: ["#c92a2a"],
++      elementBackground: ["#fa5252"],
++    });
++  });
++
++  it("recovers from corrupted data in localStorage", () => {
++    const consoleError = jest
++      .spyOn(console, "error")
++      .mockImplementation(() => {});
++    try {
++      localStorage.setItem(STORAGE_KEYS.LOCAL_STORAGE_RECENT_COLORS, "{oops");
++      expect(getRecentColors("elementStroke")).toEqual([]);
++
++      addRecentColor("elementStroke", "#c92a2a");
++      expect(getRecentColors("elementStroke")).toEqual(["#c92a2a"]);
++
++      localStorage.setItem(
++        STORAGE_KEYS.LOCAL_STORAGE_RECENT_COLORS,
++        JSON.stringify({ elementStroke: ["#c92a2a", 42, null] }),
++      );
++      expect(getRecentColors("elementStroke")).toEqual(["#c92a2a"]);
++    } finally {
++      consoleError.mockRestore();
++    }
++  });
++});
+-- 
+2.43.0
+

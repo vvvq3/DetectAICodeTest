@@ -1,0 +1,589 @@
+From cf79c34fa8b276ad868ec70172454dceb43e7839 Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Thu, 5 Nov 2026 17:19:12 +0000
+Subject: [PATCH 1/2] Add CopyToClipboardButton component
+
+The button copies the value of a field of the current record to the
+clipboard and notifies the user of the result. It reads the record from
+its props (as injected by Datagrid and SimpleShowLayout), and falls back
+to the RecordContext so that it also works in the Show actions.
+
+When the async Clipboard API isn't available (non secure contexts), it
+falls back to document.execCommand('copy'). The button is disabled when
+the field is empty, and isn't sortable when used as a Datagrid column.
+
+Add the ra.action.copy, ra.notification.copied_to_clipboard and
+ra.notification.copy_to_clipboard_error messages to the English and
+French translations.
+---
+ packages/ra-language-english/src/index.ts     |   3 +
+ packages/ra-language-french/src/index.ts      |   4 +
+ .../src/button/CopyToClipboardButton.spec.tsx | 293 ++++++++++++++++++
+ .../src/button/CopyToClipboardButton.tsx      | 181 +++++++++++
+ packages/ra-ui-materialui/src/button/index.ts |   5 +
+ 5 files changed, 486 insertions(+)
+ create mode 100644 packages/ra-ui-materialui/src/button/CopyToClipboardButton.spec.tsx
+ create mode 100644 packages/ra-ui-materialui/src/button/CopyToClipboardButton.tsx
+
+diff --git a/packages/ra-language-english/src/index.ts b/packages/ra-language-english/src/index.ts
+index 08941697e..747134c7a 100644
+--- a/packages/ra-language-english/src/index.ts
++++ b/packages/ra-language-english/src/index.ts
+@@ -11,6 +11,7 @@ const englishMessages: TranslationMessages = {
+             clear_input_value: 'Clear value',
+             clone: 'Clone',
+             confirm: 'Confirm',
++            copy: 'Copy',
+             create: 'Create',
+             delete: 'Delete',
+             edit: 'Edit',
+@@ -131,6 +132,8 @@ const englishMessages: TranslationMessages = {
+                 'Cannot load the translations for the specified language',
+             canceled: 'Action cancelled',
+             logged_out: 'Your session has ended, please reconnect.',
++            copied_to_clipboard: 'Copied to clipboard',
++            copy_to_clipboard_error: 'Unable to copy to clipboard',
+         },
+         validation: {
+             required: 'Required',
+diff --git a/packages/ra-language-french/src/index.ts b/packages/ra-language-french/src/index.ts
+index 5c0d758e6..f664c68a6 100644
+--- a/packages/ra-language-french/src/index.ts
++++ b/packages/ra-language-french/src/index.ts
+@@ -12,6 +12,7 @@ const frenchMessages: TranslationMessages = {
+             clear_input_value: 'Vider le champ',
+             clone: 'Dupliquer',
+             confirm: 'Confirmer',
++            copy: 'Copier',
+             create: 'Créer',
+             delete: 'Supprimer',
+             edit: 'Éditer',
+@@ -136,6 +137,9 @@ const frenchMessages: TranslationMessages = {
+                 'Erreur de chargement des traductions pour la langue sélectionnée',
+             canceled: 'Action annulée',
+             logged_out: 'Votre session a pris fin, veuillez vous reconnecter.',
++            copied_to_clipboard: 'Copié dans le presse-papiers',
++            copy_to_clipboard_error:
++                'Impossible de copier dans le presse-papiers',
+         },
+         validation: {
+             required: 'Ce champ est requis',
+diff --git a/packages/ra-ui-materialui/src/button/CopyToClipboardButton.spec.tsx b/packages/ra-ui-materialui/src/button/CopyToClipboardButton.spec.tsx
+new file mode 100644
+index 000000000..fd7783095
+--- /dev/null
++++ b/packages/ra-ui-materialui/src/button/CopyToClipboardButton.spec.tsx
+@@ -0,0 +1,293 @@
++import * as React from 'react';
++import expect from 'expect';
++import { cleanup, fireEvent, wait } from '@testing-library/react';
++import { ThemeProvider } from '@material-ui/core';
++import { createMuiTheme } from '@material-ui/core/styles';
++import LinkIcon from '@material-ui/icons/Link';
++import { DataProvider, DataProviderContext, renderWithRedux } from 'ra-core';
++
++import CopyToClipboardButton from './CopyToClipboardButton';
++import { Show, SimpleShowLayout } from '../detail';
++import { TextField } from '../field';
++import TopToolbar from '../layout/TopToolbar';
++
++const theme = createMuiTheme();
++
++const renderButton = (element: React.ReactElement, initialState = {}) =>
++    renderWithRedux(
++        <ThemeProvider theme={theme}>{element}</ThemeProvider>,
++        initialState
++    );
++
++const successNotification = {
++    type: 'RA/SHOW_NOTIFICATION',
++    payload: {
++        type: 'info',
++        message: 'ra.notification.copied_to_clipboard',
++        messageArgs: { _: 'Copied to clipboard' },
++        undoable: false,
++    },
++};
++
++const errorNotification = {
++    type: 'RA/SHOW_NOTIFICATION',
++    payload: {
++        type: 'warning',
++        message: 'ra.notification.copy_to_clipboard_error',
++        messageArgs: { _: 'Unable to copy to clipboard' },
++        undoable: false,
++    },
++};
++
++describe('<CopyToClipboardButton />', () => {
++    let writeText: jest.Mock;
++
++    beforeEach(() => {
++        writeText = jest.fn().mockResolvedValue(undefined);
++        Object.defineProperty(navigator, 'clipboard', {
++            value: { writeText },
++            configurable: true,
++        });
++    });
++
++    afterEach(() => {
++        cleanup();
++        delete (navigator as any).clipboard;
++        delete (document as any).execCommand;
++    });
++
++    it('should render a button with no DOM errors', () => {
++        const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
++
++        const { getByLabelText } = renderButton(
++            <CopyToClipboardButton
++                source="title"
++                record={{ id: 123, title: 'lorem' }}
++                basePath="/posts"
++                resource="posts"
++                // props read by <Datagrid> and <SimpleShowLayout>
++                addLabel={false}
++                cellClassName="cell"
++                headerClassName="header"
++                sortable={false}
++                sortBy="title"
++                textAlign="right"
++            />
++        );
++
++        expect(spy).not.toHaveBeenCalled();
++        expect(getByLabelText('ra.action.copy').getAttribute('type')).toEqual(
++            'button'
++        );
++
++        spy.mockRestore();
++    });
++
++    it('should copy the value of the record field and notify the user', async () => {
++        const { getByLabelText, dispatch } = renderButton(
++            <CopyToClipboardButton
++                source="author.email"
++                record={{ id: 123, author: { email: 'jane@example.com' } }}
++            />
++        );
++
++        fireEvent.click(getByLabelText('ra.action.copy'));
++
++        expect(writeText).toHaveBeenCalledWith('jane@example.com');
++        await wait(() => {
++            expect(dispatch).toHaveBeenCalledWith(successNotification);
++        });
++    });
++
++    it('should copy non-string values as text', () => {
++        const { getAllByLabelText } = renderButton(
++            <>
++                <CopyToClipboardButton
++                    source="views"
++                    record={{ id: 123, views: 0 }}
++                />
++                <CopyToClipboardButton
++                    source="tags"
++                    record={{ id: 123, tags: ['foo', 'bar'] }}
++                />
++            </>
++        );
++        const [viewsButton, tagsButton] = getAllByLabelText('ra.action.copy');
++
++        fireEvent.click(viewsButton);
++        expect(writeText).toHaveBeenLastCalledWith('0');
++
++        fireEvent.click(tagsButton);
++        expect(writeText).toHaveBeenLastCalledWith('["foo","bar"]');
++    });
++
++    it('should notify the user when the copy fails', async () => {
++        writeText.mockRejectedValueOnce(new Error('Write permission denied'));
++        const { getByLabelText, dispatch } = renderButton(
++            <CopyToClipboardButton
++                source="title"
++                record={{ id: 123, title: 'lorem' }}
++            />
++        );
++
++        fireEvent.click(getByLabelText('ra.action.copy'));
++
++        await wait(() => {
++            expect(dispatch).toHaveBeenCalledWith(errorNotification);
++        });
++        expect(dispatch).not.toHaveBeenCalledWith(successNotification);
++    });
++
++    it('should be disabled when there is nothing to copy', () => {
++        const { getAllByLabelText } = renderButton(
++            <>
++                <CopyToClipboardButton source="title" />
++                <CopyToClipboardButton
++                    source="title"
++                    record={{ id: 123, title: '' }}
++                />
++                <CopyToClipboardButton
++                    source="title"
++                    record={{ id: 123, title: null }}
++                />
++            </>
++        );
++
++        getAllByLabelText('ra.action.copy').forEach(button => {
++            expect(button.hasAttribute('disabled')).toBe(true);
++            fireEvent.click(button);
++        });
++        expect(writeText).not.toHaveBeenCalled();
++    });
++
++    it('should accept a custom label and icon', () => {
++        const { getByLabelText, getByTestId } = renderButton(
++            <CopyToClipboardButton
++                source="email"
++                record={{ id: 123, email: 'jane@example.com' }}
++                label="Copy email"
++                icon={<LinkIcon data-testid="custom-icon" />}
++            />
++        );
++
++        const button = getByLabelText('Copy email');
++        expect(button.textContent).toEqual('Copy email');
++        expect(button.contains(getByTestId('custom-icon'))).toBe(true);
++    });
++
++    it('should call onClick without propagating the click', () => {
++        const onClick = jest.fn();
++        const onParentClick = jest.fn();
++        const { getByLabelText } = renderButton(
++            <div onClick={onParentClick}>
++                <CopyToClipboardButton
++                    source="title"
++                    record={{ id: 123, title: 'lorem' }}
++                    onClick={onClick}
++                />
++            </div>
++        );
++
++        fireEvent.click(getByLabelText('ra.action.copy'));
++
++        expect(writeText).toHaveBeenCalledWith('lorem');
++        expect(onClick).toHaveBeenCalled();
++        expect(onParentClick).not.toHaveBeenCalled();
++    });
++
++    it('should fall back to execCommand when the Clipboard API is not available', async () => {
++        delete (navigator as any).clipboard;
++        let copiedText;
++        const execCommand = jest.fn(() => {
++            copiedText = document.querySelector('textarea').value;
++            return true;
++        });
++        Object.defineProperty(document, 'execCommand', {
++            value: execCommand,
++            configurable: true,
++        });
++
++        const { getByLabelText, dispatch } = renderButton(
++            <CopyToClipboardButton
++                source="title"
++                record={{ id: 123, title: 'lorem' }}
++            />
++        );
++
++        fireEvent.click(getByLabelText('ra.action.copy'));
++
++        expect(execCommand).toHaveBeenCalledWith('copy');
++        expect(copiedText).toEqual('lorem');
++        expect(document.querySelector('textarea')).toBeNull();
++        await wait(() => {
++            expect(dispatch).toHaveBeenCalledWith(successNotification);
++        });
++    });
++
++    describe('in a Show view', () => {
++        const defaultShowProps = {
++            basePath: '/posts',
++            id: '123',
++            resource: 'posts',
++            location: {},
++            match: {},
++        };
++
++        const dataProvider = ({
++            getOne: () =>
++                Promise.resolve({ data: { id: 123, title: 'lorem' } }),
++        } as unknown) as DataProvider;
++
++        const renderShow = (actions: React.ReactElement) =>
++            renderButton(
++                <DataProviderContext.Provider value={dataProvider}>
++                    <Show {...defaultShowProps} actions={actions}>
++                        <SimpleShowLayout>
++                            <TextField source="title" />
++                        </SimpleShowLayout>
++                    </Show>
++                </DataProviderContext.Provider>,
++                { admin: { resources: { posts: { data: {} } } } }
++            );
++
++        it('should read the record from the context', async () => {
++            const ShowActions = () => (
++                <TopToolbar>
++                    <CopyToClipboardButton source="title" />
++                </TopToolbar>
++            );
++            const { getByLabelText, queryByText } = renderShow(
++                <ShowActions />
++            );
++            // wait for the dataProvider.getOne() return
++            await wait(() => {
++                expect(queryByText('lorem')).not.toBeNull();
++            });
++
++            fireEvent.click(getByLabelText('ra.action.copy'));
++
++            expect(writeText).toHaveBeenCalledWith('lorem');
++        });
++
++        it('should give precedence to the record prop over the context', async () => {
++            const ShowActions = () => (
++                <TopToolbar>
++                    <CopyToClipboardButton
++                        source="title"
++                        record={{ id: 456, title: 'ipsum' }}
++                    />
++                </TopToolbar>
++            );
++            const { getByLabelText, queryByText } = renderShow(
++                <ShowActions />
++            );
++            await wait(() => {
++                expect(queryByText('lorem')).not.toBeNull();
++            });
++
++            fireEvent.click(getByLabelText('ra.action.copy'));
++
++            expect(writeText).toHaveBeenCalledWith('ipsum');
++        });
++    });
++});
+diff --git a/packages/ra-ui-materialui/src/button/CopyToClipboardButton.tsx b/packages/ra-ui-materialui/src/button/CopyToClipboardButton.tsx
+new file mode 100644
+index 000000000..43d814d91
+--- /dev/null
++++ b/packages/ra-ui-materialui/src/button/CopyToClipboardButton.tsx
+@@ -0,0 +1,181 @@
++import * as React from 'react';
++import { FC, ReactElement, MouseEvent, useCallback, useContext } from 'react';
++import PropTypes from 'prop-types';
++import get from 'lodash/get';
++import ContentCopy from '@material-ui/icons/FileCopy';
++import { Record, RecordContext, useNotify } from 'ra-core';
++
++import Button, { ButtonProps } from './Button';
++
++/**
++ * Copies the value of a field of the current record to the clipboard,
++ * and notifies the user of the result.
++ *
++ * The record is read from the props (as injected by <Datagrid>,
++ * <SimpleShowLayout> or <TabbedShowLayout>), or from the RecordContext
++ * (e.g. when used in the actions of a <Show> view).
++ *
++ * @example // in a Show view
++ * <SimpleShowLayout>
++ *     <TextField source="email" />
++ *     <CopyToClipboardButton source="email" />
++ * </SimpleShowLayout>
++ *
++ * @example // in a List view, with a custom label and icon
++ * <Datagrid>
++ *     <TextField source="reference" />
++ *     <CopyToClipboardButton
++ *         source="reference"
++ *         label="Copy reference"
++ *         icon={<LinkIcon />}
++ *     />
++ * </Datagrid>
++ */
++const CopyToClipboardButton: FC<CopyToClipboardButtonProps> = props => {
++    const {
++        source,
++        record: recordFromProps,
++        label = 'ra.action.copy',
++        icon = defaultIcon,
++        disabled,
++        onClick,
++        ...rest
++    } = props;
++    const recordContext = useContext(RecordContext);
++    // The record injected by the parent takes precedence over the context,
++    // so that a button in a <Datagrid> rendered inside a <Show> view
++    // (e.g. in a <ReferenceManyField>) copies the value of its own row
++    const record =
++        recordFromProps || (recordContext ? recordContext.record : undefined);
++    const text = toClipboardText(get(record, source));
++    const notify = useNotify();
++
++    const handleClick = useCallback(
++        event => {
++            // useful to prevent click bubbling in a datagrid with rowClick
++            event.stopPropagation();
++            copyToClipboard(text).then(
++                () =>
++                    notify('ra.notification.copied_to_clipboard', 'info', {
++                        _: 'Copied to clipboard',
++                    }),
++                () =>
++                    notify(
++                        'ra.notification.copy_to_clipboard_error',
++                        'warning',
++                        {
++                            _: 'Unable to copy to clipboard',
++                        }
++                    )
++            );
++            if (typeof onClick === 'function') {
++                onClick(event);
++            }
++        },
++        [notify, onClick, text]
++    );
++
++    return (
++        <Button
++            label={label}
++            onClick={handleClick}
++            disabled={disabled || text === null}
++            {...sanitizeRestProps(rest)}
++        >
++            {icon}
++        </Button>
++    );
++};
++
++const defaultIcon = <ContentCopy />;
++
++/**
++ * Converts a record value to the text copied to the clipboard,
++ * or null if there is nothing to copy.
++ */
++const toClipboardText = (value: any): string | null => {
++    if (value == null || value === '') {
++        return null;
++    }
++    return typeof value === 'object' ? JSON.stringify(value) : String(value);
++};
++
++/**
++ * Writes a text to the clipboard.
++ *
++ * The asynchronous Clipboard API is only available in secure contexts
++ * (pages served over https or from localhost), so this falls back to the
++ * legacy document.execCommand('copy') when it's missing.
++ */
++const copyToClipboard =(text: string): Promise<void> => {
++    if (navigator.clipboard && navigator.clipboard.writeText) {
++        return navigator.clipboard.writeText(text);
++    }
++
++    return new Promise((resolve, reject) => {
++        const textarea = document.createElement('textarea');
++        textarea.value = text;
++        textarea.setAttribute('readonly', '');
++        textarea.style.position = 'fixed';
++        textarea.style.top = '-1000px';
++        document.body.appendChild(textarea);
++        textarea.select();
++        try {
++            if (document.execCommand('copy')) {
++                resolve();
++            } else {
++                reject(new Error('The copy command was rejected'));
++            }
++        } catch (error) {
++            reject(error);
++        } finally {
++            document.body.removeChild(textarea);
++        }
++    });
++};
++
++// Remove the props read by <Datagrid> and <SimpleShowLayout> to render
++// the column header or the label, as they aren't valid DOM attributes
++const sanitizeRestProps = ({
++    addLabel,
++    cellClassName,
++    headerClassName,
++    sortable,
++    sortBy,
++    sortByOrder,
++    textAlign,
++    ...rest
++}: any) => rest;
++
++interface Props {
++    source: string;
++    record?: Record;
++    label?: string;
++    icon?: ReactElement;
++    onClick?: (e: MouseEvent) => void;
++    // Read by <Datagrid> and <SimpleShowLayout>
++    addLabel?: boolean;
++    cellClassName?: string;
++    headerClassName?: string;
++    sortable?: boolean;
++    sortBy?: string;
++    sortByOrder?: 'ASC' | 'DESC';
++    textAlign?: 'left' | 'right';
++}
++
++export type CopyToClipboardButtonProps = Props & ButtonProps;
++
++CopyToClipboardButton.propTypes = {
++    source: PropTypes.string.isRequired,
++    record: PropTypes.any,
++    label: PropTypes.string,
++    icon: PropTypes.element,
++    onClick: PropTypes.func,
++};
++
++CopyToClipboardButton.defaultProps = {
++    // a column of copy buttons in a <Datagrid> shouldn't be sortable
++    sortable: false,
++};
++
++export default CopyToClipboardButton;
+diff --git a/packages/ra-ui-materialui/src/button/index.ts b/packages/ra-ui-materialui/src/button/index.ts
+index d48224d85..4cd859d75 100644
+--- a/packages/ra-ui-materialui/src/button/index.ts
++++ b/packages/ra-ui-materialui/src/button/index.ts
+@@ -4,6 +4,9 @@ import BulkDeleteWithUndoButton from './BulkDeleteWithUndoButton';
+ import BulkExportButton from './BulkExportButton';
+ import Button, { ButtonProps } from './Button';
+ import CloneButton from './CloneButton';
++import CopyToClipboardButton, {
++    CopyToClipboardButtonProps,
++} from './CopyToClipboardButton';
+ import CreateButton from './CreateButton';
+ import DeleteButton, { DeleteButtonProps } from './DeleteButton';
+ import DeleteWithConfirmButton, {
+@@ -23,6 +26,7 @@ import RefreshIconButton from './RefreshIconButton';
+ 
+ export type {
+     ButtonProps,
++    CopyToClipboardButtonProps,
+     DeleteButtonProps,
+     DeleteWithConfirmButtonProps,
+     DeleteWithUndoButtonProps,
+@@ -35,6 +39,7 @@ export {
+     BulkExportButton,
+     Button,
+     CloneButton,
++    CopyToClipboardButton,
+     CreateButton,
+     DeleteButton,
+     DeleteWithConfirmButton,
+-- 
+2.43.0
+

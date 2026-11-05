@@ -1,0 +1,365 @@
+From 192ed529a89ec730fd6d6907c5d3a6f62727e729 Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Thu, 5 Nov 2026 17:20:07 +0000
+Subject: [PATCH 1/2] Add duplicateDashboard to dashboard service
+
+Creates a new dashboard with the given name and copies the source
+dashboard's widgets (visualizations and text boxes, keeping their
+positions and parameter mappings), tags and dashboard filters setting.
+
+Only a failure to create the dashboard itself rejects. After that,
+widgets that failed to save, restricted widgets that can't be copied
+and a failed settings update are reported in the result, so the caller
+can still take the user to the partially copied dashboard.
+---
+ client/app/services/dashboard.js      |  65 +++++++
+ client/app/services/dashboard.test.js | 261 ++++++++++++++++++++++++++
+ 2 files changed, 326 insertions(+)
+ create mode 100644 client/app/services/dashboard.test.js
+
+diff --git a/client/app/services/dashboard.js b/client/app/services/dashboard.js
+index 261be908..22f09a6f 100644
+--- a/client/app/services/dashboard.js
++++ b/client/app/services/dashboard.js
+@@ -178,6 +178,71 @@ _.extend(Dashboard, DashboardService);
+ Dashboard.prepareDashboardWidgets = prepareDashboardWidgets;
+ Dashboard.prepareWidgetsForDashboard = prepareWidgetsForDashboard;
+ 
++function duplicateWidget(widget, dashboardId) {
++  const newWidget = new Widget({
++    dashboard_id: dashboardId,
++    // Deep copy, so the new widget doesn't share position/parameter mappings with the original one
++    options: _.cloneDeep(widget.options),
++    text: widget.text || "",
++    visualization_id: widget.visualization ? widget.visualization.id : null,
++    visualization: widget.visualization || null,
++  });
++  return newWidget.save();
++}
++
++/**
++ * Creates a copy of `dashboard` named `name`, including its tags, filters setting
++ * and all widgets (with their positions).
++ *
++ * Rejects only when the new dashboard itself cannot be created. Once it exists, problems
++ * with copying individual parts are reported in the result instead, so the caller can still
++ * send the user to the (partially) copied dashboard:
++ *   - `skippedWidgets`: widgets that cannot be copied because the user has no access to their queries;
++ *   - `failedWidgets`: widgets that could not be saved;
++ *   - `settingsCopied`: `false` if tags/filters setting could not be saved.
++ */
++export function duplicateDashboard(dashboard, name) {
++  // Restricted widgets don't expose their visualization, so there is nothing to copy
++  const [copyableWidgets, skippedWidgets] = _.partition(dashboard.widgets, widget => !widget.restricted);
++
++  return Dashboard.save({ name }).then(newDashboard => {
++    const hasSettingsToCopy = !_.isEmpty(dashboard.tags) || !!dashboard.dashboard_filters_enabled;
++    const copySettings = hasSettingsToCopy
++      ? Dashboard.save({
++          id: newDashboard.id,
++          tags: dashboard.tags,
++          dashboard_filters_enabled: dashboard.dashboard_filters_enabled,
++        }).then(
++          updatedDashboard => {
++            _.extend(newDashboard, _.pick(updatedDashboard, ["tags", "dashboard_filters_enabled", "version"]));
++            return true;
++          },
++          () => false
++        )
++      : Promise.resolve(true);
++
++    const copyWidgets = Promise.all(
++      _.map(copyableWidgets, widget =>
++        duplicateWidget(widget, newDashboard.id).then(
++          newWidget => ({ widget, newWidget }),
++          () => ({ widget, failed: true })
++        )
++      )
++    );
++
++    return Promise.all([copySettings, copyWidgets]).then(([settingsCopied, results]) => {
++      const [failed, copied] = _.partition(results, "failed");
++      newDashboard.widgets = _.map(copied, "newWidget");
++      return {
++        dashboard: newDashboard,
++        settingsCopied,
++        skippedWidgets,
++        failedWidgets: _.map(failed, "widget"),
++      };
++    });
++  });
++}
++
+ Dashboard.prototype.canEdit = function canEdit() {
+   return policy.canEdit(this);
+ };
+diff --git a/client/app/services/dashboard.test.js b/client/app/services/dashboard.test.js
+new file mode 100644
+index 00000000..72aa66f0
+--- /dev/null
++++ b/client/app/services/dashboard.test.js
+@@ -0,0 +1,261 @@
++import { axios } from "@/services/axios";
++import { Dashboard, duplicateDashboard } from "./dashboard";
++import Widget from "./widget";
++
++jest.mock("@/services/axios", () => ({
++  axios: { get: jest.fn(), post: jest.fn(), delete: jest.fn() },
++}));
++
++// Visualization configs are not relevant for these tests, and loading the real registry
++// would pull all visualization renderers into the test environment
++jest.mock("@redash/viz/lib", () => ({ registeredVisualizations: {} }));
++
++const NEW_DASHBOARD_ID = 2;
++
++function createSourceDashboard(overrides = {}) {
++  return new Dashboard({
++    id: 1,
++    name: "Sales",
++    slug: "sales",
++    tags: [],
++    dashboard_filters_enabled: false,
++    widgets: [
++      new Widget({
++        id: 101,
++        dashboard_id: 1,
++        text: "",
++        visualization: { id: 11, type: "TABLE", name: "Table", query: { id: 5, name: "Revenue" } },
++        options: {
++          isHidden: false,
++          position: { col: 0, row: 0, sizeX: 3, sizeY: 8 },
++          parameterMappings: {
++            region: { name: "region", type: "dashboard-level", mapTo: "region", value: null, title: "" },
++          },
++        },
++      }),
++      new Widget({
++        id: 102,
++        dashboard_id: 1,
++        text: "## Notes",
++        options: {
++          isHidden: false,
++          position: { col: 3, row: 0, sizeX: 3, sizeY: 2 },
++        },
++      }),
++    ],
++    ...overrides,
++  });
++}
++
++function createRestrictedWidget() {
++  return new Widget({
++    id: 103,
++    dashboard_id: 1,
++    restricted: true,
++    options: { position: { col: 0, row: 8, sizeX: 6, sizeY: 4 } },
++  });
++}
++
++function mockApi({ failDashboardCreation = false, failSettingsUpdate = false, shouldWidgetFail = () => false } = {}) {
++  let lastWidgetId = 1000;
++
++  axios.post.mockImplementation((url, data) => {
++    if (url === "api/dashboards") {
++      if (failDashboardCreation) {
++        return Promise.reject(new Error("Dashboard creation failed"));
++      }
++      return Promise.resolve({
++        id: NEW_DASHBOARD_ID,
++        slug: "copy-of-sales",
++        name: data.name,
++        tags: [],
++        dashboard_filters_enabled: false,
++        is_draft: true,
++        version: 1,
++        widgets: [],
++      });
++    }
++
++    if (url === `api/dashboards/${NEW_DASHBOARD_ID}`) {
++      if (failSettingsUpdate) {
++        return Promise.reject(new Error("Dashboard update failed"));
++      }
++      return Promise.resolve({
++        slug: "copy-of-sales",
++        name: "Copy of Sales",
++        is_draft: true,
++        widgets: [],
++        ...data,
++        version: 2,
++      });
++    }
++
++    if (url === "api/widgets") {
++      if (shouldWidgetFail(data)) {
++        return Promise.reject(new Error("Widget creation failed"));
++      }
++      lastWidgetId += 1;
++      return Promise.resolve({ ...data, id: lastWidgetId });
++    }
++
++    return Promise.reject(new Error(`Unexpected request: POST ${url}`));
++  });
++}
++
++function getWidgetRequests() {
++  return axios.post.mock.calls.filter(([url]) => url === "api/widgets").map(([, data]) => data);
++}
++
++function getSettingsRequests() {
++  return axios.post.mock.calls.filter(([url]) => url === `api/dashboards/${NEW_DASHBOARD_ID}`).map(([, data]) => data);
++}
++
++describe("duplicateDashboard", () => {
++  beforeEach(() => {
++    axios.post.mockReset();
++  });
++
++  test("creates a new dashboard with the given name", async () => {
++    mockApi();
++
++    const { dashboard } = await duplicateDashboard(createSourceDashboard(), "Copy of Sales");
++
++    expect(axios.post).toHaveBeenCalledWith("api/dashboards", { name: "Copy of Sales" });
++    expect(dashboard).toBeInstanceOf(Dashboard);
++    expect(dashboard.id).toBe(NEW_DASHBOARD_ID);
++    expect(dashboard.name).toBe("Copy of Sales");
++    expect(dashboard.url).toBe("dashboards/2-copy-of-sales");
++  });
++
++  test("copies visualization and textbox widgets with their positions", async () => {
++    mockApi();
++    const source = createSourceDashboard();
++
++    const { dashboard, failedWidgets, skippedWidgets, settingsCopied } = await duplicateDashboard(
++      source,
++      "Copy of Sales"
++    );
++
++    const [visualizationRequest, textboxRequest] = getWidgetRequests();
++    expect(getWidgetRequests()).toHaveLength(2);
++
++    expect(visualizationRequest).not.toHaveProperty("id");
++    expect(visualizationRequest).toMatchObject({ dashboard_id: NEW_DASHBOARD_ID, visualization_id: 11, text: "" });
++    expect(visualizationRequest.options.position).toMatchObject({ col: 0, row: 0, sizeX: 3, sizeY: 8 });
++    expect(visualizationRequest.options.parameterMappings).toEqual(source.widgets[0].options.parameterMappings);
++
++    expect(textboxRequest).not.toHaveProperty("id");
++    expect(textboxRequest).toMatchObject({ dashboard_id: NEW_DASHBOARD_ID, visualization_id: null, text: "## Notes" });
++    expect(textboxRequest.options.position).toMatchObject({ col: 3, row: 0, sizeX: 3, sizeY: 2 });
++
++    expect(dashboard.widgets).toHaveLength(2);
++    expect(dashboard.widgets[0]).toBeInstanceOf(Widget);
++    expect(dashboard.widgets[0].type).toBe("visualization");
++    expect(dashboard.widgets[1].type).toBe("textbox");
++    expect(dashboard.widgets.map(w => w.dashboard_id)).toEqual([NEW_DASHBOARD_ID, NEW_DASHBOARD_ID]);
++
++    expect(failedWidgets).toEqual([]);
++    expect(skippedWidgets).toEqual([]);
++    expect(settingsCopied).toBe(true);
++  });
++
++  test("leaves the original dashboard and its widgets untouched", async () => {
++    mockApi();
++    const source = createSourceDashboard();
++
++    const { dashboard } = await duplicateDashboard(source, "Copy of Sales");
++
++    expect(source.id).toBe(1);
++    expect(source.widgets.map(w => w.id)).toEqual([101, 102]);
++    expect(source.widgets.map(w => w.dashboard_id)).toEqual([1, 1]);
++
++    // copied widgets must not share mutable options with the original ones
++    expect(dashboard.widgets[0].options).not.toBe(source.widgets[0].options);
++    dashboard.widgets[0].options.position.col = 3;
++    dashboard.widgets[0].options.parameterMappings.region.type = "widget-level";
++    expect(source.widgets[0].options.position.col).toBe(0);
++    expect(source.widgets[0].options.parameterMappings.region.type).toBe("dashboard-level");
++  });
++
++  test("copies tags and dashboard filters setting", async () => {
++    mockApi();
++    const source = createSourceDashboard({ tags: ["finance", "weekly"], dashboard_filters_enabled: true });
++
++    const { dashboard, settingsCopied } = await duplicateDashboard(source, "Copy of Sales");
++
++    expect(getSettingsRequests()).toEqual([
++      { id: NEW_DASHBOARD_ID, tags: ["finance", "weekly"], dashboard_filters_enabled: true },
++    ]);
++    expect(settingsCopied).toBe(true);
++    expect(dashboard.tags).toEqual(["finance", "weekly"]);
++    expect(dashboard.dashboard_filters_enabled).toBe(true);
++  });
++
++  test("does not update the new dashboard when there are no settings to copy", async () => {
++    mockApi();
++
++    const { settingsCopied } = await duplicateDashboard(createSourceDashboard(), "Copy of Sales");
++
++    expect(getSettingsRequests()).toEqual([]);
++    expect(settingsCopied).toBe(true);
++  });
++
++  test("duplicates a dashboard without widgets", async () => {
++    mockApi();
++
++    const result = await duplicateDashboard(createSourceDashboard({ widgets: [] }), "Copy of Sales");
++
++    expect(getWidgetRequests()).toEqual([]);
++    expect(result.dashboard.widgets).toEqual([]);
++    expect(result.failedWidgets).toEqual([]);
++    expect(result.skippedWidgets).toEqual([]);
++  });
++
++  test("skips widgets the user has no access to", async () => {
++    mockApi();
++    const source = createSourceDashboard();
++    const restrictedWidget = createRestrictedWidget();
++    source.widgets = [...source.widgets, restrictedWidget];
++
++    const { dashboard, skippedWidgets, failedWidgets } = await duplicateDashboard(source, "Copy of Sales");
++
++    expect(getWidgetRequests()).toHaveLength(2);
++    expect(dashboard.widgets).toHaveLength(2);
++    expect(skippedWidgets).toEqual([restrictedWidget]);
++    expect(failedWidgets).toEqual([]);
++  });
++
++  test("reports widgets that could not be copied and keeps the rest", async () => {
++    mockApi({ shouldWidgetFail: data => data.visualization_id === 11 });
++    const source = createSourceDashboard();
++
++    const { dashboard, failedWidgets } = await duplicateDashboard(source, "Copy of Sales");
++
++    expect(failedWidgets).toEqual([source.widgets[0]]);
++    expect(dashboard.widgets).toHaveLength(1);
++    expect(dashboard.widgets[0].text).toBe("## Notes");
++  });
++
++  test("reports settings that could not be copied and still copies widgets", async () => {
++    mockApi({ failSettingsUpdate: true });
++    const source = createSourceDashboard({ tags: ["finance"] });
++
++    const { dashboard, settingsCopied, failedWidgets } = await duplicateDashboard(source, "Copy of Sales");
++
++    expect(settingsCopied).toBe(false);
++    expect(dashboard.tags).toEqual([]);
++    expect(dashboard.widgets).toHaveLength(2);
++    expect(failedWidgets).toEqual([]);
++  });
++
++  test("rejects without copying anything when the new dashboard cannot be created", async () => {
++    mockApi({ failDashboardCreation: true });
++
++    await expect(duplicateDashboard(createSourceDashboard(), "Copy of Sales")).rejects.toThrow(
++      "Dashboard creation failed"
++    );
++
++    expect(getWidgetRequests()).toEqual([]);
++    expect(getSettingsRequests()).toEqual([]);
++  });
++});
+-- 
+2.43.0
+

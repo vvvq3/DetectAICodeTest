@@ -1,0 +1,481 @@
+From bba859dc44bdd12ff745fd116ca33daeceea3497 Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Thu, 5 Nov 2026 17:20:24 +0000
+Subject: [PATCH 1/2] Rating: add star rating component
+
+New form component for setting and displaying a rating as stars
+(5 by default, configurable via max).
+
+- controlled (value + onChange) and uncontrolled (defaultValue) modes
+- hover preview on devices with a mouse (hasMouse from adaptivity)
+- keyboard: arrows change the rating by one star, Home/End set 1/max
+- readOnly mode renders fractional values with a partially filled star
+- disabled state, optional hidden input for forms (name)
+- sizes s/m/l with platform-specific styles for ios/android/vkcom
+- slider/img ARIA roles
+
+Exported from the package root, styles added to styles.css,
+docs registered in the Forms section of the styleguide.
+---
+ src/components/Rating/Rating.css | 135 +++++++++++++++++++++
+ src/components/Rating/Rating.tsx | 198 +++++++++++++++++++++++++++++++
+ src/components/Rating/Readme.md  |  61 ++++++++++
+ src/index.ts                     |   1 +
+ src/styles/styles.css            |   1 +
+ styleguide/config.js             |   1 +
+ 6 files changed, 397 insertions(+)
+ create mode 100644 src/components/Rating/Rating.css
+ create mode 100644 src/components/Rating/Rating.tsx
+ create mode 100644 src/components/Rating/Readme.md
+
+diff --git a/src/components/Rating/Rating.css b/src/components/Rating/Rating.css
+new file mode 100644
+index 0000000000..a34fe4329e
+--- /dev/null
++++ b/src/components/Rating/Rating.css
+@@ -0,0 +1,135 @@
++.Rating {
++  display: inline-flex;
++  align-items: center;
++  vertical-align: middle;
++  user-select: none;
++  }
++
++  .Rating__star {
++    position: relative;
++    flex-shrink: 0;
++    color: var(--icon_tertiary);
++    }
++
++    .Rating__icon {
++      display: block;
++      fill: currentColor;
++      }
++
++    /* Закрашенная часть звезды. Ширина задаётся из JS, иконка внутри не сжимается */
++    .Rating__fill {
++      position: absolute;
++      top: 0;
++      left: 0;
++      height: 100%;
++      overflow: hidden;
++      color: var(--dynamic_orange);
++      }
++
++.Rating--interactive .Rating__star {
++  cursor: pointer;
++  transition: transform .15s ease-out;
++  }
++
++.Rating--interactive .Rating__star:active {
++  transform: scale(.85);
++  }
++
++.Rating--disabled {
++  opacity: .6;
++  }
++
++/**
++ * Sizes
++ */
++
++.Rating--s .Rating__icon {
++  width: 16px;
++  height: 16px;
++  }
++
++.Rating--s .Rating__star + .Rating__star {
++  margin-left: 2px;
++  }
++
++.Rating--m .Rating__icon {
++  width: 24px;
++  height: 24px;
++  }
++
++.Rating--m .Rating__star + .Rating__star {
++  margin-left: 4px;
++  }
++
++.Rating--l .Rating__icon {
++  width: 32px;
++  height: 32px;
++  }
++
++.Rating--l .Rating__star + .Rating__star {
++  margin-left: 6px;
++  }
++
++/**
++ * iOS
++ */
++
++/* Скругляем углы звезды обводкой того же цвета */
++.Rating--ios .Rating__icon {
++  stroke: currentColor;
++  stroke-width: 1.5px;
++  stroke-linejoin: round;
++  }
++
++.Rating--ios.Rating--interactive .Rating__star {
++  transition-timing-function: var(--ios-easing);
++  }
++
++/**
++ * Android
++ */
++
++.Rating--android.Rating--interactive .Rating__star {
++  transition-timing-function: var(--android-easing);
++  }
++
++/**
++ * VKCOM
++ */
++
++.Rating--vkcom .Rating__icon {
++  stroke: currentColor;
++  stroke-width: 1.5px;
++  stroke-linejoin: round;
++  }
++
++.Rating--vkcom.Rating--interactive .Rating__star:active {
++  transform: none;
++  }
++
++.Rating--vkcom.Rating--disabled {
++  opacity: .4;
++  }
++
++.Rating--vkcom.Rating--s .Rating__icon {
++  width: 12px;
++  height: 12px;
++  }
++
++.Rating--vkcom.Rating--m .Rating__icon {
++  width: 20px;
++  height: 20px;
++  }
++
++.Rating--vkcom.Rating--m .Rating__star + .Rating__star {
++  margin-left: 2px;
++  }
++
++.Rating--vkcom.Rating--l .Rating__icon {
++  width: 28px;
++  height: 28px;
++  }
++
++.Rating--vkcom.Rating--l .Rating__star + .Rating__star {
++  margin-left: 4px;
++  }
+diff --git a/src/components/Rating/Rating.tsx b/src/components/Rating/Rating.tsx
+new file mode 100644
+index 0000000000..4410651b2e
+--- /dev/null
++++ b/src/components/Rating/Rating.tsx
+@@ -0,0 +1,198 @@
++import React, {
++  FunctionComponent,
++  HTMLAttributes,
++  KeyboardEvent,
++  MouseEvent,
++  ReactElement,
++  SyntheticEvent,
++  useState,
++} from 'react';
++import classNames from '../../lib/classNames';
++import getClassName from '../../helpers/getClassName';
++import usePlatform from '../../hooks/usePlatform';
++import withAdaptivity, { AdaptivityProps } from '../../hoc/withAdaptivity';
++import { HasRootRef } from '../../types';
++
++export interface RatingProps extends
++  Omit<HTMLAttributes<HTMLDivElement>, 'onChange' | 'defaultValue'>,
++  HasRootRef<HTMLDivElement>,
++  Pick<AdaptivityProps, 'hasMouse'> {
++  /**
++   * Текущая оценка, если компонент контролируемый. `0` — оценка не выставлена.
++   *
++   * В режиме `readOnly` значение может быть дробным: последняя звезда закрашивается частично.
++   */
++  value?: number;
++  /**
++   * Начальная оценка, если компонент неконтролируемый
++   */
++  defaultValue?: number;
++  /**
++   * Максимальная оценка, она же количество звёзд
++   */
++  max?: number;
++  /**
++   * Режим только для чтения: оценку нельзя изменить, звёзды не реагируют на наведение и клавиатуру
++   */
++  readOnly?: boolean;
++  disabled?: boolean;
++  size?: 's' | 'm' | 'l';
++  /**
++   * Если передано, рядом рендерится `<input type="hidden" />` с этим именем и текущей оценкой —
++   * чтобы значение отправлялось вместе с формой
++   */
++  name?: string;
++  onChange?(value: number, e: SyntheticEvent<HTMLDivElement>): void;
++}
++
++const starIcon: ReactElement = (
++  <svg className="Rating__icon" viewBox="0 0 24 24" aria-hidden="true">
++    <path d="M12 1.9l2.88 7.04 7.58.56-5.8 4.91 1.81 7.39L12 17.8l-6.47 4 1.81-7.39-5.8-4.91 7.58-.56z" />
++  </svg>
++);
++
++function clamp(value: number, min: number, max: number) {
++  return Math.min(Math.max(value, min), max);
++}
++
++/**
++ * Возвращает оценку, которую нужно выставить по нажатию клавиши,
++ * или `null`, если клавиша не управляет компонентом
++ */
++export function getValueByKey(key: string, value: number, max: number): number | null {
++  switch (key) {
++    case 'ArrowRight':
++    case 'ArrowUp':
++      return Math.min(Math.floor(value) + 1, max);
++    case 'ArrowLeft':
++    case 'ArrowDown':
++      // С клавиатуры оценку можно уменьшить до 1, но не сбросить
++      return value > 1 ? Math.ceil(value) - 1 : value;
++    case 'Home':
++      return 1;
++    case 'End':
++      return max;
++    default:
++      return null;
++  }
++}
++
++export const Rating: FunctionComponent<RatingProps> = (props: RatingProps) => {
++  const {
++    value,
++    defaultValue,
++    max,
++    readOnly,
++    disabled,
++    size,
++    name,
++    onChange,
++    className,
++    getRootRef,
++    onKeyDown,
++    onMouseLeave,
++    hasMouse,
++    ...restProps
++  } = props;
++  const platform = usePlatform();
++
++  const [innerValue, setInnerValue] = useState(defaultValue);
++  // 0 — курсор не над звёздами
++  const [hoveredValue, setHoveredValue] = useState(0);
++
++  const isControlled = value !== undefined;
++  const currentValue = clamp(isControlled ? value : innerValue, 0, max);
++  const interactive = !readOnly && !disabled;
++  const displayedValue = interactive && hoveredValue > 0 ? hoveredValue : currentValue;
++
++  const select = (nextValue: number, e: SyntheticEvent<HTMLDivElement>) => {
++    if (nextValue === currentValue) {
++      return;
++    }
++    if (!isControlled) {
++      setInnerValue(nextValue);
++    }
++    onChange && onChange(nextValue, e);
++  };
++
++  const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
++    onKeyDown && onKeyDown(e);
++
++    if (!interactive || e.defaultPrevented) {
++      return;
++    }
++
++    const nextValue = getValueByKey(e.key, currentValue, max);
++    if (nextValue === null) {
++      return;
++    }
++
++    // Стрелки не должны прокручивать страницу
++    e.preventDefault();
++    setHoveredValue(0);
++    select(nextValue, e);
++  };
++
++  const handleMouseLeave = (e: MouseEvent<HTMLDivElement>) => {
++    onMouseLeave && onMouseLeave(e);
++    setHoveredValue(0);
++  };
++
++  const stars: ReactElement[] = [];
++  for (let starValue = 1; starValue <= max; starValue++) {
++    const fill = clamp(displayedValue - starValue + 1, 0, 1);
++
++    stars.push(
++      <div
++        key={starValue}
++        className={classNames('Rating__star', { 'Rating__star--active': fill > 0 })}
++        onClick={interactive ? (e) => select(starValue, e) : undefined}
++        // На тач-устройствах наведения нет, а эмуляция mouseenter при тапе только мешает
++        onMouseEnter={interactive && hasMouse ? () => setHoveredValue(starValue) : undefined}
++      >
++        {starIcon}
++        <div className="Rating__fill" style={{ width: `${fill * 100}%` }}>
++          {starIcon}
++        </div>
++      </div>,
++    );
++  }
++
++  return (
++    <div
++      // В режиме чтения это просто картинка, иначе — слайдер со значением от 0 до max
++      role={readOnly ? 'img' : 'slider'}
++      aria-label={readOnly ? `${currentValue} / ${max}` : undefined}
++      tabIndex={interactive ? 0 : undefined}
++      aria-valuemin={readOnly ? undefined : 0}
++      aria-valuemax={readOnly ? undefined : max}
++      aria-valuenow={readOnly ? undefined : currentValue}
++      aria-disabled={disabled || undefined}
++      {...restProps}
++      ref={getRootRef}
++      className={classNames(getClassName('Rating', platform), `Rating--${size}`, {
++        'Rating--interactive': interactive,
++        'Rating--readonly': readOnly,
++        'Rating--disabled': disabled,
++      }, className)}
++      onKeyDown={handleKeyDown}
++      onMouseLeave={handleMouseLeave}
++    >
++      {stars}
++      {name !== undefined &&
++        <input type="hidden" name={name} value={currentValue} disabled={disabled} />
++      }
++    </div>
++  );
++};
++
++Rating.defaultProps = {
++  defaultValue: 0,
++  max: 5,
++  size: 'm',
++  hasMouse: true,
++};
++
++export default withAdaptivity(Rating, {
++  hasMouse: true,
++});
+diff --git a/src/components/Rating/Readme.md b/src/components/Rating/Readme.md
+new file mode 100644
+index 0000000000..c3388697dd
+--- /dev/null
++++ b/src/components/Rating/Readme.md
+@@ -0,0 +1,61 @@
++Компонент для выставления и отображения оценки в виде звёзд. По умолчанию звёзд пять, их количество задаётся свойством `max`.
++
++Компонент может быть контролируемым (`value` + `onChange`) и неконтролируемым (`defaultValue`). При наведении мышью звёзды
++подсвечиваются до той, что под курсором, — так пользователь видит оценку до клика. Оценку можно менять с клавиатуры:
++`←` и `↓` уменьшают её, `→` и `↑` увеличивают, `Home` и `End` выставляют минимальную и максимальную.
++
++В режиме `readOnly` компонент только отображает оценку. В этом режиме `value` может быть дробным — например, средняя оценка 4.3.
++
++```jsx
++const RatingExample = () => {
++  const [rating, setRating] = React.useState(4);
++
++  return (
++    <View activePanel="rating">
++      <Panel id="rating">
++        <PanelHeader>Rating</PanelHeader>
++        <Group>
++          <FormItem top="Оцените приложение" bottom={rating ? `Ваша оценка: ${rating}` : 'Оценка не выставлена'}>
++            <Rating value={rating} onChange={setRating} />
++          </FormItem>
++          <FormItem top="Неконтролируемый, 10 звёзд">
++            <Rating defaultValue={7} max={10} size="s" />
++          </FormItem>
++          <FormItem top="Недоступен">
++            <Rating defaultValue={3} disabled />
++          </FormItem>
++        </Group>
++        <Group header={<Header mode="secondary">Размеры</Header>}>
++          <FormItem top="s">
++            <Rating defaultValue={3} size="s" />
++          </FormItem>
++          <FormItem top="m">
++            <Rating defaultValue={3} size="m" />
++          </FormItem>
++          <FormItem top="l">
++            <Rating defaultValue={3} size="l" />
++          </FormItem>
++        </Group>
++        <Group header={<Header mode="secondary">Только для чтения</Header>}>
++          <SimpleCell
++            before={<Avatar src={getAvatarUrl('app_shorm_online')} mode="app" />}
++            description={<Rating value={4.3} readOnly size="s" />}
++            indicator="4.3"
++          >
++            Шторм онлайн
++          </SimpleCell>
++          <SimpleCell
++            before={<Avatar src={getAvatarUrl('app_zagadki')} mode="app" />}
++            description={<Rating value={3.5} readOnly size="s" />}
++            indicator="3.5"
++          >
++            Загадки детства
++          </SimpleCell>
++        </Group>
++      </Panel>
++    </View>
++  );
++};
++
++<RatingExample />
++```
+diff --git a/src/index.ts b/src/index.ts
+index 0600231690..a570f61d57 100644
+--- a/src/index.ts
++++ b/src/index.ts
+@@ -107,6 +107,7 @@ export { default as CustomSelect } from './components/CustomSelect/CustomSelect'
+ export { default as CustomSelectOption } from './components/CustomSelectOption/CustomSelectOption';
+ export { default as DatePicker } from './components/DatePicker/DatePicker';
+ export { default as SliderSwitch } from './components/SliderSwitch/SliderSwitch';
++export { default as Rating } from './components/Rating/Rating';
+ 
+ /**
+  * Helpers
+diff --git a/src/styles/styles.css b/src/styles/styles.css
+index 27108c74dd..51d154cb09 100644
+--- a/src/styles/styles.css
++++ b/src/styles/styles.css
+@@ -113,6 +113,7 @@
+ @import '../components/CustomSelectOption/CustomSelectOption.css';
+ @import '../components/DatePicker/DatePicker.css';
+ @import '../components/SliderSwitch/SliderSwitch.css';
++@import '../components/Rating/Rating.css';
+ 
+ /* Advertisement */
+ @import '../components/PromoBanner/PromoBanner.css';
+diff --git a/styleguide/config.js b/styleguide/config.js
+index 1ec0f32e61..42558c87fc 100644
+--- a/styleguide/config.js
++++ b/styleguide/config.js
+@@ -156,6 +156,7 @@ module.exports = {
+           '../src/components/File/File.tsx',
+           '../src/components/DatePicker/DatePicker.tsx',
+           '../src/components/SliderSwitch/SliderSwitch.tsx',
++          '../src/components/Rating/Rating.tsx',
+         ]
+       }, {
+         name: 'Typography',
+-- 
+2.43.0
+

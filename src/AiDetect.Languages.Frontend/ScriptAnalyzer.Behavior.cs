@@ -74,6 +74,29 @@ internal sealed partial class ScriptAnalyzer
                 }
             }
 
+            // promise.catch(e => console.log(e)) — обработчик только с console.log.
+            if (IsId(i, "catch") && IsP(i - 1, ".") && IsP(i + 1, "(") && _match[i + 1] > 0)
+            {
+                _c.Count(FK.CatchBlocks, t.Line);
+                int p = i + 2;
+                if (IsP(p, "(") && _match[p] > 0)
+                {
+                    p = _match[p];
+                }
+
+                if ((IsIdent(p) || IsP(p, ")")) && IsP(p + 1, "=>"))
+                {
+                    int b = p + 2;
+                    bool block = IsP(b, "{");
+                    int k = block ? b + 1 : b;
+                    if (IsId(k, "console") && IsId(k + 2, "log") && IsP(k + 3, "(") && _match[k + 3] > 0 &&
+                        (!block || _match[b] == _match[k + 3] + 1 || IsP(_match[k + 3] + 1, ";") && _match[b] == _match[k + 3] + 2))
+                    {
+                        _c.Hit(FK.CatchLogOnly, t.Line);
+                    }
+                }
+            }
+
             if (IsId(i, "instanceof") && IsId(i + 1, "Error") && (IsP(i + 2, "?") || IsP(i + 2, "&&")))
             {
                 _c.Hit(FK.InstanceofMessage, t.Line);
@@ -759,7 +782,8 @@ internal sealed partial class ScriptAnalyzer
                 {
                     _c.Count(FK.KeyAttrs, a.Line);
                     if (a.ExprValue && At(valueStart + 1) is { Kind: TokenKind.Identifier } kv && kv.Text is "index" or "i" or "idx" or "j" or "ind" &&
-                        IsP(valueStart + 2, "}") || a.ExprValue && At(valueStart + 2) is { } kt && kt.Text is "index" && _match[valueStart] > 0)
+                        At(valueStart + 2) is { Kind: TokenKind.JsxExprEnd } ||
+                        a.ExprValue && _match[valueStart] > valueStart && Enumerable.Range(valueStart + 1, _match[valueStart] - valueStart - 1).Any(q => IsId(q, "index")))
                     {
                         _c.Hit(FK.KeyIndex, a.Line);
                     }

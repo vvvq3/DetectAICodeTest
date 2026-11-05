@@ -1,0 +1,240 @@
+From 5b006ebf14de0d07efac084c90fccd86e0452226 Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Thu, 5 Nov 2026 17:16:31 +0000
+Subject: [PATCH 1/2] Add CSV utility for exporting tabular data
+
+Adds lib/utils/csv with escapeCSVValue, toCSV and downloadCSV. Values are
+quoted per RFC 4180 when they contain separators, quotes, line breaks or
+surrounding whitespace, and strings that spreadsheets would evaluate as
+formulas are prefixed with a single quote to prevent CSV injection.
+Downloads are prefixed with a UTF-8 BOM so Excel picks the right encoding.
+---
+ frontend/src/lib/utils/csv.test.ts | 148 +++++++++++++++++++++++++++++
+ frontend/src/lib/utils/csv.ts      |  60 ++++++++++++
+ 2 files changed, 208 insertions(+)
+ create mode 100644 frontend/src/lib/utils/csv.test.ts
+ create mode 100644 frontend/src/lib/utils/csv.ts
+
+diff --git a/frontend/src/lib/utils/csv.test.ts b/frontend/src/lib/utils/csv.test.ts
+new file mode 100644
+index 00000000000..4c0f4cbc623
+--- /dev/null
++++ b/frontend/src/lib/utils/csv.test.ts
+@@ -0,0 +1,148 @@
++import { escapeCSVValue, toCSV, downloadCSV } from './csv'
++
++describe('escapeCSVValue()', () => {
++    it('leaves simple values as they are', () => {
++        expect(escapeCSVValue('pageview')).toEqual('pageview')
++        expect(escapeCSVValue('Thu. 5 November')).toEqual('Thu. 5 November')
++        expect(escapeCSVValue(42)).toEqual('42')
++        expect(escapeCSVValue(3.14)).toEqual('3.14')
++        expect(escapeCSVValue(0)).toEqual('0')
++        expect(escapeCSVValue(true)).toEqual('true')
++        expect(escapeCSVValue(false)).toEqual('false')
++        expect(escapeCSVValue('')).toEqual('')
++    })
++
++    it('turns null and undefined into empty cells', () => {
++        expect(escapeCSVValue(null)).toEqual('')
++        expect(escapeCSVValue(undefined)).toEqual('')
++    })
++
++    it('quotes values containing the separator', () => {
++        expect(escapeCSVValue('Thu. 5 November, 14:00')).toEqual('"Thu. 5 November, 14:00"')
++        expect(escapeCSVValue(',')).toEqual('","')
++    })
++
++    it('doubles quotes and wraps the value in quotes', () => {
++        expect(escapeCSVValue('say "hi"')).toEqual('"say ""hi"""')
++        expect(escapeCSVValue('"')).toEqual('""""')
++    })
++
++    it('quotes values containing line breaks', () => {
++        expect(escapeCSVValue('line 1\nline 2')).toEqual('"line 1\nline 2"')
++        expect(escapeCSVValue('line 1\r\nline 2')).toEqual('"line 1\r\nline 2"')
++    })
++
++    it('quotes values with leading or trailing whitespace so it is preserved', () => {
++        expect(escapeCSVValue(' padded')).toEqual('" padded"')
++        expect(escapeCSVValue('padded ')).toEqual('"padded "')
++        expect(escapeCSVValue('in between')).toEqual('in between')
++    })
++
++    it('neutralizes strings that spreadsheets would run as formulas', () => {
++        expect(escapeCSVValue('=1+1')).toEqual("'=1+1")
++        expect(escapeCSVValue('+1')).toEqual("'+1")
++        expect(escapeCSVValue('-1')).toEqual("'-1")
++        expect(escapeCSVValue('@SUM(A1)')).toEqual("'@SUM(A1)")
++        expect(escapeCSVValue('\t=1+1')).toEqual("'\t=1+1")
++        expect(escapeCSVValue('=HYPERLINK("http://example.com","click")')).toEqual(
++            '"\'=HYPERLINK(""http://example.com"",""click"")"'
++        )
++    })
++
++    it('does not touch formula characters later in the string', () => {
++        expect(escapeCSVValue('a=b')).toEqual('a=b')
++        expect(escapeCSVValue('user@example.com')).toEqual('user@example.com')
++    })
++
++    it('keeps negative numbers numeric', () => {
++        expect(escapeCSVValue(-5)).toEqual('-5')
++        expect(escapeCSVValue(-0.5)).toEqual('-0.5')
++    })
++})
++
++describe('toCSV()', () => {
++    it('joins cells with commas and rows with CRLF', () => {
++        expect(
++            toCSV([
++                ['Series', 'Mon', 'Tue', 'Total'],
++                ['pageview', 1, 2, 3],
++                ['signup', 0, 5, 5],
++            ])
++        ).toEqual('Series,Mon,Tue,Total\r\npageview,1,2,3\r\nsignup,0,5,5')
++    })
++
++    it('escapes every cell', () => {
++        expect(
++            toCSV([
++                ['Series', 'Mon, 14:00'],
++                ['say "hi"', null],
++            ])
++        ).toEqual('Series,"Mon, 14:00"\r\n"say ""hi""",')
++    })
++
++    it('keeps empty cells and rows', () => {
++        expect(toCSV([['a', '', undefined, 'b'], []])).toEqual('a,,,b\r\n')
++    })
++
++    it('returns an empty string for no rows', () => {
++        expect(toCSV([])).toEqual('')
++    })
++})
++
++describe('downloadCSV()', () => {
++    const originalCreateObjectURL = URL.createObjectURL
++    const originalRevokeObjectURL = URL.revokeObjectURL
++    let clickedLinks: HTMLAnchorElement[]
++
++    beforeEach(() => {
++        jest.useFakeTimers()
++        clickedLinks = []
++        // jsdom implements neither of these
++        URL.createObjectURL = jest.fn(() => 'blob:csv-download')
++        URL.revokeObjectURL = jest.fn()
++        jest.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
++            clickedLinks.push(this)
++        })
++    })
++
++    afterEach(() => {
++        jest.useRealTimers()
++        jest.restoreAllMocks()
++        URL.createObjectURL = originalCreateObjectURL
++        URL.revokeObjectURL = originalRevokeObjectURL
++    })
++
++    const rows = [
++        ['Series', 'Mon', 'Total'],
++        ['pageview', 1, 1],
++    ]
++
++    it('downloads the rows as a UTF-8 CSV file', () => {
++        downloadCSV(rows, 'trends.csv')
++
++        expect(URL.createObjectURL).toHaveBeenCalledTimes(1)
++        const blob = (URL.createObjectURL as jest.Mock).mock.calls[0][0] as Blob
++        expect(blob.type).toEqual('text/csv;charset=utf-8')
++        // 3 bytes of UTF-8 byte order mark + the (ASCII-only) CSV content
++        expect(blob.size).toEqual(3 + toCSV(rows).length)
++
++        expect(clickedLinks).toHaveLength(1)
++        expect(clickedLinks[0].getAttribute('href')).toEqual('blob:csv-download')
++        expect(clickedLinks[0].getAttribute('download')).toEqual('trends.csv')
++    })
++
++    it('adds the .csv extension when missing', () => {
++        downloadCSV(rows, 'trends')
++        expect(clickedLinks[0].getAttribute('download')).toEqual('trends.csv')
++    })
++
++    it('cleans up the link and the object URL', () => {
++        downloadCSV(rows, 'trends.csv')
++
++        expect(clickedLinks).toHaveLength(1)
++        expect(document.body.contains(clickedLinks[0])).toEqual(false)
++        expect(URL.revokeObjectURL).not.toHaveBeenCalled()
++        jest.runAllTimers()
++        expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:csv-download')
++    })
++})
+diff --git a/frontend/src/lib/utils/csv.ts b/frontend/src/lib/utils/csv.ts
+new file mode 100644
+index 00000000000..452e68bb070
+--- /dev/null
++++ b/frontend/src/lib/utils/csv.ts
+@@ -0,0 +1,60 @@
++export type CSVCell = string | number | boolean | null | undefined
++
++const CSV_SEPARATOR = ','
++// RFC 4180 specifies CRLF as the record separator
++const CSV_LINE_BREAK = '\r\n'
++// Byte order mark, so that Excel opens the file as UTF-8 instead of guessing the encoding
++const UTF8_BOM = '﻿'
++
++// Characters that make a value need quoting
++const NEEDS_QUOTING = /[",\r\n]|^\s|\s$/
++// Spreadsheet apps interpret cells starting with these characters as formulas (CSV injection)
++const FORMULA_TRIGGER = /^[=+\-@\t\r]/
++
++/**
++ * Escape a single value for use as a CSV cell.
++ *
++ * - `null` and `undefined` become empty cells
++ * - values containing separators, quotes, line breaks or leading/trailing whitespace are wrapped
++ *   in double quotes, with inner double quotes doubled (RFC 4180)
++ * - strings that a spreadsheet would evaluate as a formula (starting with `=`, `+`, `-`, `@`, tab or
++ *   carriage return) are prefixed with a single quote, so that exported user data can't run formulas.
++ *   Numbers are left untouched, so negative values stay numeric.
++ */
++export function escapeCSVValue(value: CSVCell): string {
++    if (value === null || value === undefined) {
++        return ''
++    }
++
++    let stringValue = String(value)
++    if (typeof value === 'string' && FORMULA_TRIGGER.test(stringValue)) {
++        stringValue = `'${stringValue}`
++    }
++
++    if (NEEDS_QUOTING.test(stringValue)) {
++        return `"${stringValue.replace(/"/g, '""')}"`
++    }
++    return stringValue
++}
++
++/** Convert a list of rows (the first one usually being the header) into a CSV string. */
++export function toCSV(rows: CSVCell[][]): string {
++    return rows.map((row) => row.map(escapeCSVValue).join(CSV_SEPARATOR)).join(CSV_LINE_BREAK)
++}
++
++/** Convert rows to CSV and make the browser download them as a file. */
++export function downloadCSV(rows: CSVCell[][], filename: string): void {
++    const blob = new Blob([UTF8_BOM + toCSV(rows)], { type: 'text/csv;charset=utf-8' })
++    const url = URL.createObjectURL(blob)
++
++    const link = document.createElement('a')
++    link.href = url
++    link.download = filename.toLowerCase().endsWith('.csv') ? filename : `${filename}.csv`
++    link.style.display = 'none'
++    document.body.appendChild(link)
++    link.click()
++    document.body.removeChild(link)
++
++    // Some browsers abort the download if the URL is revoked synchronously after the click
++    setTimeout(() => URL.revokeObjectURL(url), 100)
++}
+-- 
+2.43.0
+

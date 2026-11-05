@@ -1,0 +1,242 @@
+From f32d5b49748fb6a40afdb2df8984b226d33d98c5 Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Thu, 5 Nov 2026 17:20:09 +0000
+Subject: [PATCH 2/2] Add Duplicate action to dashboard page menu
+
+Adds a "Duplicate" item to the dashboard's more options menu (for users
+who can create dashboards). It opens a dialog prefilled with
+"Copy of <name>", duplicates the dashboard and navigates to the copy,
+showing a success notification, or a warning listing what could not be
+copied. If the dashboard can't be created, an error is shown and the
+dialog stays open so the user can retry.
+---
+ .../dashboards/DuplicateDashboardDialog.jsx   | 112 ++++++++++++++++++
+ .../dashboards/components/DashboardHeader.jsx |   6 +
+ .../pages/dashboards/hooks/useDashboard.js    |   6 +
+ .../integration/dashboard/dashboard_spec.js   |  36 ++++++
+ 4 files changed, 160 insertions(+)
+ create mode 100644 client/app/components/dashboards/DuplicateDashboardDialog.jsx
+
+diff --git a/client/app/components/dashboards/DuplicateDashboardDialog.jsx b/client/app/components/dashboards/DuplicateDashboardDialog.jsx
+new file mode 100644
+index 00000000..ce1d40dc
+--- /dev/null
++++ b/client/app/components/dashboards/DuplicateDashboardDialog.jsx
+@@ -0,0 +1,112 @@
++import { trim, get, size } from "lodash";
++import React, { useState } from "react";
++import PropTypes from "prop-types";
++import Modal from "antd/lib/modal";
++import Input from "antd/lib/input";
++import { wrap as wrapDialog, DialogPropType } from "@/components/DialogWrapper";
++import navigateTo from "@/components/ApplicationArea/navigateTo";
++import notification from "@/services/notification";
++import recordEvent from "@/services/recordEvent";
++import { duplicateDashboard } from "@/services/dashboard";
++
++function widgetsCount(count) {
++  return count === 1 ? "1 widget" : `${count} widgets`;
++}
++
++function getDuplicationIssues({ settingsCopied, skippedWidgets, failedWidgets }) {
++  const issues = [];
++  const failedCount = size(failedWidgets);
++  const skippedCount = size(skippedWidgets);
++  if (failedCount > 0) {
++    issues.push(`${widgetsCount(failedCount)} could not be copied.`);
++  }
++  if (skippedCount > 0) {
++    const verb = skippedCount === 1 ? "was" : "were";
++    issues.push(`${widgetsCount(skippedCount)} ${verb} skipped because you don't have access to their data sources.`);
++  }
++  if (!settingsCopied) {
++    issues.push("Dashboard tags and filters setting could not be copied.");
++  }
++  return issues;
++}
++
++function DuplicateDashboardDialog({ dialog, dashboard }) {
++  const [name, setName] = useState(`Copy of ${dashboard.name}`);
++  const [saveInProgress, setSaveInProgress] = useState(false);
++  const isValid = trim(name) !== "";
++
++  function save() {
++    if (!isValid || saveInProgress) {
++      return;
++    }
++
++    setSaveInProgress(true);
++    recordEvent("duplicate", "dashboard", dashboard.id);
++
++    duplicateDashboard(dashboard, trim(name)).then(
++      result => {
++        dialog.close();
++        navigateTo(result.dashboard.url);
++
++        const issues = getDuplicationIssues(result);
++        if (issues.length > 0) {
++          notification.warning("Dashboard duplicated, but not completely", issues.join(" "), { duration: null });
++        } else {
++          notification.success("Dashboard duplicated");
++        }
++      },
++      error => {
++        // Nothing has been created, so keep the dialog open to let the user retry
++        setSaveInProgress(false);
++        notification.error(
++          "Dashboard could not be duplicated",
++          get(error, "response.data.message") || "Please try again later."
++        );
++      }
++    );
++  }
++
++  return (
++    <Modal
++      {...dialog.props}
++      title="Duplicate Dashboard"
++      okText="Duplicate"
++      cancelText="Cancel"
++      okButtonProps={{
++        disabled: !isValid || saveInProgress,
++        loading: saveInProgress,
++        "data-test": "DuplicateDashboardSaveButton",
++      }}
++      cancelButtonProps={{
++        disabled: saveInProgress,
++      }}
++      onOk={save}
++      closable={!saveInProgress}
++      maskClosable={!saveInProgress}
++      keyboard={!saveInProgress}
++      wrapProps={{
++        "data-test": "DuplicateDashboardDialog",
++      }}>
++      <Input
++        value={name}
++        onChange={event => setName(event.target.value)}
++        onPressEnter={save}
++        placeholder="Dashboard Name"
++        aria-label="Dashboard name"
++        disabled={saveInProgress}
++        onFocus={event => event.target.select()}
++        autoFocus
++      />
++    </Modal>
++  );
++}
++
++DuplicateDashboardDialog.propTypes = {
++  dialog: DialogPropType.isRequired,
++  dashboard: PropTypes.shape({
++    id: PropTypes.number.isRequired,
++    name: PropTypes.string.isRequired,
++  }).isRequired,
++};
++
++export default wrapDialog(DuplicateDashboardDialog);
+diff --git a/client/app/pages/dashboards/components/DashboardHeader.jsx b/client/app/pages/dashboards/components/DashboardHeader.jsx
+index c28051a8..75128f64 100644
+--- a/client/app/pages/dashboards/components/DashboardHeader.jsx
++++ b/client/app/pages/dashboards/components/DashboardHeader.jsx
+@@ -115,6 +115,7 @@ function DashboardMoreOptionsButton({ dashboardOptions }) {
+     togglePublished,
+     archiveDashboard,
+     managePermissions,
++    showDuplicateDashboardDialog,
+     gridDisabled,
+     isDashboardOwnerOrAdmin,
+   } = dashboardOptions;
+@@ -140,6 +141,11 @@ function DashboardMoreOptionsButton({ dashboardOptions }) {
+           <Menu.Item className={cx({ hidden: gridDisabled })}>
+             <a onClick={() => setEditingLayout(true)}>Edit</a>
+           </Menu.Item>
++          {policy.canCreateDashboard() && (
++            <Menu.Item>
++              <a onClick={showDuplicateDashboardDialog}>Duplicate</a>
++            </Menu.Item>
++          )}
+           {clientConfig.showPermissionsControl && isDashboardOwnerOrAdmin && (
+             <Menu.Item>
+               <a onClick={managePermissions}>Manage Permissions</a>
+diff --git a/client/app/pages/dashboards/hooks/useDashboard.js b/client/app/pages/dashboards/hooks/useDashboard.js
+index b8ee116e..969c2e05 100644
+--- a/client/app/pages/dashboards/hooks/useDashboard.js
++++ b/client/app/pages/dashboards/hooks/useDashboard.js
+@@ -9,6 +9,7 @@ import recordEvent from "@/services/recordEvent";
+ import { QueryResultError } from "@/services/query";
+ import AddWidgetDialog from "@/components/dashboards/AddWidgetDialog";
+ import TextboxDialog from "@/components/dashboards/TextboxDialog";
++import DuplicateDashboardDialog from "@/components/dashboards/DuplicateDashboardDialog";
+ import PermissionsEditorDialog from "@/components/PermissionsEditorDialog";
+ import { editableMappingsToParameterMappings, synchronizeWidgetTitles } from "@/components/ParameterMappingInput";
+ import ShareDashboardDialog from "../components/ShareDashboardDialog";
+@@ -169,6 +170,10 @@ function useDashboard(dashboardData) {
+       .onDismiss(handleDialogClose);
+   }, [dashboard, hasOnlySafeQueries]);
+ 
++  const showDuplicateDashboardDialog = useCallback(() => {
++    DuplicateDashboardDialog.showModal({ dashboard });
++  }, [dashboard]);
++
+   const showAddTextboxDialog = useCallback(() => {
+     TextboxDialog.showModal({
+       isNew: true,
+@@ -240,6 +245,7 @@ function useDashboard(dashboardData) {
+     fullscreen,
+     toggleFullscreen,
+     showShareDashboardDialog,
++    showDuplicateDashboardDialog,
+     showAddTextboxDialog,
+     showAddWidgetDialog,
+     managePermissions,
+diff --git a/client/cypress/integration/dashboard/dashboard_spec.js b/client/cypress/integration/dashboard/dashboard_spec.js
+index 7d5fff9d..60e83a0e 100644
+--- a/client/cypress/integration/dashboard/dashboard_spec.js
++++ b/client/cypress/integration/dashboard/dashboard_spec.js
+@@ -56,6 +56,42 @@ describe("Dashboard", () => {
+     });
+   });
+ 
++  it("duplicates dashboard", () => {
++    cy.createDashboard("Foo Bar")
++      .then(({ id }) => cy.addTextbox(id, "Hello World!", { position: { col: 2, row: 1, sizeX: 2, sizeY: 4 } }))
++      .then(({ dashboard_id: dashboardId }) => {
++        cy.visit(`/dashboards/${dashboardId}`);
++
++        cy.server();
++        cy.route("POST", "**/api/dashboards").as("DuplicateDashboard");
++
++        cy.getByTestId("DashboardMoreButton").click();
++        cy.getByTestId("DashboardMoreButtonMenu")
++          .contains("Duplicate")
++          .click();
++
++        cy.getByTestId("DuplicateDashboardDialog").within(() => {
++          cy.get("input").should("have.value", "Copy of Foo Bar");
++          cy.get("input")
++            .clear()
++            .type("Foo Bar Copy");
++          cy.getByTestId("DuplicateDashboardSaveButton").click();
++        });
++
++        cy.wait("@DuplicateDashboard").then(xhr => {
++          const id = Cypress._.get(xhr, "response.body.id");
++          assert.isDefined(id, "Dashboard api call returns id");
++          assert.notEqual(id, dashboardId, "Dashboard api call creates a new dashboard");
++
++          cy.location("pathname").should("contain", `/dashboards/${id}`);
++          cy.getByTestId(`DashboardId${id}Container`).within(() => {
++            cy.contains("h3", "Foo Bar Copy").should("exist");
++            cy.contains("Hello World!").should("exist");
++          });
++        });
++      });
++  });
++
+   it("is accessible through multiple urls", () => {
+     cy.server();
+     cy.route("GET", "**/api/dashboards/*").as("LoadDashboard");
+-- 
+2.43.0
+

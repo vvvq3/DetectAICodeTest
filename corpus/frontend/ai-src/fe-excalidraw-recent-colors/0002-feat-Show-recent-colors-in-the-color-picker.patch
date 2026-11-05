@@ -1,0 +1,455 @@
+From 1121eb025f577d842808a511bf52da89a345700e Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Thu, 5 Nov 2026 17:22:38 +0000
+Subject: [PATCH 2/2] feat: Show recent colors in the color picker
+
+Show the recently picked colors in a row above the palette; clicking one
+applies it. Stroke and background pickers each have their own list.
+
+A color is recorded when the picker closes rather than on every change,
+so browsing the palette with the arrow keys doesn't flood the list, and
+the row stays put while picking. Colors typed into the hex input are
+recorded once the input loses focus, so partial values like `#fa5` don't
+end up in the list.
+---
+ src/components/ColorPicker.scss |  15 +++
+ src/components/ColorPicker.tsx  |  88 +++++++++++++--
+ src/locales/en.json             |   1 +
+ src/tests/recentColors.test.tsx | 188 ++++++++++++++++++++++++++++++++
+ 4 files changed, 283 insertions(+), 9 deletions(-)
+
+diff --git a/src/components/ColorPicker.scss b/src/components/ColorPicker.scss
+index 23a6aac8..e7a292d7 100644
+--- a/src/components/ColorPicker.scss
++++ b/src/components/ColorPicker.scss
+@@ -63,6 +63,21 @@
+     grid-column: 1 / span 5;
+   }
+ 
++  .color-picker-recent {
++    margin: 0 0.5rem;
++    padding: 0.5rem 0;
++    display: grid;
++    grid-template-columns: repeat(8, auto);
++    justify-content: start;
++    grid-gap: 0.25rem;
++    border-bottom: 1px solid var(--input-border-color);
++
++    .color-picker-swatch {
++      height: 1.125rem;
++      width: 1.125rem;
++    }
++  }
++
+   .color-picker-swatch {
+     position: relative;
+     height: 1.875rem;
+diff --git a/src/components/ColorPicker.tsx b/src/components/ColorPicker.tsx
+index 82d6d9e1..685d80c3 100644
+--- a/src/components/ColorPicker.tsx
++++ b/src/components/ColorPicker.tsx
+@@ -5,7 +5,8 @@ import "./ColorPicker.scss";
+ import { isArrowKey, KEYS } from "../keys";
+ import { t, getLanguage } from "../i18n";
+ import { isWritableElement } from "../utils";
+-import colors from "../colors";
++import colors, { ColorPickerType } from "../colors";
++import { addRecentColor, getRecentColors } from "../data/recentColors";
+ 
+ const isValidColor = (color: string) => {
+   const style = new Option().style;
+@@ -51,13 +52,37 @@ const Picker = ({
+   onClose: () => void;
+   label: string;
+   showInput: boolean;
+-  type: "canvasBackground" | "elementBackground" | "elementStroke";
++  type: ColorPickerType;
+ }) => {
+   const firstItem = React.useRef<HTMLButtonElement>();
+   const activeItem = React.useRef<HTMLButtonElement>();
+   const gallery = React.useRef<HTMLDivElement>();
+   const colorInput = React.useRef<HTMLInputElement>();
+ 
++  // read once when the picker opens so the row doesn't shift while picking
++  const [recentColors] = React.useState(() => getRecentColors(type));
++  const [initialColor] = React.useState(color);
++  // tracked separately from `color`, which can also change for reasons other
++  // than picking (e.g. selecting another element while the picker is open)
++  const pickedColor = React.useRef<string | null>(null);
++
++  const pickColor = (color: string) => {
++    pickedColor.current = color;
++    onChange(color);
++  };
++
++  React.useEffect(() => {
++    // The picker unmounts whenever it closes (Escape/Enter, click outside,
++    // toggling the swatch button, or the whole panel going away), so we
++    // record the picked color here instead of on every change. Otherwise
++    // browsing the palette with the keyboard would flood the recent colors.
++    return () => {
++      if (pickedColor.current && pickedColor.current !== initialColor) {
++        addRecentColor(type, pickedColor.current);
++      }
++    };
++  }, [type, initialColor]);
++
+   React.useEffect(() => {
+     // After the component is first mounted focus on first input
+     if (activeItem.current) {
+@@ -73,8 +98,10 @@ const Picker = ({
+     if (event.key === KEYS.TAB) {
+       const { activeElement } = document;
+       if (event.shiftKey) {
+-        if (activeElement === firstItem.current) {
+-          colorInput.current?.focus();
++        // without the input there's nothing to cycle to, so let the browser
++        // move the focus back (towards the recent colors)
++        if (activeElement === firstItem.current && colorInput.current) {
++          colorInput.current.focus();
+           event.preventDefault();
+         }
+       } else if (activeElement === colorInput.current) {
+@@ -127,6 +154,34 @@ const Picker = ({
+     >
+       <div className="color-picker-triangle color-picker-triangle-shadow"></div>
+       <div className="color-picker-triangle"></div>
++      {recentColors.length > 0 && (
++        <div
++          className="color-picker-recent"
++          role="group"
++          aria-label={t("labels.recentColors")}
++        >
++          {recentColors.map((_color) => (
++            <button
++              className="color-picker-swatch"
++              onClick={(event) => {
++                (event.currentTarget as HTMLButtonElement).focus();
++                pickColor(_color);
++              }}
++              title={_color}
++              aria-label={_color}
++              style={{ color: _color }}
++              key={_color}
++              onFocus={() => {
++                pickColor(_color);
++              }}
++            >
++              {_color === "transparent" ? (
++                <div className="color-picker-transparent"></div>
++              ) : undefined}
++            </button>
++          ))}
++        </div>
++      )}
+       <div
+         className="color-picker-content"
+         ref={(el) => {
+@@ -141,7 +196,7 @@ const Picker = ({
+             className="color-picker-swatch"
+             onClick={(event) => {
+               (event.currentTarget as HTMLButtonElement).focus();
+-              onChange(_color);
++              pickColor(_color);
+             }}
+             title={`${_color} — ${keyBindings[i].toUpperCase()}`}
+             aria-label={_color}
+@@ -157,7 +212,7 @@ const Picker = ({
+               }
+             }}
+             onFocus={() => {
+-              onChange(_color);
++              pickColor(_color);
+             }}
+           >
+             {_color === "transparent" ? (
+@@ -171,7 +226,7 @@ const Picker = ({
+             color={color}
+             label={label}
+             onChange={(color) => {
+-              onChange(color);
++              pickColor(color);
+             }}
+             ref={colorInput}
+           />
+@@ -187,10 +242,12 @@ const ColorInput = React.forwardRef(
+       color,
+       onChange,
+       label,
++      onBlur,
+     }: {
+       color: string | null;
+       onChange: (color: string) => void;
+       label: string;
++      onBlur?: () => void;
+     },
+     ref,
+   ) => {
+@@ -224,7 +281,10 @@ const ColorInput = React.forwardRef(
+           aria-label={label}
+           onChange={(event) => changeColor(event.target.value)}
+           value={(innerValue || "").replace(/^#/, "")}
+-          onBlur={() => setInnerValue(color)}
++          onBlur={() => {
++            setInnerValue(color);
++            onBlur?.();
++          }}
+           ref={inputRef}
+         />
+       </label>
+@@ -238,13 +298,16 @@ export const ColorPicker = ({
+   onChange,
+   label,
+ }: {
+-  type: "canvasBackground" | "elementBackground" | "elementStroke";
++  type: ColorPickerType;
+   color: string | null;
+   onChange: (color: string) => void;
+   label: string;
+ }) => {
+   const [isActive, setActive] = React.useState(false);
+   const pickerButton = React.useRef<HTMLButtonElement>(null);
++  // colors typed into the input are recorded once it loses focus, not on
++  // every keystroke (which would also record partial values such as `#fa5`)
++  const typedColor = React.useRef<string | null>(null);
+ 
+   return (
+     <div>
+@@ -260,8 +323,15 @@ export const ColorPicker = ({
+           color={color}
+           label={label}
+           onChange={(color) => {
++            typedColor.current = color;
+             onChange(color);
+           }}
++          onBlur={() => {
++            if (typedColor.current) {
++              addRecentColor(type, typedColor.current);
++              typedColor.current = null;
++            }
++          }}
+         />
+       </div>
+       <React.Suspense fallback="">
+diff --git a/src/locales/en.json b/src/locales/en.json
+index b48b1056..518e20cb 100644
+--- a/src/locales/en.json
++++ b/src/locales/en.json
+@@ -63,6 +63,7 @@
+     "cartoonist": "Cartoonist",
+     "fileTitle": "File title",
+     "colorPicker": "Color picker",
++    "recentColors": "Recent colors",
+     "canvasBackground": "Canvas background",
+     "drawingCanvas": "Drawing canvas",
+     "layers": "Layers",
+diff --git a/src/tests/recentColors.test.tsx b/src/tests/recentColors.test.tsx
+index bef47aae..4601032a 100644
+--- a/src/tests/recentColors.test.tsx
++++ b/src/tests/recentColors.test.tsx
+@@ -1,3 +1,5 @@
++import React from "react";
++import ReactDOM from "react-dom";
+ import colors from "../colors";
+ import { STORAGE_KEYS } from "../constants";
+ import {
+@@ -5,6 +7,16 @@ import {
+   getRecentColors,
+   MAX_RECENT_COLORS,
+ } from "../data/recentColors";
++import { setLanguage } from "../i18n";
++import { KEYS } from "../keys";
++import Excalidraw from "../packages/excalidraw/index";
++import { API } from "./helpers/api";
++import { Pointer, UI } from "./helpers/ui";
++import { fireEvent, render } from "./test-utils";
++
++const { h } = window;
++
++const mouse = new Pointer("mouse");
+ 
+ const getStoredRecentColors = () =>
+   JSON.parse(localStorage.getItem(STORAGE_KEYS.LOCAL_STORAGE_RECENT_COLORS)!);
+@@ -76,3 +88,179 @@ describe("recent colors storage", () => {
+     }
+   });
+ });
++
++describe("recent colors in the color picker", () => {
++  const getElement = (selector: string) => {
++    const element = document.querySelector(selector);
++    if (!element) {
++      throw new Error(`No element found: ${selector}`);
++    }
++    return element;
++  };
++
++  /** opens the picker if it's closed and closes it if it's open */
++  const togglePicker = (label: string) => {
++    fireEvent.click(getElement(`button[aria-label='${label}']`));
++  };
++
++  const isPickerOpen = () => !!document.querySelector(".color-picker");
++
++  const pickPaletteColor = (color: string) => {
++    fireEvent.click(
++      getElement(`.color-picker-content [aria-label='${color}']`),
++    );
++  };
++
++  const pickRecentColor = (color: string) => {
++    fireEvent.click(getElement(`.color-picker-recent [aria-label='${color}']`));
++  };
++
++  const getRecentSwatches = () =>
++    Array.from(
++      document.querySelectorAll(".color-picker-recent .color-picker-swatch"),
++    ).map((swatch) => swatch.getAttribute("aria-label"));
++
++  beforeEach(async () => {
++    // Unmount ReactDOM from root
++    ReactDOM.unmountComponentAtNode(document.getElementById("root")!);
++    localStorage.clear();
++    mouse.reset();
++
++    await setLanguage("en.json");
++    await render(<Excalidraw offsetLeft={0} offsetTop={0} />);
++
++    // shape actions (and thus the stroke/background pickers) are shown only
++    // while an element is selected
++    UI.clickTool("rectangle");
++    mouse.down(10, 10);
++    mouse.up(10, 10);
++  });
++
++  it("doesn't show the row until a color was picked", () => {
++    togglePicker("Background");
++    expect(isPickerOpen()).toBe(true);
++    expect(document.querySelector(".color-picker-recent")).toBeNull();
++
++    // closing without picking anything doesn't record anything either
++    togglePicker("Background");
++    expect(isPickerOpen()).toBe(false);
++    expect(getRecentColors("elementBackground")).toEqual([]);
++  });
++
++  it("remembers the picked color once the picker closes", () => {
++    togglePicker("Background");
++    pickPaletteColor("#fa5252");
++    expect(API.getSelectedElement().backgroundColor).toBe("#fa5252");
++    // nothing is recorded until the picker closes
++    expect(getRecentColors("elementBackground")).toEqual([]);
++
++    togglePicker("Background");
++    expect(getRecentColors("elementBackground")).toEqual(["#fa5252"]);
++    expect(getStoredRecentColors()).toEqual({
++      elementBackground: ["#fa5252"],
++    });
++
++    togglePicker("Background");
++    expect(getRecentSwatches()).toEqual(["#fa5252"]);
++  });
++
++  it("only remembers the last of several colors picked in one go", () => {
++    togglePicker("Background");
++    pickPaletteColor("#fa5252");
++    pickPaletteColor("#e64980");
++    togglePicker("Background");
++
++    expect(getRecentColors("elementBackground")).toEqual(["#e64980"]);
++  });
++
++  it("applies a recent color when clicked and moves it to the front", () => {
++    togglePicker("Background");
++    pickPaletteColor("#fa5252");
++    togglePicker("Background");
++
++    togglePicker("Background");
++    pickPaletteColor("#e64980");
++    togglePicker("Background");
++
++    togglePicker("Background");
++    expect(getRecentSwatches()).toEqual(["#e64980", "#fa5252"]);
++
++    pickRecentColor("#fa5252");
++    expect(API.getSelectedElement().backgroundColor).toBe("#fa5252");
++    expect(h.state.currentItemBackgroundColor).toBe("#fa5252");
++
++    togglePicker("Background");
++    expect(getRecentColors("elementBackground")).toEqual([
++      "#fa5252",
++      "#e64980",
++    ]);
++  });
++
++  it("keeps stroke and background colors separately", () => {
++    togglePicker("Stroke");
++    pickPaletteColor("#c92a2a");
++    togglePicker("Stroke");
++
++    togglePicker("Background");
++    pickPaletteColor("#fa5252");
++    togglePicker("Background");
++
++    expect(getRecentColors("elementStroke")).toEqual(["#c92a2a"]);
++    expect(getRecentColors("elementBackground")).toEqual(["#fa5252"]);
++
++    togglePicker("Stroke");
++    expect(getRecentSwatches()).toEqual(["#c92a2a"]);
++    togglePicker("Stroke");
++
++    togglePicker("Background");
++    expect(getRecentSwatches()).toEqual(["#fa5252"]);
++  });
++
++  it("shows recent colors stored in localStorage", () => {
++    localStorage.setItem(
++      STORAGE_KEYS.LOCAL_STORAGE_RECENT_COLORS,
++      JSON.stringify({ elementStroke: ["#5f3dc4", "#c92a2a"] }),
++    );
++
++    togglePicker("Stroke");
++    expect(getRecentSwatches()).toEqual(["#5f3dc4", "#c92a2a"]);
++
++    pickRecentColor("#c92a2a");
++    expect(API.getSelectedElement().strokeColor).toBe("#c92a2a");
++  });
++
++  it("doesn't record colors browsed with the keyboard, only the final one", () => {
++    togglePicker("Background");
++    // the swatch of the current color (transparent) is focused on open
++    fireEvent.keyDown(document.activeElement!, { key: KEYS.ARROW_RIGHT });
++    fireEvent.keyDown(document.activeElement!, { key: KEYS.ARROW_RIGHT });
++    expect(API.getSelectedElement().backgroundColor).toBe(
++      colors.elementBackground[2],
++    );
++
++    fireEvent.keyDown(document.activeElement!, { key: KEYS.ESCAPE });
++    expect(isPickerOpen()).toBe(false);
++    expect(getRecentColors("elementBackground")).toEqual([
++      colors.elementBackground[2],
++    ]);
++  });
++
++  it("records a color typed into the input once the input loses focus", () => {
++    const input = getElement("input[aria-label='Stroke']");
++
++    fireEvent.focus(input);
++    fireEvent.change(input, { target: { value: "zz" } });
++    fireEvent.blur(input);
++    expect(API.getSelectedElement().strokeColor).toBe("#000000");
++    expect(getRecentColors("elementStroke")).toEqual([]);
++
++    fireEvent.focus(input);
++    fireEvent.change(input, { target: { value: "fa5" } });
++    fireEvent.change(input, { target: { value: "fa5252" } });
++    expect(API.getSelectedElement().strokeColor).toBe("#fa5252");
++    expect(getRecentColors("elementStroke")).toEqual([]);
++
++    fireEvent.blur(input);
++    expect(getRecentColors("elementStroke")).toEqual(["#fa5252"]);
++  });
++});
+-- 
+2.43.0
+

@@ -1,0 +1,304 @@
+From daecf099618d4cc6da7f037a3559f23ca4f7e813 Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Thu, 5 Nov 2026 17:21:41 +0000
+Subject: [PATCH 2/2] Show copy to clipboard buttons for the URI and DOI on
+ item pages
+
+Add an optional "copyable" input to ds-item-page-uri-field and
+ds-metadata-uri-values that renders a ds-copy-to-clipboard button next
+to each value. The separator is now rendered after the link (and copy
+button) instead of inside the link.
+
+The simple Publication and untyped item pages enable it for
+dc.identifier.uri (the item's handle) and now also display
+dc.identifier.doi, which DSpace stores as a resolvable https://doi.org/
+URL, with a copy button.
+---
+ .../metadata-uri-values.component.html        |  8 +++--
+ .../metadata-uri-values.component.spec.ts     | 31 ++++++++++++++++++-
+ .../metadata-uri-values.component.ts          |  6 ++++
+ .../uri/item-page-uri-field.component.html    |  2 +-
+ .../uri/item-page-uri-field.component.spec.ts | 18 +++++++++++
+ .../uri/item-page-uri-field.component.ts      |  6 ++++
+ .../publication/publication.component.html    |  8 ++++-
+ .../publication/publication.component.spec.ts | 18 ++++++++++-
+ .../untyped-item/untyped-item.component.html  |  8 ++++-
+ .../untyped-item.component.spec.ts            | 18 ++++++++++-
+ src/assets/i18n/en.json5                      |  2 ++
+ 11 files changed, 116 insertions(+), 9 deletions(-)
+
+diff --git a/src/app/+item-page/field-components/metadata-uri-values/metadata-uri-values.component.html b/src/app/+item-page/field-components/metadata-uri-values/metadata-uri-values.component.html
+index b5d7c118d..2eb616bc4 100644
+--- a/src/app/+item-page/field-components/metadata-uri-values/metadata-uri-values.component.html
++++ b/src/app/+item-page/field-components/metadata-uri-values/metadata-uri-values.component.html
+@@ -1,5 +1,7 @@
+ <ds-metadata-field-wrapper [label]="label | translate">
+-    <a *ngFor="let mdValue of mdValues; let last=last;" [href]="mdValue.value">
+-       {{ linktext || mdValue.value }}<span *ngIf="!last" [innerHTML]="separator"></span>
+-    </a>
++  <ng-container *ngFor="let mdValue of mdValues; let last=last;">
++    <a [href]="mdValue.value">{{ linktext || mdValue.value }}</a>
++    <ds-copy-to-clipboard *ngIf="copyable" [content]="mdValue.value"></ds-copy-to-clipboard>
++    <span *ngIf="!last" [innerHTML]="separator"></span>
++  </ng-container>
+ </ds-metadata-field-wrapper>
+diff --git a/src/app/+item-page/field-components/metadata-uri-values/metadata-uri-values.component.spec.ts b/src/app/+item-page/field-components/metadata-uri-values/metadata-uri-values.component.spec.ts
+index 5f9a87a94..787b10aec 100644
+--- a/src/app/+item-page/field-components/metadata-uri-values/metadata-uri-values.component.spec.ts
++++ b/src/app/+item-page/field-components/metadata-uri-values/metadata-uri-values.component.spec.ts
+@@ -64,10 +64,39 @@ describe('MetadataUriValuesComponent', () => {
+   });
+ 
+   it('should contain separators equal to the amount of metadata values minus one', () => {
+-    const separators = fixture.debugElement.queryAll(By.css('a span'));
++    const separators = fixture.debugElement.queryAll(By.css('ds-metadata-field-wrapper > span'));
+     expect(separators.length).toBe(mockMetadata.length - 1);
+   });
+ 
++  it('should not show copy to clipboard buttons by default', () => {
++    const copyButtons = fixture.debugElement.queryAll(By.css('ds-copy-to-clipboard'));
++    expect(copyButtons.length).toBe(0);
++  });
++
++  describe('when copyable is true', () => {
++
++    beforeEach(() => {
++      comp.copyable = true;
++      fixture.detectChanges();
++    });
++
++    it('should show a copy to clipboard button for each metadata value', () => {
++      const copyButtons = fixture.debugElement.queryAll(By.css('ds-copy-to-clipboard'));
++      expect(copyButtons.length).toBe(mockMetadata.length);
++      mockMetadata.forEach((metadatum, index) => {
++        expect(copyButtons[index].properties.content).toEqual(metadatum.value);
++      });
++    });
++
++    it('should copy the metadata value, not the linktext', () => {
++      comp.linktext = mockLinkText;
++      fixture.detectChanges();
++      const copyButton = fixture.debugElement.query(By.css('ds-copy-to-clipboard'));
++      expect(copyButton.properties.content).toEqual(mockMetadata[0].value);
++    });
++
++  });
++
+   describe('when linktext is defined', () => {
+ 
+     beforeEach(() => {
+diff --git a/src/app/+item-page/field-components/metadata-uri-values/metadata-uri-values.component.ts b/src/app/+item-page/field-components/metadata-uri-values/metadata-uri-values.component.ts
+index e070eccf2..aa357dee9 100644
+--- a/src/app/+item-page/field-components/metadata-uri-values/metadata-uri-values.component.ts
++++ b/src/app/+item-page/field-components/metadata-uri-values/metadata-uri-values.component.ts
+@@ -9,6 +9,7 @@ import { MetadataValue } from '../../../core/shared/metadata.models';
+  * and creates an 'a' tag for each value,
+  * using the 'linktext' as it's value (if it exists)
+  * and using the values as the 'href' attribute (and as value of the tag when no 'linktext' is defined)
++ * When 'copyable' is true, a button to copy the value to the clipboard is shown next to each link
+  */
+ @Component({
+   selector: 'ds-metadata-uri-values',
+@@ -37,4 +38,9 @@ export class MetadataUriValuesComponent extends MetadataValuesComponent {
+    * The label for this iteration of metadata values
+    */
+   @Input() label: string;
++
++  /**
++   * Whether to show a button to copy each value to the clipboard
++   */
++  @Input() copyable = false;
+ }
+diff --git a/src/app/+item-page/simple/field-components/specific-field/uri/item-page-uri-field.component.html b/src/app/+item-page/simple/field-components/specific-field/uri/item-page-uri-field.component.html
+index 2b1975412..ca4ac2f39 100644
+--- a/src/app/+item-page/simple/field-components/specific-field/uri/item-page-uri-field.component.html
++++ b/src/app/+item-page/simple/field-components/specific-field/uri/item-page-uri-field.component.html
+@@ -1,3 +1,3 @@
+ <div class="item-page-field">
+-  <ds-metadata-uri-values [mdValues]="item?.allMetadata(fields)" [separator]="separator" [label]="label"></ds-metadata-uri-values>
++  <ds-metadata-uri-values [mdValues]="item?.allMetadata(fields)" [separator]="separator" [label]="label" [copyable]="copyable"></ds-metadata-uri-values>
+ </div>
+diff --git a/src/app/+item-page/simple/field-components/specific-field/uri/item-page-uri-field.component.spec.ts b/src/app/+item-page/simple/field-components/specific-field/uri/item-page-uri-field.component.spec.ts
+index 0c246d5de..a244452bf 100644
+--- a/src/app/+item-page/simple/field-components/specific-field/uri/item-page-uri-field.component.spec.ts
++++ b/src/app/+item-page/simple/field-components/specific-field/uri/item-page-uri-field.component.spec.ts
+@@ -1,6 +1,7 @@
+ import { TranslateLoader, TranslateModule } from '@ngx-translate/core';
+ import { ChangeDetectionStrategy, NO_ERRORS_SCHEMA } from '@angular/core';
+ import { async, ComponentFixture, TestBed } from '@angular/core/testing';
++import { By } from '@angular/platform-browser';
+ import { TranslateLoaderMock } from '../../../../../shared/testing/translate-loader.mock';
+ import { mockItemWithMetadataFieldAndValue } from '../item-page-field.component.spec';
+ import { ItemPageUriFieldComponent } from './item-page-uri-field.component';
+@@ -41,4 +42,21 @@ describe('ItemPageUriFieldComponent', () => {
+   it('should display display the correct metadata value', () => {
+     expect(fixture.nativeElement.innerHTML).toContain(mockValue);
+   });
++
++  it('should not show a copy to clipboard button by default', () => {
++    expect(fixture.debugElement.query(By.css('ds-copy-to-clipboard'))).toBeNull();
++  });
++
++  describe('when copyable is true', () => {
++    beforeEach(() => {
++      comp.copyable = true;
++      fixture.detectChanges();
++    });
++
++    it('should show a button to copy the metadata value to the clipboard', () => {
++      const copyButton = fixture.debugElement.query(By.css('ds-copy-to-clipboard'));
++      expect(copyButton).not.toBeNull();
++      expect(copyButton.properties.content).toEqual(mockValue);
++    });
++  });
+ });
+diff --git a/src/app/+item-page/simple/field-components/specific-field/uri/item-page-uri-field.component.ts b/src/app/+item-page/simple/field-components/specific-field/uri/item-page-uri-field.component.ts
+index b70cbbd5e..74265e58e 100644
+--- a/src/app/+item-page/simple/field-components/specific-field/uri/item-page-uri-field.component.ts
++++ b/src/app/+item-page/simple/field-components/specific-field/uri/item-page-uri-field.component.ts
+@@ -10,6 +10,7 @@ import { ItemPageFieldComponent } from '../item-page-field.component';
+ /**
+  * This component can be used to represent any uri on a simple item page.
+  * It expects 4 parameters: The item, a separator, the metadata keys and an i18n key
++ * Optionally, a button to copy each uri to the clipboard can be shown using 'copyable'
+  */
+ export class ItemPageUriFieldComponent extends ItemPageFieldComponent {
+ 
+@@ -34,4 +35,9 @@ export class ItemPageUriFieldComponent extends ItemPageFieldComponent {
+    */
+   @Input() label: string;
+ 
++  /**
++   * Whether to show a button to copy each uri to the clipboard
++   */
++  @Input() copyable = false;
++
+ }
+diff --git a/src/app/+item-page/simple/item-types/publication/publication.component.html b/src/app/+item-page/simple/item-types/publication/publication.component.html
+index ae3d62a10..3a2940323 100644
+--- a/src/app/+item-page/simple/item-types/publication/publication.component.html
++++ b/src/app/+item-page/simple/item-types/publication/publication.component.html
+@@ -70,7 +70,13 @@
+     </ds-generic-item-page-field>
+     <ds-item-page-uri-field [item]="object"
+       [fields]="['dc.identifier.uri']"
+-      [label]="'item.page.uri'">
++      [label]="'item.page.uri'"
++      [copyable]="true">
++    </ds-item-page-uri-field>
++    <ds-item-page-uri-field [item]="object"
++      [fields]="['dc.identifier.doi']"
++      [label]="'item.page.doi'"
++      [copyable]="true">
+     </ds-item-page-uri-field>
+     <ds-item-page-collections [item]="object"></ds-item-page-collections>
+     <div>
+diff --git a/src/app/+item-page/simple/item-types/publication/publication.component.spec.ts b/src/app/+item-page/simple/item-types/publication/publication.component.spec.ts
+index 2f16d199e..08c9b3864 100644
+--- a/src/app/+item-page/simple/item-types/publication/publication.component.spec.ts
++++ b/src/app/+item-page/simple/item-types/publication/publication.component.spec.ts
+@@ -1,5 +1,5 @@
+ import { HttpClient } from '@angular/common/http';
+-import { ChangeDetectionStrategy, NO_ERRORS_SCHEMA } from '@angular/core';
++import { ChangeDetectionStrategy, DebugElement, NO_ERRORS_SCHEMA } from '@angular/core';
+ import { async, ComponentFixture, TestBed } from '@angular/core/testing';
+ import { By } from '@angular/platform-browser';
+ import { Store } from '@ngrx/store';
+@@ -103,9 +103,25 @@ describe('PublicationComponent', () => {
+     expect(fields.length).toBeGreaterThanOrEqual(1);
+   });
+ 
++  it('should contain a component to display the doi', () => {
++    const fields = getUriFieldsFor('dc.identifier.doi');
++    expect(fields.length).toBeGreaterThanOrEqual(1);
++  });
++
++  it('should allow copying the uri and doi to the clipboard', () => {
++    const fields = [...getUriFieldsFor('dc.identifier.uri'), ...getUriFieldsFor('dc.identifier.doi')];
++    expect(fields.length).toBeGreaterThanOrEqual(2);
++    fields.forEach((field) => expect(field.properties.copyable).toBe(true));
++  });
++
+   it('should contain a component to display the collections', () => {
+     const fields = fixture.debugElement.queryAll(By.css('ds-item-page-collections'));
+     expect(fields.length).toBeGreaterThanOrEqual(1);
+   });
+ 
++  function getUriFieldsFor(metadataField: string): DebugElement[] {
++    return fixture.debugElement.queryAll(By.css('ds-item-page-uri-field'))
++      .filter((field) => field.properties.fields.indexOf(metadataField) > -1);
++  }
++
+ });
+diff --git a/src/app/+item-page/simple/item-types/untyped-item/untyped-item.component.html b/src/app/+item-page/simple/item-types/untyped-item/untyped-item.component.html
+index dcb73fad1..9c51a8ac5 100644
+--- a/src/app/+item-page/simple/item-types/untyped-item/untyped-item.component.html
++++ b/src/app/+item-page/simple/item-types/untyped-item/untyped-item.component.html
+@@ -55,7 +55,13 @@
+     </ds-generic-item-page-field>
+     <ds-item-page-uri-field [item]="object"
+       [fields]="['dc.identifier.uri']"
+-      [label]="'item.page.uri'">
++      [label]="'item.page.uri'"
++      [copyable]="true">
++    </ds-item-page-uri-field>
++    <ds-item-page-uri-field [item]="object"
++      [fields]="['dc.identifier.doi']"
++      [label]="'item.page.doi'"
++      [copyable]="true">
+     </ds-item-page-uri-field>
+     <ds-item-page-collections [item]="object"></ds-item-page-collections>
+     <div>
+diff --git a/src/app/+item-page/simple/item-types/untyped-item/untyped-item.component.spec.ts b/src/app/+item-page/simple/item-types/untyped-item/untyped-item.component.spec.ts
+index 93a2a2236..868a98c79 100644
+--- a/src/app/+item-page/simple/item-types/untyped-item/untyped-item.component.spec.ts
++++ b/src/app/+item-page/simple/item-types/untyped-item/untyped-item.component.spec.ts
+@@ -1,5 +1,5 @@
+ import { HttpClient } from '@angular/common/http';
+-import { ChangeDetectionStrategy, NO_ERRORS_SCHEMA } from '@angular/core';
++import { ChangeDetectionStrategy, DebugElement, NO_ERRORS_SCHEMA } from '@angular/core';
+ import { async, ComponentFixture, TestBed } from '@angular/core/testing';
+ import { By } from '@angular/platform-browser';
+ import { Store } from '@ngrx/store';
+@@ -104,9 +104,25 @@ describe('UntypedItemComponent', () => {
+     expect(fields.length).toBeGreaterThanOrEqual(1);
+   });
+ 
++  it('should contain a component to display the doi', () => {
++    const fields = getUriFieldsFor('dc.identifier.doi');
++    expect(fields.length).toBeGreaterThanOrEqual(1);
++  });
++
++  it('should allow copying the uri and doi to the clipboard', () => {
++    const fields = [...getUriFieldsFor('dc.identifier.uri'), ...getUriFieldsFor('dc.identifier.doi')];
++    expect(fields.length).toBeGreaterThanOrEqual(2);
++    fields.forEach((field) => expect(field.properties.copyable).toBe(true));
++  });
++
+   it('should contain a component to display the collections', () => {
+     const fields = fixture.debugElement.queryAll(By.css('ds-item-page-collections'));
+     expect(fields.length).toBeGreaterThanOrEqual(1);
+   });
+ 
++  function getUriFieldsFor(metadataField: string): DebugElement[] {
++    return fixture.debugElement.queryAll(By.css('ds-item-page-uri-field'))
++      .filter((field) => field.properties.fields.indexOf(metadataField) > -1);
++  }
++
+ });
+diff --git a/src/assets/i18n/en.json5 b/src/assets/i18n/en.json5
+index 1b76ea61f..2652ef59c 100644
+--- a/src/assets/i18n/en.json5
++++ b/src/assets/i18n/en.json5
+@@ -1774,6 +1774,8 @@
+ 
+   "item.page.date": "Date",
+ 
++  "item.page.doi": "DOI",
++
+   "item.page.edit": "Edit this item",
+ 
+   "item.page.files": "Files",
+-- 
+2.43.0
+

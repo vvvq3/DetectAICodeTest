@@ -1,0 +1,258 @@
+From d608f5740752360156d76ce010606d22f992d931 Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Thu, 5 Nov 2026 17:18:23 +0000
+Subject: [PATCH 2/2] Add "Export to CSV" button to the Trends insight
+
+Downloads the currently displayed trend series as trends-YYYY-MM-DD.csv:
+one column per interval label, one row per series (labelled like the
+graph tooltip, including math, breakdown and property filters) and a
+Total column. The total uses aggregated_value when the API returns it
+(what the table view shows) and falls back to the series count. Table and
+pie results, which come without per-interval data, export totals only.
+The button is disabled while results are loading or empty.
+---
+ .../scenes/insights/ExportTrendsCSVButton.tsx |  28 +++++
+ frontend/src/scenes/insights/Insights.js      |   4 +
+ .../src/scenes/insights/trendsCSV.test.ts     | 115 ++++++++++++++++++
+ frontend/src/scenes/insights/trendsCSV.ts     |  50 ++++++++
+ 4 files changed, 197 insertions(+)
+ create mode 100644 frontend/src/scenes/insights/ExportTrendsCSVButton.tsx
+ create mode 100644 frontend/src/scenes/insights/trendsCSV.test.ts
+ create mode 100644 frontend/src/scenes/insights/trendsCSV.ts
+
+diff --git a/frontend/src/scenes/insights/ExportTrendsCSVButton.tsx b/frontend/src/scenes/insights/ExportTrendsCSVButton.tsx
+new file mode 100644
+index 00000000000..a7285f67297
+--- /dev/null
++++ b/frontend/src/scenes/insights/ExportTrendsCSVButton.tsx
+@@ -0,0 +1,28 @@
++import React from 'react'
++import { useValues } from 'kea'
++import { Button } from 'antd'
++import { DownloadOutlined } from '@ant-design/icons'
++import moment from 'moment'
++import { downloadCSV } from 'lib/utils/csv'
++import { trendsLogic } from './trendsLogic'
++import { trendResultsToCSVRows } from './trendsCSV'
++
++export function ExportTrendsCSVButton({ view }: { view: string }): JSX.Element {
++    const { results, resultsLoading } = useValues(trendsLogic({ dashboardItemId: null, view }))
++
++    function exportCSV(): void {
++        downloadCSV(trendResultsToCSVRows(results), `trends-${moment().format('YYYY-MM-DD')}.csv`)
++    }
++
++    return (
++        <Button
++            icon={<DownloadOutlined />}
++            onClick={exportCSV}
++            disabled={resultsLoading || !results?.length}
++            style={{ marginRight: 6 }}
++            data-attr="trends-export-csv-button"
++        >
++            Export to CSV
++        </Button>
++    )
++}
+diff --git a/frontend/src/scenes/insights/Insights.js b/frontend/src/scenes/insights/Insights.js
+index 1870344ea86..a017efb4580 100644
+--- a/frontend/src/scenes/insights/Insights.js
++++ b/frontend/src/scenes/insights/Insights.js
+@@ -46,6 +46,7 @@ import { SavedFunnels } from './SavedCard'
+ import { InfoCircleOutlined } from '@ant-design/icons'
+ import { userLogic } from 'scenes/userLogic'
+ import { insightCommandLogic } from './insightCommandLogic'
++import { ExportTrendsCSVButton } from './ExportTrendsCSVButton'
+ 
+ import './Insights.scss'
+ 
+@@ -220,6 +221,9 @@ function _Insights() {
+                                             )}
+ 
+                                             {showComparePrevious[activeView] && <CompareFilter filters={allFilters} />}
++                                            {activeView === ViewType.TRENDS && (
++                                                <ExportTrendsCSVButton view={activeView} />
++                                            )}
+                                             <SaveToDashboard
+                                                 item={{
+                                                     entity: {
+diff --git a/frontend/src/scenes/insights/trendsCSV.test.ts b/frontend/src/scenes/insights/trendsCSV.test.ts
+new file mode 100644
+index 00000000000..c1422ba99ec
+--- /dev/null
++++ b/frontend/src/scenes/insights/trendsCSV.test.ts
+@@ -0,0 +1,115 @@
++import { trendResultsToCSVRows } from './trendsCSV'
++import { toCSV } from '../../lib/utils/csv'
++
++describe('trendResultsToCSVRows()', () => {
++    it('puts the interval labels in columns and one series per row with its total', () => {
++        expect(
++            trendResultsToCSVRows([
++                {
++                    label: '$pageview',
++                    action: { id: '$pageview', math: 'total' },
++                    labels: ['Mon. 7 December', 'Tue. 8 December', 'Wed. 9 December'],
++                    data: [10, 0, 5],
++                    count: 15,
++                },
++                {
++                    label: 'signed up',
++                    action: { id: 3, math: 'dau' },
++                    labels: ['Mon. 7 December', 'Tue. 8 December', 'Wed. 9 December'],
++                    data: [2, 1, 2],
++                    count: 5,
++                },
++            ])
++        ).toEqual([
++            ['Series', 'Mon. 7 December', 'Tue. 8 December', 'Wed. 9 December', 'Total'],
++            ['$pageview (Total)', 10, 0, 5, 15],
++            ['signed up (DAU)', 2, 1, 2, 5],
++        ])
++    })
++
++    it('prefers aggregated_value over count for the total', () => {
++        const [, row] = trendResultsToCSVRows([
++            {
++                label: 'signed up',
++                action: { id: 3, math: 'dau' },
++                labels: ['Mon. 7 December', 'Tue. 8 December'],
++                data: [2, 2],
++                count: 4,
++                aggregated_value: 3,
++            },
++        ])
++        expect(row).toEqual(['signed up (DAU)', 2, 2, 3])
++    })
++
++    it('sums the data points when no total is returned', () => {
++        const [, row] = trendResultsToCSVRows([{ label: 'new', labels: ['a', 'b'], data: [1, 4] }])
++        expect(row).toEqual(['new', 1, 4, 5])
++    })
++
++    it('only exports totals for results without intervals (table and pie views)', () => {
++        expect(
++            trendResultsToCSVRows([
++                {
++                    label: '$pageview',
++                    action: { math: 'total' },
++                    labels: [],
++                    data: [],
++                    count: 0,
++                    aggregated_value: 120,
++                },
++                {
++                    label: '$autocapture',
++                    action: { math: 'total' },
++                    labels: [],
++                    data: [],
++                    count: 0,
++                    aggregated_value: 7,
++                },
++            ])
++        ).toEqual([
++            ['Series', 'Total'],
++            ['$pageview (Total)', 120],
++            ['$autocapture (Total)', 7],
++        ])
++    })
++
++    it('keeps breakdown and property filter details in a tidy label', () => {
++        const [, row] = trendResultsToCSVRows([
++            {
++                label: '$pageview - Chrome',
++                action: { math: 'total', properties: [{ key: '$os', value: 'Mac OS X' }] },
++                labels: ['Mon. 7 December'],
++                data: [3],
++                count: 3,
++            },
++        ])
++        expect(row[0]).toEqual('$pageview - Chrome (Total) (= Mac OS X)')
++    })
++
++    it('leaves cells empty when a series is shorter than the labels', () => {
++        const [, , row] = trendResultsToCSVRows([
++            { label: 'a', labels: ['x', 'y'], data: [1, 2], count: 3 },
++            { label: 'b', labels: [], data: [1], count: 1 },
++        ])
++        expect(row).toEqual(['b', 1, undefined, 1])
++    })
++
++    it('returns just the header for no results', () => {
++        expect(trendResultsToCSVRows([])).toEqual([['Series', 'Total']])
++    })
++
++    it('produces a properly escaped CSV', () => {
++        const rows = trendResultsToCSVRows([
++            {
++                label: '=cmd - "quoted", value',
++                labels: ['Mon. 7 December, 14:00', 'Mon. 7 December, 15:00'],
++                data: [1, -2],
++                count: -1,
++            },
++        ])
++        expect(toCSV(rows)).toEqual(
++            'Series,"Mon. 7 December, 14:00","Mon. 7 December, 15:00",Total\r\n' +
++                '"\'=cmd - ""quoted"", value",1,-2,-1'
++        )
++    })
++})
+diff --git a/frontend/src/scenes/insights/trendsCSV.ts b/frontend/src/scenes/insights/trendsCSV.ts
+new file mode 100644
+index 00000000000..3a3c5d140fa
+--- /dev/null
++++ b/frontend/src/scenes/insights/trendsCSV.ts
+@@ -0,0 +1,50 @@
++// Relative imports, so that this module can be loaded by Jest (which doesn't know the webpack aliases)
++import { formatLabel } from '../../lib/utils'
++import { CSVCell } from '../../lib/utils/csv'
++
++// A single series as returned by the /api/insight/trend endpoint
++export interface TrendSeries {
++    label: string
++    action?: Record<string, any>
++    labels?: string[]
++    data?: (number | null)[]
++    count?: number
++    aggregated_value?: number
++}
++
++function seriesLabel(series: TrendSeries): string {
++    const label = series.action ? formatLabel(series.label, series.action) : series.label
++    // formatLabel pads its suffixes with spaces meant for on-screen display, collapse them for the file
++    return (label || '').replace(/\s+/g, ' ').trim()
++}
++
++function seriesTotal(series: TrendSeries): CSVCell {
++    // aggregated_value is what the table view displays (e.g. unique users over the whole range for DAU),
++    // it isn't always included, in which case fall back to the sum of the data points
++    if (typeof series.aggregated_value === 'number') {
++        return series.aggregated_value
++    }
++    if (typeof series.count === 'number') {
++        return series.count
++    }
++    return (series.data || []).reduce((total: number, value) => total + (value || 0), 0)
++}
++
++/**
++ * Turn trend results into CSV rows: a header with the interval labels as columns,
++ * then one row per series with its value for every interval and its total.
++ */
++export function trendResultsToCSVRows(results: TrendSeries[]): CSVCell[][] {
++    // All series of a query share the same intervals. Series without per-interval data
++    // (table and pie views only return totals) don't have labels, so skip those.
++    const labels = results.find((series) => series.labels && series.labels.length > 0)?.labels || []
++
++    return [
++        ['Series', ...labels, 'Total'],
++        ...results.map((series) => [
++            seriesLabel(series),
++            ...labels.map((_, index) => series.data?.[index]),
++            seriesTotal(series),
++        ]),
++    ]
++}
+-- 
+2.43.0
+
