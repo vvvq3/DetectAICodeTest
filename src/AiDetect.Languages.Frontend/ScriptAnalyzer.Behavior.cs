@@ -619,8 +619,8 @@ internal sealed partial class ScriptAnalyzer
             {
                 _c.Count(FK.NgRxOperators, t.Line);
             }
-            else if (t.Text is "getElementById" or "querySelector" or "querySelectorAll" or "getElementsByClassName" && IsP(i - 1, ".") && IsId(i - 2, "document") ||
-                     t.Text == "style" && IsP(i - 1, ".") && IsId(i - 2, "nativeElement"))
+            else if (!_c.IsTest && (t.Text is "getElementById" or "querySelector" or "querySelectorAll" or "getElementsByClassName" && IsP(i - 1, ".") && IsId(i - 2, "document") ||
+                                    t.Text == "style" && IsP(i - 1, ".") && IsId(i - 2, "nativeElement")))
             {
                 _c.Hit(FK.NgManualDom, t.Line);
             }

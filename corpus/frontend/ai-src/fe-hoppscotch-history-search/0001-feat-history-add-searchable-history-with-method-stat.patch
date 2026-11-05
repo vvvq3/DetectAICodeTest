@@ -1,0 +1,427 @@
+From db0f7e37f09b4b9513c8728adf34e2116dfae120 Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Thu, 5 Nov 2026 17:26:41 +0000
+Subject: [PATCH] feat(history): add searchable history with method/status
+ filters
+
+Filter history entries by URL, method and status code with a debounced
+search box. Supports method:POST and status:404 (or status:4xx) filters,
+highlights matches, shows the result count and an empty state, and
+remembers the search text in localStorage between panel openings.
+---
+ components/layout/history.vue           | 105 +++++++++++++++++++-----
+ helpers/__tests__/historySearch.spec.js | 104 +++++++++++++++++++++++
+ helpers/historySearch.js                |  94 +++++++++++++++++++++
+ lang/en-US.json                         |   1 +
+ 4 files changed, 285 insertions(+), 19 deletions(-)
+ create mode 100644 helpers/__tests__/historySearch.spec.js
+ create mode 100644 helpers/historySearch.js
+
+diff --git a/components/layout/history.vue b/components/layout/history.vue
+index cb8b84684..c44a7c69c 100644
+--- a/components/layout/history.vue
++++ b/components/layout/history.vue
+@@ -7,7 +7,11 @@
+         :placeholder="$t('search')"
+         v-model="filterText"
+         class="rounded-t-lg"
++        @input="applyFilter"
+       />
++      <p v-if="history.length !== 0 && searchQuery.trim()" class="info result-count">
++        {{ $tc("history_results", filteredHistory.length, { count: filteredHistory.length }) }}
++      </p>
+     </div>
+     <div
+       class="divide-y virtual-list divide-dashed divide-brdColor"
+@@ -20,7 +24,15 @@
+             :class="findEntryStatus(entry).className"
+             :style="{ '--status-code': entry.status }"
+           >
+-            {{ `${entry.method} \xA0 • \xA0 ${entry.status}` }}
++            <template v-for="(seg, i) in segments(entry.method, 'method')">
++              <mark v-if="seg.match" :key="'m' + i" class="search-match">{{ seg.text }}</mark>
++              <template v-else>{{ seg.text }}</template>
++            </template>
++            {{ "\xA0 • \xA0" }}
++            <template v-for="(seg, i) in segments(entry.status, 'status')">
++              <mark v-if="seg.match" :key="'s' + i" class="search-match">{{ seg.text }}</mark>
++              <template v-else>{{ seg.text }}</template>
++            </template>
+           </span>
+           <li>
+             <input
+@@ -90,14 +102,18 @@
+         </div>
+         <div class="show-on-large-screen">
+           <li>
+-            <input
++            <div
+               :aria-label="$t('url')"
+-              type="text"
+-              readonly
+-              :value="`${entry.url}${entry.path}`"
+-              :placeholder="$t('no_url')"
+-              class="pt-0 mt-0 text-sm bg-transparent text-fgLightColor"
+-            />
++              class="px-4 pt-0 mt-0 text-sm break-all bg-transparent text-fgLightColor"
++            >
++              <template v-if="entry.url || entry.path">
++                <template v-for="(seg, i) in segments(`${entry.url}${entry.path}`, 'url')">
++                  <mark v-if="seg.match" :key="'u' + i" class="search-match">{{ seg.text }}</mark>
++                  <template v-else>{{ seg.text }}</template>
++                </template>
++              </template>
++              <span v-else>{{ $t("no_url") }}</span>
++            </div>
+           </li>
+         </div>
+         <transition name="fade">
+@@ -136,8 +152,8 @@
+         </transition>
+       </ul>
+     </div>
+-    <p :class="{ hidden: filteredHistory.length != 0 || history.length === 0 }" class="info">
+-      {{ $t("nothing_found") }} "{{ filterText }}"
++    <p v-if="filteredHistory.length === 0 && history.length !== 0" class="info">
++      <i class="material-icons">search_off</i> {{ $t("nothing_found") }} "{{ searchQuery }}"
+     </p>
+     <p v-if="history.length === 0" class="info">
+       <i class="material-icons">schedule</i> {{ $t("history_empty") }}
+@@ -234,6 +250,18 @@
+   opacity: 0;
+ }
+ 
++.search-match {
++  @apply bg-transparent;
++  @apply font-bold;
++  @apply text-acColor;
++  text-decoration: underline;
++}
++
++.result-count {
++  @apply px-4;
++  @apply py-2;
++}
++
+ .stared {
+   color: #f8e81c !important;
+ }
+@@ -257,6 +285,31 @@ ol {
+ <script>
+ import findStatusGroup from "~/helpers/findStatusGroup"
+ import { fb } from "~/helpers/fb"
++import debounce from "~/helpers/utils/debounce"
++import {
++  parseQuery,
++  filterHistory,
++  highlightSegments,
++  highlightTerms,
++} from "~/helpers/historySearch"
++
++const SEARCH_STORAGE_KEY = "historySearch"
++
++const readSavedSearch = () => {
++  try {
++    return window.localStorage.getItem(SEARCH_STORAGE_KEY) || ""
++  } catch (e) {
++    return ""
++  }
++}
++
++const saveSearch = (text) => {
++  try {
++    window.localStorage.setItem(SEARCH_STORAGE_KEY, text)
++  } catch (e) {
++    // storage unavailable, search text just isn't remembered
++  }
++}
+ 
+ const updateOnLocalStorage = (propertyName, property) =>
+   window.localStorage.setItem(propertyName, JSON.stringify(property))
+@@ -268,7 +321,9 @@ export default {
+         fb.currentUser !== null
+           ? fb.currentHistory
+           : JSON.parse(window.localStorage.getItem("history")) || [],
+-      filterText: "",
++      filterText: readSavedSearch(),
++      // debounced copy of filterText that actually drives filtering
++      searchQuery: readSavedSearch(),
+       showFilter: false,
+       isClearingHistory: false,
+       reverse_sort_label: false,
+@@ -285,23 +340,33 @@ export default {
+         fb.currentUser !== null
+           ? fb.currentHistory
+           : JSON.parse(window.localStorage.getItem("history")) || []
+-      return this.history.filter((entry) => {
+-        const filterText = this.filterText.toLowerCase()
+-        return Object.keys(entry).some((key) => {
+-          let value = entry[key]
+-          value = typeof value !== "string" ? value.toString() : value
+-          return value.toLowerCase().includes(filterText)
+-        })
+-      })
++      return filterHistory(this.history, this.searchQuery)
++    },
++    parsedQuery() {
++      return parseQuery(this.searchQuery)
+     },
+   },
++  created() {
++    this.updateSearchQuery = debounce((text) => {
++      this.searchQuery = text
++      saveSearch(text)
++    }, 250)
++  },
+   methods: {
++    applyFilter() {
++      this.updateSearchQuery(this.filterText)
++    },
++    segments(text, field) {
++      return highlightSegments(text, highlightTerms(this.parsedQuery, field))
++    },
+     async clearHistory() {
+       if (fb.currentUser !== null) {
+         await fb.clearHistory()
+       }
+       this.history = []
+       this.filterText = ""
++      this.searchQuery = ""
++      saveSearch("")
+       this.disableHistoryClearing()
+       updateOnLocalStorage("history", this.history)
+       this.$toast.error(this.$t("history_deleted"), {
+@@ -326,6 +391,8 @@ export default {
+       this.history.splice(this.history.indexOf(entry), 1)
+       if (this.history.length === 0) {
+         this.filterText = ""
++        this.searchQuery = ""
++        saveSearch("")
+       }
+       updateOnLocalStorage("history", this.history)
+       this.$toast.error(this.$t("deleted"), {
+diff --git a/helpers/__tests__/historySearch.spec.js b/helpers/__tests__/historySearch.spec.js
+new file mode 100644
+index 000000000..09fe843d8
+--- /dev/null
++++ b/helpers/__tests__/historySearch.spec.js
+@@ -0,0 +1,104 @@
++import {
++  parseQuery,
++  matchesEntry,
++  filterHistory,
++  highlightSegments,
++  highlightTerms,
++} from "../historySearch"
++
++const history = [
++  { method: "GET", url: "https://api.example.com", path: "/users", status: 200 },
++  { method: "POST", url: "https://api.example.com", path: "/users", status: 201 },
++  { method: "POST", url: "https://api.example.com", path: "/login", status: 404 },
++  { method: "DELETE", url: "https://other.dev", path: "/items/404", status: 500 },
++]
++
++describe("parseQuery", () => {
++  test("splits free terms and filters", () => {
++    expect(parseQuery("  Users method:POST status:404 ")).toEqual({
++      terms: ["users"],
++      method: ["post"],
++      status: ["404"],
++    })
++  })
++
++  test("ignores filters without a value and handles empty input", () => {
++    expect(parseQuery("method:")).toEqual({ terms: [], method: [], status: [] })
++    expect(parseQuery(undefined)).toEqual({ terms: [], method: [], status: [] })
++  })
++
++  test("unknown keys are treated as free text", () => {
++    expect(parseQuery("foo:bar").terms).toEqual(["foo:bar"])
++  })
++})
++
++describe("filterHistory", () => {
++  test("returns everything for an empty query", () => {
++    expect(filterHistory(history, "")).toHaveLength(4)
++    expect(filterHistory(history, "   ")).toHaveLength(4)
++  })
++
++  test("matches URL, method and status as free text", () => {
++    expect(filterHistory(history, "login")).toEqual([history[2]])
++    expect(filterHistory(history, "OTHER.dev")).toEqual([history[3]])
++    expect(filterHistory(history, "delete")).toEqual([history[3]])
++    expect(filterHistory(history, "201")).toEqual([history[1]])
++  })
++
++  test("method filter is exact and case-insensitive", () => {
++    expect(filterHistory(history, "method:post")).toEqual([history[1], history[2]])
++    expect(filterHistory(history, "method:PO")).toEqual([])
++  })
++
++  test("status filter supports exact codes and classes", () => {
++    expect(filterHistory(history, "status:404")).toEqual([history[2]])
++    expect(filterHistory(history, "status:2xx")).toEqual([history[0], history[1]])
++  })
++
++  test("status filter does not match the URL", () => {
++    expect(filterHistory(history, "status:404")).not.toContain(history[3])
++  })
++
++  test("combines terms with AND", () => {
++    expect(filterHistory(history, "users method:POST")).toEqual([history[1]])
++    expect(filterHistory(history, "users status:404")).toEqual([])
++  })
++
++  test("tolerates entries with missing fields", () => {
++    expect(filterHistory([{ method: "GET" }], "method:get")).toHaveLength(1)
++    expect(matchesEntry({}, parseQuery("x"))).toBe(false)
++  })
++})
++
++describe("highlightSegments", () => {
++  test("marks matches case-insensitively", () => {
++    expect(highlightSegments("/Users/users", ["user"])).toEqual([
++      { text: "/", match: false },
++      { text: "User", match: true },
++      { text: "s/", match: false },
++      { text: "user", match: true },
++      { text: "s", match: false },
++    ])
++  })
++
++  test("merges overlapping matches", () => {
++    expect(highlightSegments("abcd", ["ab", "bc"])).toEqual([
++      { text: "abc", match: true },
++      { text: "d", match: false },
++    ])
++  })
++
++  test("returns a single plain segment without terms", () => {
++    expect(highlightSegments("abc", [])).toEqual([{ text: "abc", match: false }])
++    expect(highlightSegments("", ["a"])).toEqual([])
++  })
++})
++
++describe("highlightTerms", () => {
++  test("includes filter values for the matching field only", () => {
++    const parsed = parseQuery("users method:post status:2xx")
++    expect(highlightTerms(parsed, "method")).toEqual(["users", "post"])
++    expect(highlightTerms(parsed, "status")).toEqual(["users"])
++    expect(highlightTerms(parsed, "url")).toEqual(["users"])
++  })
++})
+diff --git a/helpers/historySearch.js b/helpers/historySearch.js
+new file mode 100644
+index 000000000..e6899b6d6
+--- /dev/null
++++ b/helpers/historySearch.js
+@@ -0,0 +1,94 @@
++// Search helpers for the History panel.
++// Supported syntax: free text terms (matched against URL, method and status code)
++// and `method:POST` / `status:404` (also `status:4xx`) filters. All terms must match.
++
++const FILTER_KEYS = ["method", "status"]
++
++export function parseQuery(query) {
++  const parsed = { terms: [], method: [], status: [] }
++  String(query || "")
++    .trim()
++    .split(/\s+/)
++    .filter(Boolean)
++    .forEach((token) => {
++      const sep = token.indexOf(":")
++      const key = sep > 0 ? token.slice(0, sep).toLowerCase() : ""
++      const value = sep > 0 ? token.slice(sep + 1).toLowerCase() : ""
++      if (FILTER_KEYS.includes(key)) {
++        // `method:` with no value yet (user is still typing) is ignored
++        if (value) parsed[key].push(value)
++      } else {
++        parsed.terms.push(token.toLowerCase())
++      }
++    })
++  return parsed
++}
++
++const entryUrl = (entry) => `${entry.url || ""}${entry.path || ""}`
++
++const statusMatches = (status, wanted) => {
++  const code = String(status)
++  if (/^[1-5]xx$/.test(wanted)) return code.startsWith(wanted[0])
++  return code === wanted
++}
++
++export function matchesEntry(entry, parsed) {
++  const url = entryUrl(entry).toLowerCase()
++  const method = String(entry.method || "").toLowerCase()
++  const status = String(entry.status === undefined || entry.status === null ? "" : entry.status)
++
++  return (
++    parsed.method.every((m) => method === m) &&
++    parsed.status.every((s) => statusMatches(status, s)) &&
++    parsed.terms.every((t) => url.includes(t) || method.includes(t) || status.includes(t))
++  )
++}
++
++export function filterHistory(history, query) {
++  const parsed = parseQuery(query)
++  if (!parsed.terms.length && !parsed.method.length && !parsed.status.length) return history
++  return history.filter((entry) => matchesEntry(entry, parsed))
++}
++
++// Splits `text` into [{ text, match }] segments so a template can highlight matches
++// without using v-html.
++export function highlightSegments(text, terms) {
++  text = String(text === undefined || text === null ? "" : text)
++  const lower = text.toLowerCase()
++  const ranges = []
++  terms
++    .filter(Boolean)
++    .map((t) => t.toLowerCase())
++    .forEach((term) => {
++      let from = 0
++      let at
++      while ((at = lower.indexOf(term, from)) !== -1) {
++        ranges.push([at, at + term.length])
++        from = at + term.length
++      }
++    })
++  ranges.sort((a, b) => a[0] - b[0])
++
++  const merged = []
++  ranges.forEach(([start, end]) => {
++    const last = merged[merged.length - 1]
++    if (last && start <= last[1]) last[1] = Math.max(last[1], end)
++    else merged.push([start, end])
++  })
++
++  const segments = []
++  let pos = 0
++  merged.forEach(([start, end]) => {
++    if (start > pos) segments.push({ text: text.slice(pos, start), match: false })
++    segments.push({ text: text.slice(start, end), match: true })
++    pos = end
++  })
++  if (pos < text.length) segments.push({ text: text.slice(pos), match: false })
++  return segments
++}
++
++// Terms to highlight for a given field: free text plus the matching filter values.
++export function highlightTerms(parsed, field) {
++  const own = field === "method" ? parsed.method : field === "status" ? parsed.status : []
++  return [...parsed.terms, ...own.filter((v) => !/^[1-5]xx$/.test(v))]
++}
+diff --git a/lang/en-US.json b/lang/en-US.json
+index 47de7f0e5..35dd3c76f 100644
+--- a/lang/en-US.json
++++ b/lang/en-US.json
+@@ -118,6 +118,7 @@
+   "no_prerequest_script": "No pre-request script",
+   "search": "Search",
+   "history_empty": "History is empty",
++  "history_results": "No results | {count} result | {count} results",
+   "history_deleted": "History Deleted",
+   "clear": "Clear",
+   "clear_all": "Clear All",
+-- 
+2.43.0
+

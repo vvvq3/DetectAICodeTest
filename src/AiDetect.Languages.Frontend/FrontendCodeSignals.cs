@@ -62,15 +62,15 @@ internal sealed class FrontendCodeSignals(AnalysisContext ctx, SignalBuilder b)
     private void Documentation()
     {
         R("doc.coverage", SignalGroup.Documentation, "JSDoc почти на каждом экспортируемом объявлении и публичном методе",
-            "Экспортируемые функции и методы почти без JSDoc", S(FK.DocDocumented), S(FK.DocTargets), 0.05, 0.7, 5, 0.8, 0.7,
+            "Экспортируемые функции и методы почти без JSDoc", S(FK.DocDocumented), S(FK.DocTargets), -0.35, 0.7, 5, 0.8, 0.7,
             OfTotal("экспортируемых объявлений/публичных методов с JSDoc"), [FK.DocDocumented]);
 
         R("doc.template", SignalGroup.Documentation, "JSDoc по шаблону: «Returns…», «Fetches…», «Custom hook that…»",
-            "JSDoc написан своими словами, не по шаблону", S(FK.JsDocTemplate), S(FK.JsDocBlocks), 0.1, 0.7, 3, 0.6, 0.5,
+            "JSDoc написан своими словами, не по шаблону", S(FK.JsDocTemplate), S(FK.JsDocBlocks), -0.7, 0.7, 3, 0.6, 0.5,
             OfTotal("JSDoc-блоков начинаются с шаблонной фразы"), [FK.JsDocTemplate]);
 
         R("doc.propsMembers", SignalGroup.Documentation, "Каждое поле интерфейса пропсов/опций документировано /** … */",
-            "Поля интерфейсов пропсов без документации", S(FK.PropsMembersDocumented), S(FK.PropsMembers), 0.0, 0.6, 5, 0.6, 0.6,
+            "Поля интерфейсов пропсов без документации", S(FK.PropsMembersDocumented), S(FK.PropsMembers), -0.6, 0.6, 5, 0.6, 0.6,
             OfTotal("полей интерфейсов …Props/…Options с JSDoc"), [FK.PropsMembersDocumented]);
 
         R("doc.typedParams", SignalGroup.Documentation, "JSDoc без типов в фигурных скобках (типы — в TypeScript)",
@@ -86,19 +86,19 @@ internal sealed class FrontendCodeSignals(AnalysisContext ctx, SignalBuilder b)
     private void Comments()
     {
         R("cmt.narrative", SignalGroup.Comments, "Комментарии-повествования: «// Fetch users», «// Handle form submission», «// Получаем…»",
-            "Комментарии не пересказывают шаги кода", S(FK.Narrative), S(FK.LineComments), 0.05, 0.45, 4, 1.0, 0.5,
+            "Комментарии не пересказывают шаги кода", S(FK.Narrative), S(FK.LineComments), -0.2, 0.45, 4, 1.0, 0.5,
             OfTotal("комментариев — «глагол + что делаем»"), [FK.Narrative]);
 
         R("cmt.restating", SignalGroup.Comments, "Комментарии пересказывают следующую строку кода",
-            "Комментарии добавляют информацию, а не пересказывают код", S(FK.Restating), S(FK.LineComments), 0.02, 0.25, 4, 0.6, 0.4,
+            "Комментарии добавляют информацию, а не пересказывают код", S(FK.Restating), S(FK.LineComments), -0.25, 0.25, 4, 0.6, 0.4,
             OfTotal("комментариев повторяют имена из следующей строки"), [FK.Restating]);
 
         R("cmt.jsxSection", SignalGroup.Comments, "Комментарии-заголовки секций разметки: {/* Header */}, <!-- Loading state -->",
-            "Разметка без комментариев-заголовков", S(FK.JsxSection, FK.MarkupSection), S(FK.Elements), 0.0, 0.08, 20, 0.9, 0.5,
+            "Разметка без комментариев-заголовков", S(FK.JsxSection, FK.MarkupSection), S(FK.Elements), -0.08, 0.08, 20, 0.9, 0.5,
             OfTotal("элементов разметки с комментарием-заголовком секции"), [FK.JsxSection, FK.MarkupSection], minTotal: 8);
 
         R("cmt.cssSection", SignalGroup.Comments, "Комментарии-заголовки в стилях: /* Header styles */, /* Responsive */",
-            "Стили без комментариев-заголовков", S(FK.CssSection), S(FK.CssRules), 0.0, 0.15, 10, 0.5, 0.5,
+            "Стили без комментариев-заголовков", S(FK.CssSection), S(FK.CssRules), -0.15, 0.15, 10, 0.5, 0.5,
             OfTotal("CSS-правил с комментарием-заголовком"), [FK.CssSection], minTotal: 5);
 
         R("cmt.casual", SignalGroup.Comments, "Комментарии оформлены аккуратно (с заглавной, с пробелом после //)",
@@ -166,7 +166,7 @@ internal sealed class FrontendCodeSignals(AnalysisContext ctx, SignalBuilder b)
             Per100, null, [FK.UnderscorePrivate], minTotal: 30);
 
         R("name.screaming", SignalGroup.Naming, "Вынесенные константы SCREAMING_CASE вместо «магических» значений",
-            "Константы почти не выносятся", S(FK.ScreamingConsts), S(FK.ScriptLines), 0.0, 0.015, 150, 0.3, 0.6, Per100, [FK.ScreamingConsts], minTotal: 30);
+            "Константы почти не выносятся", S(FK.ScreamingConsts), S(FK.ScriptLines), -0.015, 0.015, 150, 0.3, 0.6, Per100, [FK.ScreamingConsts], minTotal: 30);
 
         double translit = _a[FK.Translit] + _a[FK.CyrillicIdentifiers];
         if (translit > 0)
@@ -206,7 +206,7 @@ internal sealed class FrontendCodeSignals(AnalysisContext ctx, SignalBuilder b)
             Per100, null, [FK.AnyTypes], minTotal: 20);
 
         R("ts.unknown", SignalGroup.Typing, "unknown вместо any: catch (error: unknown), Record<string, unknown>", "unknown не используется",
-            S(FK.UnknownTypes), S(FK.TsLines), 0.0, 0.008, 150, 0.4, 0.6, Per100, [FK.UnknownTypes], minTotal: 20);
+            S(FK.UnknownTypes), S(FK.TsLines), -0.008, 0.008, 150, 0.4, 0.6, Per100, [FK.UnknownTypes], minTotal: 20);
 
         R("ts.nonNull", SignalGroup.Typing, "Нет утверждений non-null (!)", "Утверждения non-null: foo!.bar, value!",
             S(FK.NonNull), S(FK.TsLines), 0.01, 0.0, 150, 0.5, 0.6, Per100, null, [FK.NonNull], minTotal: 20);
@@ -217,10 +217,10 @@ internal sealed class FrontendCodeSignals(AnalysisContext ctx, SignalBuilder b)
             S(FK.AsCasts), S(FK.TsLines), 0.012, 0.002, 150, 0.3, 0.6, Per100, null, [FK.AsCasts], minTotal: 20);
 
         R("ts.asConst", SignalGroup.Typing, "as const для неизменяемых литералов", "as const не используется",
-            S(FK.AsConst), S(FK.TsLines), 0.0, 0.005, 150, 0.3, 0.6, Per100, [FK.AsConst], minTotal: 20);
+            S(FK.AsConst), S(FK.TsLines), -0.005, 0.005, 150, 0.3, 0.6, Per100, [FK.AsConst], minTotal: 20);
 
         R("ts.utility", SignalGroup.Typing, "Служебные типы: Record, Partial, Pick, Omit, ReturnType…", "Служебные типы почти не используются",
-            S(FK.UtilityTypes), S(FK.TsLines), 0.0, 0.01, 150, 0.4, 0.6, Per100, [FK.UtilityTypes], minTotal: 20);
+            S(FK.UtilityTypes), S(FK.TsLines), -0.01, 0.01, 150, 0.4, 0.6, Per100, [FK.UtilityTypes], minTotal: 20);
 
         Flag("ts.typeGuard", SignalGroup.Typing, "Предикаты типов: (x): x is Foo", FK.TypeGuards, 0.6, 0.3, "предикатов");
 
@@ -237,7 +237,7 @@ internal sealed class FrontendCodeSignals(AnalysisContext ctx, SignalBuilder b)
             OfTotal("useState/useRef/ref с пустым начальным значением типизированы"), [FK.StateHooksGeneric]);
 
         R("ts.importType", SignalGroup.Typing, "import type для типов", "Типы импортируются обычным import",
-            S(FK.ImportTypes), S(FK.Imports), 0.0, 0.15, 10, 0.2, 0.7, OfTotal("импортов — import type"), [FK.ImportTypes], minTotal: 5);
+            S(FK.ImportTypes), S(FK.Imports), -0.15, 0.15, 10, 0.2, 0.7, OfTotal("импортов — import type"), [FK.ImportTypes], minTotal: 5);
     }
 
     // ------------------------------------------------------------------ синтаксис
@@ -271,18 +271,18 @@ internal sealed class FrontendCodeSignals(AnalysisContext ctx, SignalBuilder b)
             S(FK.IndexLoops), S(FK.IndexLoops, FK.ForOfLoops, FK.ArrayCallbacks), 0.3, 0.0, 4, 0.3, 0.6, OfTotal("переборов — индексные циклы"), null, [FK.IndexLoops]);
 
         R("syn.functionalUpdate", SignalGroup.ModernSyntax, "Функциональные обновления состояния: setCount((prev) => prev + 1)",
-            "Состояние обновляется без функциональной формы", S(FK.FunctionalUpdates), S(FK.SetterCalls), 0.0, 0.25, 8, 0.4, 0.5,
+            "Состояние обновляется без функциональной формы", S(FK.FunctionalUpdates), S(FK.SetterCalls), -0.25, 0.25, 8, 0.4, 0.5,
             OfTotal("вызовов setX(…) в функциональной форме"), [FK.FunctionalUpdates], minTotal: 3);
 
         R("syn.optionalCall", SignalGroup.ModernSyntax, "Необязательные колбэки вызываются через onChange?.(value)", "Опциональные вызовы ?.() не используются",
-            S(FK.OptionalCall), S(FK.ScriptLines), 0.0, 0.004, 200, 0.3, 0.6, Per100, [FK.OptionalCall], minTotal: 30);
+            S(FK.OptionalCall), S(FK.ScriptLines), -0.004, 0.004, 200, 0.3, 0.6, Per100, [FK.OptionalCall], minTotal: 30);
 
         R("syn.functionExpr", SignalGroup.ModernSyntax, "Стрелочные функции вместо function-выражений", "function-выражения вместо стрелочных функций",
             S(FK.FunctionExpressions), S(FK.FunctionExpressions, FK.ArrowFunctions), 0.4, 0.02, 5, 0.4, 0.6, OfTotal("анонимных функций — function-выражения"),
             null, [FK.FunctionExpressions]);
 
         R("syn.newApis", SignalGroup.ModernSyntax, "Новейшие API: structuredClone, crypto.randomUUID, .at(-1), ??=, replaceAll",
-            "Новейшие API не используются", S(FK.NewApis), S(FK.ScriptLines), 0.0, 0.005, 200, 0.2, 1.0, Per100, [FK.NewApis], minTotal: 30);
+            "Новейшие API не используются", S(FK.NewApis), S(FK.ScriptLines), -0.005, 0.005, 200, 0.2, 1.0, Per100, [FK.NewApis], minTotal: 30);
     }
 
     // ------------------------------------------------------------------ ошибки
@@ -290,17 +290,17 @@ internal sealed class FrontendCodeSignals(AnalysisContext ctx, SignalBuilder b)
     private void Errors()
     {
         R("err.instanceofMessage", SignalGroup.Defensive, "Сужение ошибки: error instanceof Error ? error.message : 'Unknown error'",
-            "Ошибка используется без сужения типа", S(FK.InstanceofMessage), S(FK.CatchBlocks), 0.0, 0.4, 3, 1.0, 0.5,
+            "Ошибка используется без сужения типа", S(FK.InstanceofMessage), S(FK.CatchBlocks), -0.4, 0.4, 3, 1.0, 0.5,
             OfTotal("catch-блоков с проверкой instanceof Error"), [FK.InstanceofMessage]);
 
         R("err.messageCast", SignalGroup.Defensive, "Сообщение ошибки берётся без приведений", "Сообщение ошибки через e.message / (e as Error).message",
             S(FK.ErrorMessageCast), S(FK.CatchBlocks), 0.4, 0.0, 3, 0.5, 0.6, OfTotal("обращений к e.message без проверки типа"), null, [FK.ErrorMessageCast]);
 
         R("err.responseOk", SignalGroup.Defensive, "Проверка ответа fetch: if (!response.ok) throw new Error(…)", "Ответ fetch не проверяется",
-            S(FK.ResponseOk), S(FK.FetchCalls), 0.0, 0.8, 2, 0.8, 0.5, OfTotal("вызовов fetch с проверкой response.ok"), [FK.ResponseOk, FK.HttpErrorPhrase]);
+            S(FK.ResponseOk), S(FK.FetchCalls), -0.4, 0.8, 2, 0.8, 0.5, OfTotal("вызовов fetch с проверкой response.ok"), [FK.ResponseOk, FK.HttpErrorPhrase]);
 
         R("err.failedMsg", SignalGroup.Defensive, "Типовые сообщения об ошибках: «Failed to load…», «Something went wrong», «Unknown error»",
-            "Нет шаблонных сообщений об ошибках", S(FK.FailedMessages, FK.HttpErrorPhrase), S(FK.ScriptLines), 0.0, 0.006, 150, 0.8, 0.5,
+            "Нет шаблонных сообщений об ошибках", S(FK.FailedMessages, FK.HttpErrorPhrase), S(FK.ScriptLines), -0.006, 0.006, 150, 0.8, 0.5,
             Per100, [FK.FailedMessages, FK.HttpErrorPhrase], minTotal: 30);
 
         R("err.loadingTriad", SignalGroup.Defensive, "Тройка состояний загрузка/ошибка/данные со сбросом в finally",
@@ -323,7 +323,7 @@ internal sealed class FrontendCodeSignals(AnalysisContext ctx, SignalBuilder b)
             OfTotal("useEffect с ресурсом возвращают функцию очистки"), [FK.EffectsResourceCleaned]);
 
         R("async.abort", SignalGroup.Async, "Отмена запросов: AbortController / флаг cancelled в эффектах",
-            "Запросы в эффектах не отменяются", S(FK.AbortControllers, FK.CancelFlags), S(FK.EffectsWithResource), 0.0, 0.5, 2, 0.8, 0.5,
+            "Запросы в эффектах не отменяются", S(FK.AbortControllers, FK.CancelFlags), S(FK.EffectsWithResource), -0.25, 0.5, 2, 0.8, 0.5,
             OfTotal("эффектов с ресурсом используют AbortController или флаг отмены"), [FK.AbortControllers, FK.CancelFlags]);
 
         Flag("async.isMounted", SignalGroup.Async, "Старый ручной паттерн isMounted", FK.IsMountedFlags, -0.6, 0.4, "использований");
@@ -335,13 +335,13 @@ internal sealed class FrontendCodeSignals(AnalysisContext ctx, SignalBuilder b)
             OfTotal("подписок в компонентах/директивах с отпиской"), null, [FK.Subscribes]);
 
         R("async.asyncPipe", SignalGroup.Async, "Потоки выводятся в шаблоне через | async", "Ручные subscribe с записью в поля вместо | async",
-            S(FK.AsyncPipes), S(FK.AsyncPipes, FK.Subscribes), 0.0, 0.5, 3, 0.4, 0.6, OfTotal("потоков в шаблоне через async-pipe"), [FK.AsyncPipes], minTotal: 2);
+            S(FK.AsyncPipes), S(FK.AsyncPipes, FK.Subscribes), -0.25, 0.5, 3, 0.4, 0.6, OfTotal("потоков в шаблоне через async-pipe"), [FK.AsyncPipes], minTotal: 2);
 
         R("async.vueCleanup", SignalGroup.Async, "Очистка в onUnmounted/onBeforeUnmount", "Компоненты Vue без хуков очистки",
-            S(FK.VueUnmountHooks), S(FK.VueComponents), 0.0, 0.3, 3, 0.3, 0.6, OfTotal("компонентов Vue с хуком очистки"), [FK.VueUnmountHooks], minTotal: 2);
+            S(FK.VueUnmountHooks), S(FK.VueComponents), -0.3, 0.3, 3, 0.3, 0.6, OfTotal("компонентов Vue с хуком очистки"), [FK.VueUnmountHooks], minTotal: 2);
 
         R("async.promiseAll", SignalGroup.Async, "Независимые запросы параллельно: Promise.all / allSettled", "Независимые await идут последовательно",
-            S(FK.PromiseAll), S(FK.AwaitExpr), 0.0, 0.1, 8, 0.3, 0.6, OfTotal("await-ов в Promise.all"), [FK.PromiseAll], minTotal: 3);
+            S(FK.PromiseAll), S(FK.AwaitExpr), -0.1, 0.1, 8, 0.3, 0.6, OfTotal("await-ов в Promise.all"), [FK.PromiseAll], minTotal: 3);
     }
 
     // ------------------------------------------------------------------ логирование
@@ -364,9 +364,9 @@ internal sealed class FrontendCodeSignals(AnalysisContext ctx, SignalBuilder b)
 
         // React
         R("react.memoDensity", g, "Много useCallback/useMemo/memo на компонент", "Мемоизация почти не используется",
-            S(FK.MemoHooks), S(FK.Components), 0.2, 1.5, 3, 0.4, 0.7, OfTotal("useCallback/useMemo/memo на компоненты"), minTotal: 2);
+            S(FK.MemoHooks), S(FK.Components), -0.5, 1.5, 3, 0.4, 0.7, OfTotal("useCallback/useMemo/memo на компоненты"), minTotal: 2);
         R("react.customHooks", g, "Логика вынесена в собственные хуки useX", "Собственных хуков нет",
-            S(FK.CustomHooks), S(FK.Components), 0.0, 0.4, 3, 0.4, 0.6, OfTotal("новых хуков на компоненты"), [FK.CustomHooks], minTotal: 2);
+            S(FK.CustomHooks), S(FK.Components), -0.4, 0.4, 3, 0.4, 0.6, OfTotal("новых хуков на компоненты"), [FK.CustomHooks], minTotal: 2);
         R("react.keyIndex", g, "key — устойчивые идентификаторы", "key={index} в списках",
             S(FK.KeyIndex), S(FK.KeyAttrs), 0.4, 0.0, 3, 0.6, 0.6, OfTotal("атрибутов key — индекс массива"), null, [FK.KeyIndex]);
         R("react.fcType", g, "Компоненты без React.FC", "Компоненты через React.FC / FC<Props>",
@@ -384,15 +384,15 @@ internal sealed class FrontendCodeSignals(AnalysisContext ctx, SignalBuilder b)
         R("ng.ctorReadonly", g, "Зависимости в конструкторе private readonly", "Зависимости в конструкторе без readonly",
             S(FK.NgCtorReadonly), S(FK.NgCtorParams), 0.05, 0.8, 3, 0.6, 0.7, OfTotal("параметров конструктора с readonly"));
         R("ng.subscribeObserver", g, "subscribe с объектом-наблюдателем: subscribe({ next, error })", "Позиционные колбэки subscribe(d => …, e => …)",
-            S(FK.NgObserverSubscribe), S(FK.SubscribeCalls), 0.0, 0.6, 3, 0.5, 0.6, OfTotal("subscribe с объектом { next, error }"), [FK.NgObserverSubscribe]);
+            S(FK.NgObserverSubscribe), S(FK.SubscribeCalls), -0.3, 0.6, 3, 0.5, 0.6, OfTotal("subscribe с объектом { next, error }"), [FK.NgObserverSubscribe]);
         Flag("ng.nestedSubscribe", g, "subscribe внутри subscribe", FK.NgNestedSubscribe, -0.6, 0.5, "вложенных подписок");
         R("ng.typedHttp", g, "Типизированные запросы HttpClient: http.get<User[]>(…)", "Запросы HttpClient без типа результата",
             S(FK.NgHttpTyped), S(FK.NgHttpCalls), 0.2, 0.9, 3, 0.5, 0.6, OfTotal("вызовов HttpClient с типом"));
-        R("ng.trackBy", g, "*ngFor с trackBy", "*ngFor без trackBy", S(FK.NgForTrackBy), S(FK.NgFor), 0.0, 0.6, 3, 0.4, 0.6, OfTotal("*ngFor с trackBy"), [FK.NgForTrackBy]);
+        R("ng.trackBy", g, "*ngFor с trackBy", "*ngFor без trackBy", S(FK.NgForTrackBy), S(FK.NgFor), -0.3, 0.6, 3, 0.4, 0.6, OfTotal("*ngFor с trackBy"), [FK.NgForTrackBy]);
         R("ng.onPush", g, "Компоненты с ChangeDetectionStrategy.OnPush", "Компоненты без OnPush",
-            S(FK.NgOnPush), S(FK.NgComponents), 0.0, 0.8, 2, 0.4, 0.7, OfTotal("компонентов с OnPush"), [FK.NgOnPush]);
+            S(FK.NgOnPush), S(FK.NgComponents), -0.4, 0.8, 2, 0.4, 0.7, OfTotal("компонентов с OnPush"), [FK.NgOnPush]);
         R("ng.modernApis", g, "Новейшие API Angular: inject(), signal()/computed(), @if/@for", "Классический Angular без новых API",
-            S(FK.NgSignals, FK.NgInject), S(FK.ScriptLines, FK.MarkupLines), 0.0, 0.02, 150, 0.2, 1.0, Per100, minTotal: 30);
+            S(FK.NgSignals, FK.NgInject), S(FK.ScriptLines, FK.MarkupLines), -0.02, 0.02, 150, 0.2, 1.0, Per100, minTotal: 30);
         Flag("ng.manualDom", g, "Ручная работа с DOM: document.querySelector, nativeElement.style", FK.NgManualDom, -0.5, 0.4, "обращений");
 
         // Vue
@@ -407,7 +407,7 @@ internal sealed class FrontendCodeSignals(AnalysisContext ctx, SignalBuilder b)
             s => s[FK.VueForKeyIndex] + s[FK.VueIfWithFor] + Math.Max(0, s[FK.VueFor] - s[FK.VueForKeyed]), S(FK.VueFor), 0.4, 0.0, 3, 0.5, 0.6,
             OfTotal("v-for с проблемой ключа"), null, [FK.VueForKeyIndex, FK.VueIfWithFor]);
         R("vue.scriptSetup", g, "<script setup lang=\"ts\">", "Компоненты без <script setup>",
-            S(FK.VueScriptSetup), S(FK.VueComponents), 0.0, 0.9, 2, 0.2, 0.9, OfTotal("компонентов с <script setup>"), minTotal: 2);
+            S(FK.VueScriptSetup), S(FK.VueComponents), -0.9, 0.9, 2, 0.2, 0.9, OfTotal("компонентов с <script setup>"), minTotal: 2);
     }
 
     // ------------------------------------------------------------------ разметка и доступность
@@ -418,11 +418,11 @@ internal sealed class FrontendCodeSignals(AnalysisContext ctx, SignalBuilder b)
         R("a11y.buttonType", g, "У каждой кнопки явный type=\"button\"/\"submit\"", "Кнопки без атрибута type",
             S(FK.ButtonsTyped), S(FK.Buttons), 0.1, 0.9, 2, 0.8, 0.6, OfTotal("кнопок с явным type"), [FK.ButtonsTyped]);
         R("a11y.aria", g, "Атрибуты доступности aria-* в разметке", "Почти нет aria-атрибутов",
-            S(FK.AriaAttrs), S(FK.Elements), 0.0, 0.08, 20, 0.5, 0.6, OfTotal("элементов с aria-атрибутами"), [FK.AriaAttrs], minTotal: 8);
-        R("a11y.testId", g, "data-testid в разметке", "Нет data-testid", S(FK.TestIds), S(FK.Elements), 0.0, 0.1, 20, 0.3, 0.7,
+            S(FK.AriaAttrs), S(FK.Elements), -0.04, 0.08, 20, 0.5, 0.6, OfTotal("элементов с aria-атрибутами"), [FK.AriaAttrs], minTotal: 8);
+        R("a11y.testId", g, "data-testid в разметке", "Нет data-testid", S(FK.TestIds), S(FK.Elements), -0.1, 0.1, 20, 0.3, 0.7,
             OfTotal("элементов с data-testid"), [FK.TestIds], minTotal: 8);
         R("a11y.labelFor", g, "Поля ввода связаны с подписями (label for/htmlFor)", "Подписи полей не связаны с полями",
-            S(FK.LabelsFor), S(FK.Inputs), 0.0, 0.7, 2, 0.3, 0.6, OfTotal("полей ввода с связанной подписью"), [FK.LabelsFor]);
+            S(FK.LabelsFor), S(FK.Inputs), -0.35, 0.7, 2, 0.3, 0.6, OfTotal("полей ввода с связанной подписью"), [FK.LabelsFor]);
         R("a11y.altText", g, "У изображений есть alt", "Изображения без alt", S(FK.ImagesAlt), S(FK.Images), 0.3, 1.0, 2, 0.3, 0.6,
             OfTotal("изображений с alt"));
         R("a11y.divClick", g, "Клики только на интерактивных элементах", "Клик на div/span без role и клавиатуры",
@@ -434,10 +434,10 @@ internal sealed class FrontendCodeSignals(AnalysisContext ctx, SignalBuilder b)
     private void Styles()
     {
         var g = SignalGroup.Styles;
-        R("css.vars", g, "Значения через CSS-переменные var(--…)", "Значения стилей захардкожены", S(FK.CssVars), S(FK.CssDecls), 0.0, 0.25, 10, 0.5, 0.7,
+        R("css.vars", g, "Значения через CSS-переменные var(--…)", "Значения стилей захардкожены", S(FK.CssVars), S(FK.CssDecls), -0.25, 0.25, 10, 0.5, 0.7,
             OfTotal("деклараций через var(--…)"), [FK.CssVars], minTotal: 5);
         R("css.llmValues", g, "Типовые значения ИИ: box-shadow rgba(0,0,0,.1), transition 0.2s ease, палитра Tailwind",
-            "Нет «типовых» значений стилей", S(FK.CssLlmValues), S(FK.CssDecls), 0.0, 0.06, 15, 0.6, 0.5, OfTotal("деклараций с типовыми значениями"),
+            "Нет «типовых» значений стилей", S(FK.CssLlmValues), S(FK.CssDecls), -0.06, 0.06, 15, 0.6, 0.5, OfTotal("деклараций с типовыми значениями"),
             [FK.CssLlmValues], minTotal: 5);
         Flag("css.focusVisible", g, "Стили :focus-visible для клавиатурного фокуса", FK.CssFocusVisible, 0.6, 0.3, "правил");
         if (_a[FK.CssOutlineNone] > 0 && _a[FK.CssFocusVisible] == 0)
@@ -529,10 +529,10 @@ internal sealed class FrontendCodeSignals(AnalysisContext ctx, SignalBuilder b)
         var g = SignalGroup.Tests;
         R("test.should", g, "Названия тестов единообразно «should …»", "Названия тестов в свободной форме", S(FK.TestShould), S(FK.TestCases), 0.2, 0.9, 5, 0.3, 0.7,
             OfTotal("тестов называются «should …»"), minTotal: 3);
-        R("test.each", g, "Параметризованные тесты it.each / test.each", "Нет параметризованных тестов", S(FK.TestEach), S(FK.TestFiles), 0.0, 0.5, 2, 0.4, 0.6,
+        R("test.each", g, "Параметризованные тесты it.each / test.each", "Нет параметризованных тестов", S(FK.TestEach), S(FK.TestFiles), -0.5, 0.5, 2, 0.4, 0.6,
             OfTotal("тест-файлов с .each"), [FK.TestEach]);
         R("test.clearMocks", g, "Сброс моков в beforeEach: jest.clearAllMocks() / vi.clearAllMocks()", "Моки не сбрасываются явно",
-            S(FK.TestClearMocks), S(FK.TestFilesWithMocks), 0.0, 0.7, 2, 0.5, 0.6, OfTotal("тест-файлов с моками сбрасывают их"), [FK.TestClearMocks]);
+            S(FK.TestClearMocks), S(FK.TestFilesWithMocks), -0.7, 0.7, 2, 0.5, 0.6, OfTotal("тест-файлов с моками сбрасывают их"), [FK.TestClearMocks]);
         R("test.roleQueries", g, "Запросы Testing Library по роли и подписи: getByRole, getByLabelText", "Поиск элементов по testid, тексту или селектору",
             S(FK.RtlRoleQueries), S(FK.RtlRoleQueries, FK.RtlOtherQueries), 0.05, 0.6, 4, 0.6, 0.5, OfTotal("запросов элементов — по роли/подписи"), [FK.RtlRoleQueries]);
         R("test.userEvent", g, "userEvent вместо fireEvent", "fireEvent вместо userEvent", S(FK.UserEvent), S(FK.UserEvent, FK.FireEvent), 0.1, 0.8, 3, 0.4, 0.6,
@@ -542,8 +542,8 @@ internal sealed class FrontendCodeSignals(AnalysisContext ctx, SignalBuilder b)
         R("test.strongAsserts", g, "Точные проверки: toEqual, toHaveBeenCalledWith, toHaveTextContent", "Слабые проверки: toBeTruthy, toBeDefined",
             S(FK.StrongAsserts), S(FK.StrongAsserts, FK.WeakAsserts), 0.4, 0.9, 5, 0.4, 0.5, OfTotal("проверок — точные"), minTotal: 3);
         R("test.exampleData", g, "Шаблонные тестовые данные: test@example.com, John Doe", "Тестовые данные предметные",
-            S(FK.ExampleData), S(FK.TestCases), 0.0, 0.3, 4, 0.4, 0.6, OfTotal("тестов с шаблонными данными"), [FK.ExampleData]);
-        R("test.aaa", g, "Разметка тестов // Arrange / Act / Assert", "Тесты без разметки AAA", S(FK.AaaComments), S(FK.TestCases), 0.0, 0.5, 3, 0.6, 0.6,
+            S(FK.ExampleData), S(FK.TestCases), -0.3, 0.3, 4, 0.4, 0.6, OfTotal("тестов с шаблонными данными"), [FK.ExampleData]);
+        R("test.aaa", g, "Разметка тестов // Arrange / Act / Assert", "Тесты без разметки AAA", S(FK.AaaComments), S(FK.TestCases), -0.5, 0.5, 3, 0.6, 0.6,
             OfTotal("тестов с комментариями AAA"), [FK.AaaComments]);
     }
 

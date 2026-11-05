@@ -1,8 +1,12 @@
 name	category	repo	base	title	model
 fe-bitwarden-password-age	ai-default	bitwarden/web	5c0a77aec8c83a1658aa9624929cd2464afad3cb	Show password age badge in vault items list	opus
+fe-directus-char-counter	ai-default	directus/directus	14ac17f8ce69487639b14e8a00857478e5029689	Add character counter option to input interfaces	sonnet
 fe-dspace-copy-handle	ai-default	DSpace/dspace-angular	e867badcb5a126365fe8ed8583029c1c1e440809	Copy to clipboard buttons for URI and DOI	opus
 fe-excalidraw-recent-colors	ai-default	excalidraw/excalidraw	aef3644c93eea3434357dfed4eaf16cdeb4a81c7	Show recent colors in the color picker	opus
+fe-hoppscotch-history-search	ai-default	hoppscotch/hoppscotch	603a888e2ef7bda5ef69c429b6c20fd5e8f1fa1a	Add searchable history with method/status filters	sonnet
 fe-posthog-csv-export	ai-default	PostHog/posthog	51b291602e718e1bf213438f33a4cb7248761851	Export trends insight to CSV	opus
 fe-reactadmin-copy-button	ai-default	marmelab/react-admin	58c2d77e0e3589c815966d303ca6fdb7e74cc4f4	Add CopyToClipboardButton component	opus
 fe-redash-duplicate-dashboard	ai-default	getredash/redash	dcdff66e6260517e954785bb34da47e565402f1a	Add Duplicate action to dashboard page	opus
 fe-vkui-rating	ai-default	VKCOM/VKUI	bfccc2015100836574aabe3cc55b42c3bb88c5a6	Rating: add star rating component	opus
+fe-reactadmin-ru-masked	ai-masked	marmelab/react-admin	58c2d77e0e3589c815966d303ca6fdb7e74cc4f4	Добавил PhoneField для российских номеров	sonnet
+fe-ringui-copy-masked	ai-masked	JetBrains/ring-ui	c1a406fc0b7c04d18d82d999363a679a668c67d4	Add CopyButton component	sonnet

@@ -88,10 +88,43 @@ internal sealed partial class ScriptAnalyzer
         return string.Join(" ", s.Split('\n').Select(l => l.Trim().TrimStart('*').Trim()).Where(l => l.Length > 0));
     }
 
+    /// <summary>
+    /// Логические комментарии: подряд идущие строки «//» (каждая на своей строке) склеиваются в один комментарий,
+    /// чтобы продолжение фразы со строчной буквы не считалось отдельным «небрежным» комментарием.
+    /// </summary>
+    private List<(Token Token, string Raw, string Body, int EndLine)> LogicalComments()
+    {
+        var result = new List<(Token Token, string Raw, string Body, int EndLine)>();
+        foreach (var t in _all.Where(t => t.IsComment))
+        {
+            var body = CommentBody(t);
+            bool standalone = t.Kind == TokenKind.LineComment && _c.LineText(t.Line).TrimStart().StartsWith("//", StringComparison.Ordinal);
+            bool mergeable = standalone && !t.Text.StartsWith("///", StringComparison.Ordinal) && !FrontendText.IsCommentedCode(body) &&
+                             !FrontendText.Todo().IsMatch(body) && !t.Text.Contains("eslint", StringComparison.Ordinal) && !t.Text.Contains("@ts-", StringComparison.Ordinal);
+            if (mergeable && result.Count > 0)
+            {
+                var prev = result[^1];
+                bool prevMergeable = prev.Token.Kind == TokenKind.LineComment && _c.LineText(prev.Token.Line).TrimStart().StartsWith("//", StringComparison.Ordinal) &&
+                                     !FrontendText.IsCommentedCode(prev.Body) && !FrontendText.Todo().IsMatch(prev.Body) &&
+                                     !prev.Raw.Contains("eslint", StringComparison.Ordinal) && !prev.Raw.Contains("@ts-", StringComparison.Ordinal);
+                bool continuation = body.Length > 0 && !char.IsUpper(body[0]) && !char.IsDigit(body[0]) && !prev.Body.EndsWith('.') && !prev.Body.EndsWith(':');
+                if (prevMergeable && prev.EndLine == t.Line - 1 && prev.Body.Length > 0 && continuation)
+                {
+                    result[^1] = (prev.Token, prev.Raw + "\n" + t.Text, prev.Body + " " + body, t.Line);
+                    continue;
+                }
+            }
+
+            result.Add((t, t.Text, body, t.EndLine));
+        }
+
+        return result;
+    }
+
     private void Comments()
     {
         Token? firstToken = _all.FirstOrDefault();
-        foreach (var t in _all.Where(t => t.IsComment))
+        foreach (var (t, raw, body, endLine) in LogicalComments())
         {
             int line = t.Line;
             if (!_c.In(line))
@@ -99,8 +132,6 @@ internal sealed partial class ScriptAnalyzer
                 continue;
             }
 
-            var raw = t.Text;
-            var body = CommentBody(t);
             if (raw.Contains("eslint-disable", StringComparison.Ordinal))
             {
                 _c.Hit(FK.EslintDisable, line);
@@ -219,7 +250,8 @@ internal sealed partial class ScriptAnalyzer
             bool capitalized = firstLetter != default && char.IsUpper(firstLetter);
             bool lower = firstLetter != default && char.IsLower(firstLetter) && !body.StartsWith("http", StringComparison.OrdinalIgnoreCase) &&
                          !Regex.IsMatch(body, @"^[a-z]+[A-Z(.]");
-            if (lower || raw.StartsWith("//", StringComparison.Ordinal) && raw.Length > 2 && char.IsLetter(raw[2]) || body.Contains("???", StringComparison.Ordinal) ||
+            int wordCount = FrontendText.Word().Matches(body).Count;
+            if (lower && wordCount <= 4 || raw.StartsWith("//", StringComparison.Ordinal) && raw.Length > 2 && char.IsLetter(raw[2]) || body.Contains("???", StringComparison.Ordinal) ||
                 body.Contains("!!!", StringComparison.Ordinal) || cyr && FrontendText.Slang().IsMatch(body))
             {
                 _c.Hit(FK.Casual, line);
@@ -243,7 +275,7 @@ internal sealed partial class ScriptAnalyzer
                 _c.Hit(FK.Narrative, line);
             }
 
-            var next = capitalized ? NextCodeLine(t.EndLine) : null;
+            var next = capitalized ? NextCodeLine(endLine) : null;
             if (next is not null)
             {
                 var content = words.Where(w => w.Length >= 3 && !FrontendText.StopWords.Contains(w)).Select(w => w.ToLowerInvariant()).Distinct().ToList();

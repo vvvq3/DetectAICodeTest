@@ -1,0 +1,186 @@
+From 6cde3ddf4e044bb7f928ddd26ccccf43fd16447a Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Thu, 5 Nov 2026 17:26:45 +0000
+Subject: [PATCH] Add CopyButton component
+
+---
+ .../copy-button/copy-button.examples.js       | 16 +++++
+ components/copy-button/copy-button.js         | 67 ++++++++++++++++++
+ components/copy-button/copy-button.test.js    | 68 +++++++++++++++++++
+ 3 files changed, 151 insertions(+)
+ create mode 100644 components/copy-button/copy-button.examples.js
+ create mode 100644 components/copy-button/copy-button.js
+ create mode 100644 components/copy-button/copy-button.test.js
+
+diff --git a/components/copy-button/copy-button.examples.js b/components/copy-button/copy-button.examples.js
+new file mode 100644
+index 0000000000..cb0e101861
+--- /dev/null
++++ b/components/copy-button/copy-button.examples.js
+@@ -0,0 +1,16 @@
++import React from 'react';
++
++import reactDecorator from '../../.storybook/react-decorator';
++
++import CopyButton from '@jetbrains/ring-ui/components/copy-button/copy-button';
++
++export default {
++  title: 'Components/Copy Button',
++  decorators: [reactDecorator()],
++
++  parameters: {
++    notes: 'Displays a button that copies the given text to the clipboard.'
++  }
++};
++
++export const basic = () => <CopyButton text="Hello, Ring UI!"/>;
+diff --git a/components/copy-button/copy-button.js b/components/copy-button/copy-button.js
+new file mode 100644
+index 0000000000..9b4e0e9dce
+--- /dev/null
++++ b/components/copy-button/copy-button.js
+@@ -0,0 +1,67 @@
++import React, {PureComponent} from 'react';
++import PropTypes from 'prop-types';
++
++import Button from '../button/button';
++import alert from '../alert-service/alert-service';
++
++/**
++ * @name Copy Button
++ */
++
++const COPIED_TIMEOUT = 2000;
++
++export default class CopyButton extends PureComponent {
++  static propTypes = {
++    text: PropTypes.string.isRequired,
++    copiedTimeout: PropTypes.number,
++    onCopy: PropTypes.func,
++    children: PropTypes.node
++  };
++
++  static defaultProps = {
++    copiedTimeout: COPIED_TIMEOUT,
++    onCopy: () => {},
++    children: 'Copy'
++  };
++
++  state = {
++    copied: false
++  };
++
++  componentWillUnmount() {
++    clearTimeout(this.copiedTimeout);
++  }
++
++  copy = async () => {
++    const {text, copiedTimeout, onCopy} = this.props;
++
++    try {
++      await navigator.clipboard.writeText(text);
++    } catch (e) {
++      alert.error('Failed to copy to the clipboard');
++      return;
++    }
++
++    onCopy(text);
++    this.setState({copied: true});
++    clearTimeout(this.copiedTimeout);
++    this.copiedTimeout = setTimeout(() => {
++      this.setState({copied: false});
++    }, copiedTimeout);
++  };
++
++  render() {
++    // eslint-disable-next-line no-unused-vars
++    const {text, copiedTimeout, onCopy, children, ...restProps} = this.props;
++    const {copied} = this.state;
++
++    return (
++      <Button
++        {...restProps}
++        onClick={this.copy}
++      >
++        {copied ? 'Copied' : children}
++      </Button>
++    );
++  }
++}
+diff --git a/components/copy-button/copy-button.test.js b/components/copy-button/copy-button.test.js
+new file mode 100644
+index 0000000000..faece2a224
+--- /dev/null
++++ b/components/copy-button/copy-button.test.js
+@@ -0,0 +1,68 @@
++import React from 'react';
++import {shallow, mount} from 'enzyme';
++
++import Button from '../button/button';
++import alert from '../alert-service/alert-service';
++
++import CopyButton from './copy-button';
++
++describe('Copy Button', () => {
++  const shallowCopyButton = params => shallow(<CopyButton {...params}/>);
++  const mountCopyButton = params => mount(<CopyButton {...params}/>);
++
++  let clock;
++  let writeText;
++
++  beforeEach(() => {
++    clock = sandbox.useFakeTimers({toFake: ['setTimeout']});
++    writeText = sandbox.stub().resolves();
++    sandbox.stub(navigator, 'clipboard').value({writeText});
++  });
++
++  it('should create component', () => {
++    mountCopyButton({text: 'foo'}).should.have.type(CopyButton);
++  });
++
++  it('should render button', () => {
++    shallowCopyButton({text: 'foo'}).should.have.type(Button);
++  });
++
++  it('should render children', () => {
++    mountCopyButton({text: 'foo', children: 'Copy me'}).should.have.text('Copy me');
++  });
++
++  it('should copy passed text', async () => {
++    const wrapper = mountCopyButton({text: 'foo'});
++    await wrapper.instance().copy();
++    writeText.should.have.been.calledWith('foo');
++  });
++
++  it('should call onCopy', async () => {
++    const onCopy = sandbox.spy();
++    const wrapper = mountCopyButton({text: 'foo', onCopy});
++    await wrapper.instance().copy();
++    onCopy.should.have.been.calledWith('foo');
++  });
++
++  it('should show copied state and reset it after timeout', async () => {
++    const wrapper = mountCopyButton({text: 'foo', copiedTimeout: 1000});
++    await wrapper.instance().copy();
++    wrapper.update();
++    wrapper.should.have.text('Copied');
++
++    clock.tick(1000);
++    wrapper.update();
++    wrapper.should.have.text('Copy');
++  });
++
++  it('should show alert on failure', async () => {
++    writeText.rejects(new Error('denied'));
++    sandbox.stub(alert, 'error');
++    const onCopy = sandbox.spy();
++    const wrapper = mountCopyButton({text: 'foo', onCopy});
++    await wrapper.instance().copy();
++    alert.error.should.have.been.called;
++    onCopy.should.not.have.been.called;
++    wrapper.should.have.text('Copy');
++  });
++});
+-- 
+2.43.0
+

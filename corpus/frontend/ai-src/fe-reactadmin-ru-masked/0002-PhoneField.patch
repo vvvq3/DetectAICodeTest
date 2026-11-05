@@ -1,0 +1,36 @@
+From cc4a9415052cfc9173c3a1f870be01bc0a8640b7 Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Thu, 5 Nov 2026 17:26:29 +0000
+Subject: [PATCH 2/2] =?UTF-8?q?=D0=9F=D0=BE=D0=BF=D1=80=D0=B0=D0=B2=D0=B8?=
+ =?UTF-8?q?=D0=BB=20=D1=84=D0=BE=D1=80=D0=BC=D0=B0=D1=82=D0=B8=D1=80=D0=BE?=
+ =?UTF-8?q?=D0=B2=D0=B0=D0=BD=D0=B8=D0=B5=20=D0=B2=20=D1=82=D0=B5=D1=81?=
+ =?UTF-8?q?=D1=82=D0=B5=20PhoneField?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ packages/ra-ui-materialui/src/field/PhoneField.spec.tsx | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/packages/ra-ui-materialui/src/field/PhoneField.spec.tsx b/packages/ra-ui-materialui/src/field/PhoneField.spec.tsx
+index d72c41ac2..dfd8b97b4 100644
+--- a/packages/ra-ui-materialui/src/field/PhoneField.spec.tsx
++++ b/packages/ra-ui-materialui/src/field/PhoneField.spec.tsx
+@@ -6,7 +6,12 @@ import PhoneField from './PhoneField';
+ describe('<PhoneField />', () => {
+     afterEach(cleanup);
+ 
+-    it.each(['89991234567', '+7 999 123 45 67', '7(999)123-45-67', '9991234567'])(
++    it.each([
++        '89991234567',
++        '+7 999 123 45 67',
++        '7(999)123-45-67',
++        '9991234567',
++    ])(
+         'should format russian phone %s and render as Mui Link',
+         phone => {
+             const record = { id: 123, phone };
+-- 
+2.43.0
+

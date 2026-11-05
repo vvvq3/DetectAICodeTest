@@ -1,0 +1,270 @@
+From 7e4b345743a3178344e893515c865a3e1ac2cd87 Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Thu, 5 Nov 2026 17:27:02 +0000
+Subject: [PATCH 2/2] Add 'Show character counter' option to input and textarea
+ interfaces
+
+---
+ app/src/interfaces/text-input/index.ts       | 15 ++++
+ app/src/interfaces/text-input/text-input.vue | 84 +++++++++++++-------
+ app/src/interfaces/textarea/index.ts         | 15 ++++
+ app/src/interfaces/textarea/textarea.vue     | 50 ++++++++++--
+ app/src/lang/translations/en-US.yaml         |  2 +
+ 5 files changed, 129 insertions(+), 37 deletions(-)
+
+diff --git a/app/src/interfaces/text-input/index.ts b/app/src/interfaces/text-input/index.ts
+index 8baee8cbcb..6eb9fba443 100644
+--- a/app/src/interfaces/text-input/index.ts
++++ b/app/src/interfaces/text-input/index.ts
+@@ -87,5 +87,20 @@ export default defineInterface(({ i18n }) => ({
+ 				default_value: false,
+ 			},
+ 		},
++		{
++			field: 'showCharacterCount',
++			name: i18n.t('interfaces.text-input.show_character_count'),
++			type: 'boolean',
++			meta: {
++				width: 'half',
++				interface: 'toggle',
++				options: {
++					label: i18n.t('interfaces.text-input.show_character_count_label'),
++				},
++			},
++			schema: {
++				default_value: false,
++			},
++		},
+ 	],
+ }));
+diff --git a/app/src/interfaces/text-input/text-input.vue b/app/src/interfaces/text-input/text-input.vue
+index a966c608e1..2a36fd8a06 100644
+--- a/app/src/interfaces/text-input/text-input.vue
++++ b/app/src/interfaces/text-input/text-input.vue
+@@ -1,36 +1,40 @@
+ <template>
+-	<v-input
+-		:value="value"
+-		:placeholder="placeholder"
+-		:disabled="disabled"
+-		:trim="trim"
+-		:type="masked ? 'password' : 'text'"
+-		:class="font"
+-		@input="$listeners.input"
+-	>
+-		<template v-if="iconLeft" #prepend><v-icon :name="iconLeft" /></template>
+-		<template #append>
+-			<span
+-				v-if="percentageRemaining <= 20"
+-				class="remaining"
+-				:class="{
+-					warning: percentageRemaining < 10,
+-					danger: percentageRemaining < 5,
+-				}"
+-			>
+-				{{ charsRemaining }}
+-			</span>
+-			<v-icon
+-				:class="{ hide: percentageRemaining !== false && percentageRemaining <= 20 }"
+-				v-if="iconRight"
+-				:name="iconRight"
+-			/>
+-		</template>
+-	</v-input>
++	<div class="interface-text-input">
++		<v-input
++			:value="value"
++			:placeholder="placeholder"
++			:disabled="disabled"
++			:trim="trim"
++			:type="masked ? 'password' : 'text'"
++			:class="font"
++			@input="$listeners.input"
++		>
++			<template v-if="iconLeft" #prepend><v-icon :name="iconLeft" /></template>
++			<template #append>
++				<span
++					v-if="percentageRemaining <= 20"
++					class="remaining"
++					:class="{
++						warning: percentageRemaining < 10,
++						danger: percentageRemaining < 5,
++					}"
++				>
++					{{ charsRemaining }}
++				</span>
++				<v-icon
++					:class="{ hide: percentageRemaining !== false && percentageRemaining <= 20 }"
++					v-if="iconRight"
++					:name="iconRight"
++				/>
++			</template>
++		</v-input>
++		<span v-if="counter" class="char-counter" :class="counter.status">{{ counter.remaining }} / {{ counter.max }}</span>
++	</div>
+ </template>
+ 
+ <script lang="ts">
+ import { defineComponent, PropType, computed } from '@vue/composition-api';
++import { getCharCounter } from '@/utils/char-counter';
+ 
+ export default defineComponent({
+ 	props: {
+@@ -70,6 +74,10 @@ export default defineComponent({
+ 			type: Number,
+ 			default: null,
+ 		},
++		showCharacterCount: {
++			type: Boolean,
++			default: false,
++		},
+ 	},
+ 	setup(props) {
+ 		const charsRemaining = computed(() => {
+@@ -84,7 +92,9 @@ export default defineComponent({
+ 			return 100 - (props.value.length / +props.length) * 100;
+ 		});
+ 
+-		return { charsRemaining, percentageRemaining };
++		const counter = computed(() => (props.showCharacterCount ? getCharCounter(props.value, props.length) : null));
++
++		return { charsRemaining, percentageRemaining, counter };
+ 	},
+ });
+ </script>
+@@ -129,4 +139,20 @@ export default defineComponent({
+ .danger {
+ 	color: var(--danger);
+ }
++.char-counter {
++	display: block;
++	margin-top: 4px;
++	color: var(--foreground-subdued);
++	font-weight: 600;
++	text-align: right;
++	font-feature-settings: 'tnum';
++
++	&.warning {
++		color: var(--warning);
++	}
++
++	&.danger {
++		color: var(--danger);
++	}
++}
+ </style>
+diff --git a/app/src/interfaces/textarea/index.ts b/app/src/interfaces/textarea/index.ts
+index 338efa40c8..1affbb3d3d 100644
+--- a/app/src/interfaces/textarea/index.ts
++++ b/app/src/interfaces/textarea/index.ts
+@@ -55,5 +55,20 @@ export default defineInterface(({ i18n }) => ({
+ 				default_value: 'sans-serif',
+ 			},
+ 		},
++		{
++			field: 'showCharacterCount',
++			name: i18n.t('interfaces.text-input.show_character_count'),
++			type: 'boolean',
++			meta: {
++				width: 'half',
++				interface: 'toggle',
++				options: {
++					label: i18n.t('interfaces.text-input.show_character_count_label'),
++				},
++			},
++			schema: {
++				default_value: false,
++			},
++		},
+ 	],
+ }));
+diff --git a/app/src/interfaces/textarea/textarea.vue b/app/src/interfaces/textarea/textarea.vue
+index 713056ac9c..75d3a8d1ff 100644
+--- a/app/src/interfaces/textarea/textarea.vue
++++ b/app/src/interfaces/textarea/textarea.vue
+@@ -1,15 +1,19 @@
+ <template>
+-	<v-textarea
+-		v-bind="{ placeholder, trim }"
+-		:value="value"
+-		:disabled="disabled"
+-		:class="font"
+-		@input="$listeners.input"
+-	/>
++	<div class="interface-textarea">
++		<v-textarea
++			v-bind="{ placeholder, trim }"
++			:value="value"
++			:disabled="disabled"
++			:class="font"
++			@input="$listeners.input"
++		/>
++		<span v-if="counter" class="char-counter" :class="counter.status">{{ counter.remaining }} / {{ counter.max }}</span>
++	</div>
+ </template>
+ 
+ <script lang="ts">
+-import { defineComponent, PropType } from '@vue/composition-api';
++import { defineComponent, PropType, computed } from '@vue/composition-api';
++import { getCharCounter } from '@/utils/char-counter';
+ 
+ export default defineComponent({
+ 	props: {
+@@ -33,6 +37,19 @@ export default defineComponent({
+ 			type: String as PropType<'sans-serif' | 'serif' | 'monospace'>,
+ 			default: 'sans-serif',
+ 		},
++		length: {
++			type: [Number, String],
++			default: null,
++		},
++		showCharacterCount: {
++			type: Boolean,
++			default: false,
++		},
++	},
++	setup(props) {
++		const counter = computed(() => (props.showCharacterCount ? getCharCounter(props.value, props.length) : null));
++
++		return { counter };
+ 	},
+ });
+ </script>
+@@ -51,4 +68,21 @@ export default defineComponent({
+ 		--v-textarea-font-family: var(--family-sans-serif);
+ 	}
+ }
++
++.char-counter {
++	display: block;
++	margin-top: 4px;
++	color: var(--foreground-subdued);
++	font-weight: 600;
++	text-align: right;
++	font-feature-settings: 'tnum';
++
++	&.warning {
++		color: var(--warning);
++	}
++
++	&.danger {
++		color: var(--danger);
++	}
++}
+ </style>
+diff --git a/app/src/lang/translations/en-US.yaml b/app/src/lang/translations/en-US.yaml
+index 59ffd57a42..e05ccdee81 100644
+--- a/app/src/lang/translations/en-US.yaml
++++ b/app/src/lang/translations/en-US.yaml
+@@ -926,6 +926,8 @@ interfaces:
+     trim_label: Trim the start and end
+     mask: Masked
+     mask_label: Hide the real value
++    show_character_count: Show character counter
++    show_character_count_label: Show remaining characters when the field has a max length
+   textarea:
+     textarea: Textarea
+     description: Enter multiline plain-text
+-- 
+2.43.0
+

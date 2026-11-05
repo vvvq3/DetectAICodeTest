@@ -1,0 +1,113 @@
+From 6f9f918915a735a9f3ce03471671c0639bc3d5fe Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Thu, 5 Nov 2026 17:27:02 +0000
+Subject: [PATCH 1/2] Add character counter logic with unit tests
+
+---
+ app/package.json                              |  1 +
+ .../utils/char-counter/char-counter.spec.ts   | 35 +++++++++++++++++++
+ app/src/utils/char-counter/char-counter.ts    | 29 +++++++++++++++
+ app/src/utils/char-counter/index.ts           |  1 +
+ 4 files changed, 66 insertions(+)
+ create mode 100644 app/src/utils/char-counter/char-counter.spec.ts
+ create mode 100644 app/src/utils/char-counter/char-counter.ts
+ create mode 100644 app/src/utils/char-counter/index.ts
+
+diff --git a/app/package.json b/app/package.json
+index f5c667d0f2..6fe9765c26 100644
+--- a/app/package.json
++++ b/app/package.json
+@@ -21,6 +21,7 @@
+     "dev": "vue-cli-service serve",
+     "build": "vue-cli-service build",
+     "lint": "vue-cli-service lint",
++    "test": "cross-env TS_NODE_COMPILER_OPTIONS='{\"module\": \"commonjs\"}' mocha -r ts-node/register/transpile-only 'src/**/*.spec.ts'",
+     "lint:styles": "stylelint \"**/*.{vue,scss}\"",
+     "fix": "prettier --write \"src/**/*.{js,vue,ts}\"",
+     "fix:styles": "stylelint --fix \"**/*.{vue,scss}\"",
+diff --git a/app/src/utils/char-counter/char-counter.spec.ts b/app/src/utils/char-counter/char-counter.spec.ts
+new file mode 100644
+index 0000000000..f669275cf0
+--- /dev/null
++++ b/app/src/utils/char-counter/char-counter.spec.ts
+@@ -0,0 +1,35 @@
++import { expect } from 'chai';
++import { getCharCounter } from './char-counter';
++
++describe('getCharCounter', () => {
++	it('returns null without a max length', () => {
++		expect(getCharCounter('abc', null)).to.equal(null);
++		expect(getCharCounter('abc', undefined)).to.equal(null);
++		expect(getCharCounter('abc', 0)).to.equal(null);
++		expect(getCharCounter('abc', -5)).to.equal(null);
++		expect(getCharCounter('abc', 'nope')).to.equal(null);
++	});
++
++	it('treats an empty value as zero characters', () => {
++		expect(getCharCounter(null, 100)).to.deep.equal({ remaining: 100, max: 100, status: 'normal' });
++		expect(getCharCounter(undefined, 100)).to.deep.equal({ remaining: 100, max: 100, status: 'normal' });
++		expect(getCharCounter('', 100)).to.deep.equal({ remaining: 100, max: 100, status: 'normal' });
++	});
++
++	it('is normal while 10% or more remains', () => {
++		expect(getCharCounter('a'.repeat(90), 100)).to.deep.equal({ remaining: 10, max: 100, status: 'normal' });
++	});
++
++	it('warns when less than 10% remains', () => {
++		expect((getCharCounter('a'.repeat(91), 100) as any).status).to.equal('warning');
++		expect(getCharCounter('a'.repeat(100), 100)).to.deep.equal({ remaining: 0, max: 100, status: 'warning' });
++	});
++
++	it('is danger when the limit is exceeded', () => {
++		expect(getCharCounter('a'.repeat(101), 100)).to.deep.equal({ remaining: -1, max: 100, status: 'danger' });
++	});
++
++	it('accepts a numeric string as max length', () => {
++		expect(getCharCounter('abc', '10')).to.deep.equal({ remaining: 7, max: 10, status: 'normal' });
++	});
++});
+diff --git a/app/src/utils/char-counter/char-counter.ts b/app/src/utils/char-counter/char-counter.ts
+new file mode 100644
+index 0000000000..913d86d2c6
+--- /dev/null
++++ b/app/src/utils/char-counter/char-counter.ts
+@@ -0,0 +1,29 @@
++export type CharCounterStatus = 'normal' | 'warning' | 'danger';
++
++export type CharCounter = {
++	remaining: number;
++	max: number;
++	status: CharCounterStatus;
++};
++
++/**
++ * Calculate the state of the character counter for a value and a max length.
++ * Returns null when there is no (valid) max length, so no counter should be shown.
++ * Status is "warning" when less than 10% of the max length remains, and "danger"
++ * when the max length is exceeded.
++ */
++export function getCharCounter(
++	value: string | null | undefined,
++	maxLength: number | string | null | undefined
++): CharCounter | null {
++	const max = Number(maxLength);
++	if (!maxLength || !Number.isFinite(max) || max <= 0) return null;
++
++	const remaining = max - (value || '').length;
++
++	let status: CharCounterStatus = 'normal';
++	if (remaining < 0) status = 'danger';
++	else if ((remaining / max) * 100 < 10) status = 'warning';
++
++	return { remaining, max, status };
++}
+diff --git a/app/src/utils/char-counter/index.ts b/app/src/utils/char-counter/index.ts
+new file mode 100644
+index 0000000000..9510e60cfa
+--- /dev/null
++++ b/app/src/utils/char-counter/index.ts
+@@ -0,0 +1 @@
++export * from './char-counter';
+-- 
+2.43.0
+
