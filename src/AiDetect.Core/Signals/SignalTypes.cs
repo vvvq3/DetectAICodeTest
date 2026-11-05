@@ -21,6 +21,12 @@ public enum SignalGroup
     MrShape,
     Process,
     ProjectShift,
+
+    // Группы, добавленные для фронтенда (C# их не использует).
+    Typing,
+    FrameworkIdioms,
+    Accessibility,
+    Styles,
 }
 
 public static class GroupInfo
@@ -43,6 +49,10 @@ public static class GroupInfo
         SignalGroup.MrShape => "Форма MR",
         SignalGroup.Process => "Коммиты и процесс",
         SignalGroup.ProjectShift => "Отличие от стиля проекта",
+        SignalGroup.Typing => "Типизация TypeScript",
+        SignalGroup.FrameworkIdioms => "Идиомы фреймворка (React, Angular, Vue)",
+        SignalGroup.Accessibility => "Разметка и доступность",
+        SignalGroup.Styles => "Стили (CSS/SCSS)",
         _ => g.ToString(),
     };
 
@@ -65,6 +75,10 @@ public static class GroupInfo
         SignalGroup.MrShape => 2.2,
         SignalGroup.Process => 2.0,
         SignalGroup.ProjectShift => 1.5,
+        SignalGroup.Typing => 1.5,
+        SignalGroup.FrameworkIdioms => 2.0,
+        SignalGroup.Accessibility => 1.2,
+        SignalGroup.Styles => 1.2,
         _ => 1.5,
     };
 

@@ -18,6 +18,7 @@
   <ItemGroup>
     <ProjectReference Include="..\AiDetect.Core\AiDetect.Core.csproj" />
     <ProjectReference Include="..\AiDetect.Languages.CSharp\AiDetect.Languages.CSharp.csproj" />
+    <ProjectReference Include="..\AiDetect.Languages.Frontend\AiDetect.Languages.Frontend.csproj" />
   </ItemGroup>
 
 </Project>

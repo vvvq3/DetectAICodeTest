@@ -3,8 +3,10 @@
     <Project Path="src/AiDetect.Cli/AiDetect.Cli.csproj" />
     <Project Path="src/AiDetect.Core/AiDetect.Core.csproj" />
     <Project Path="src/AiDetect.Languages.CSharp/AiDetect.Languages.CSharp.csproj" />
+    <Project Path="src/AiDetect.Languages.Frontend/AiDetect.Languages.Frontend.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/AiDetect.Tests/AiDetect.Tests.csproj" />
+    <Project Path="tests/AiDetect.Frontend.Tests/AiDetect.Frontend.Tests.csproj" />
   </Folder>
 </Solution>

@@ -135,6 +135,49 @@ public sealed class SignalBuilder(AnalysisContext ctx, ModelParameters parameter
             exKey is null ? [] : a.GetExamples(exKey), rate);
     }
 
+    /// <summary>
+    /// Как <see cref="Rate"/>, но доля считается функциями (сумма нескольких счётчиков и т.п.). Используется детекторами языков.
+    /// </summary>
+    public void RateBy(string id, SignalGroup group, string ai, string human, Func<CodeStats, double> hits, Func<CodeStats, double> total,
+        double humanAt, double aiAt, double k, double weight, double alpha, Func<double, double, string> detail,
+        IReadOnlyList<CodeExample>? aiExamples = null, IReadOnlyList<CodeExample>? humanExamples = null, double minTotal = 1)
+    {
+        var a = ctx.Added;
+        double t = total(a);
+        if (t < minTotal)
+        {
+            return;
+        }
+
+        double h = hits(a);
+        double rate = h / t;
+        double e = Map(rate, humanAt, aiAt);
+        double eRaw = e;
+        string baseNote = "";
+        var bs = ctx.Baseline;
+        if (bs is not null)
+        {
+            double bt = total(bs);
+            if (bt >= 3)
+            {
+                double bRate = hits(bs) / bt;
+                double eb = Map(bRate, humanAt, aiAt);
+                e = AdjustForBaseline(e, eb, alpha);
+                baseNote = $" (в коде проекта: {FormatRate(bRate)})";
+                if (alpha > 0)
+                {
+                    TrackShift(id, ShortTitle(ai), rate, bRate, eRaw, eb, FormatRate);
+                }
+            }
+        }
+
+        bool aiSide = eRaw >= 0;
+        Add(id, group, aiSide ? ai : human, e, Rel(t, k), weight, detail(h, t) + baseNote, (aiSide ? aiExamples : humanExamples) ?? [], rate);
+    }
+
+    /// <summary>Доля в процентах; малые плотности (на строку) — «N на 100 строк».</summary>
+    private static string FormatRate(double v) => v < 0.05 && v > 0 ? (v * 100).ToString("0.##", CultureInfo.InvariantCulture) + " на 100" : Pct(v);
+
     private static double Total(CodeStats s, string? total, string[]? totalKeys)
     {
         if (totalKeys is not null)

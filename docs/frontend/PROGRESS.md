@@ -21,3 +21,21 @@
 - [ ] 9. Тесты, примеры, README, CHANGELOG, слияние, `v2`
 
 ## Журнал
+- **Этап 1 (база C#)** — готов. .NET 10 поставлен, 50 тестов зелёные. Корпус C# пересобран (140 MR), вывод `eval` версии 1 сохранён в `/tmp/claude-0/eval-v1.txt`.
+- **Этап 3 (рефакторинг)** — готов, коммит 66e4873:
+  - `ILanguageAnalyzer`, `LanguageRegistry`, `SourceFilePolicy`;
+  - C# перенесён в `src/AiDetect.Languages.CSharp`, веса — `model/weights.csharp.json`, корпус — `corpus/csharp`.
+  - **Регрессия:** `eval` на старых JSON и на JSON, перезагруженных новыми источниками, побайтно совпадает с версией 1.
+- **Этап 2 (исследование)** — черновик агента в `docs/frontend/RESEARCH.md`: ~130 признаков, правила ESLint → множители, поправка на время, топ-15.
+- **Этап 4 (парсер)** — готов: `src/AiDetect.Languages.Frontend/Parsing`.
+  - Состав: `JsLexer` (JS/TS/JSX/TSX, шаблонные строки, regex), `VueSfc`, `HtmlScanner`, `CssScanner`.
+  - Прогон по 9671 реальному файлу из 23 репозиториев: 0 исключений, 0 файлов с непарными скобками, 5 с на всё. Инструмент — `/tmp/claude-0/lexcheck`.
+- **Этап 5 (признаки)** — написаны:
+  - `ScriptAnalyzer*` (структура + признаки), `MarkupAnalyzer`;
+  - `FrontendCodeSignals` (~90 сигналов, группы Typing/FrameworkIdioms/Accessibility/Styles), `FrontendShapeSignals`;
+  - `FrontendFileClassifier`, `FrontendConventions`, `FrontendStack`, `FrontendLanguage` (зарегистрирован в `AppLanguages`).
+- **Корпус фронтенда:**
+  - человеческий — `corpus/frontend/manifest-human.tsv`: 154 MR из 22 репозиториев, код до 06.2021, отбор `scripts/select_corpus_commits.py`; JSON загружены в `corpus/frontend/human`;
+  - ИИ — рабочие копии на коммитах конца 2020 в `/home/user/ai-work/<имя>`, агенты пишут фичи. Первая партия из 8 прервалась на 5-часовом лимите (17:10 UTC) и продолжается через SendMessage.
+  - После готовности: `git -C <wt> format-patch <base>..HEAD -o corpus/frontend/ai-src/<имя>` + строка в `manifest-ai.tsv`.
+- **Тесты фронтенда:** `tests/AiDetect.Frontend.Tests`; `LexerTests` — 11 тестов, зелёные.
