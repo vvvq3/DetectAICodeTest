@@ -1,0 +1,74 @@
+From 37c13dd2bd3646a8b2078d2adce3e1aa1190b703 Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Thu, 5 Nov 2026 22:29:41 +0000
+Subject: [PATCH 1/3] feat: Add Alt+/ shortcut to toggle stats
+
+---
+ src/actions/shortcuts.ts           | 2 +-
+ src/components/App.tsx             | 8 ++++++++
+ src/components/ShortcutsDialog.tsx | 4 ++++
+ src/keys.ts                        | 1 +
+ 4 files changed, 14 insertions(+), 1 deletion(-)
+
+diff --git a/src/actions/shortcuts.ts b/src/actions/shortcuts.ts
+index cab6526b..bad710b9 100644
+--- a/src/actions/shortcuts.ts
++++ b/src/actions/shortcuts.ts
+@@ -52,7 +52,7 @@ const shortcutMap: Record<ShortcutName, string[]> = {
+   group: [getShortcutKey("CtrlOrCmd+G")],
+   ungroup: [getShortcutKey("CtrlOrCmd+Shift+G")],
+   gridMode: [getShortcutKey("CtrlOrCmd+'")],
+-  stats: [],
++  stats: [getShortcutKey("Alt+/")],
+   addToLibrary: [],
+ };
+ 
+diff --git a/src/components/App.tsx b/src/components/App.tsx
+index ecce0fd2..33170bb6 100644
+--- a/src/components/App.tsx
++++ b/src/components/App.tsx
+@@ -1250,6 +1250,14 @@ class App extends React.Component<ExcalidrawProps, AppState> {
+     if (event[KEYS.CTRL_OR_CMD] && event.code === CODES.QUOTE) {
+       this.toggleGridMode();
+     }
++
++    if (
++      !event[KEYS.CTRL_OR_CMD] &&
++      event.altKey &&
++      event.code === CODES.SLASH
++    ) {
++      this.toggleStats();
++    }
+     if (event[KEYS.CTRL_OR_CMD]) {
+       this.setState({ isBindingEnabled: false });
+     }
+diff --git a/src/components/ShortcutsDialog.tsx b/src/components/ShortcutsDialog.tsx
+index 1fc87765..3e137cfe 100644
+--- a/src/components/ShortcutsDialog.tsx
++++ b/src/components/ShortcutsDialog.tsx
+@@ -215,6 +215,10 @@ export const ShortcutsDialog = ({ onClose }: { onClose?: () => void }) => {
+                 label={t("labels.gridMode")}
+                 shortcuts={[getShortcutKey("CtrlOrCmd+'")]}
+               />
++              <Shortcut
++                label={t("stats.title")}
++                shortcuts={[getShortcutKey("Alt+/")]}
++              />
+             </ShortcutIsland>
+           </Column>
+           <Column>
+diff --git a/src/keys.ts b/src/keys.ts
+index d072ca93..4342ccad 100644
+--- a/src/keys.ts
++++ b/src/keys.ts
+@@ -12,6 +12,7 @@ export const CODES = {
+   TWO: "Digit2",
+   NINE: "Digit9",
+   QUOTE: "Quote",
++  SLASH: "Slash",
+   ZERO: "Digit0",
+   C: "KeyC",
+   G: "KeyG",
+-- 
+2.43.0
+

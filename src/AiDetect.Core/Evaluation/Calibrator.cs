@@ -126,24 +126,28 @@ public static class Calibrator
 
     /// <summary>k-кратная перекрёстная проверка калибровки: честная оценка AUC на отложенных MR.</summary>
     public static List<(int Label, double P)> CrossValidate(List<Sample> samples, Dictionary<string, double> prior, ModelParameters start, int folds = 5, double lambda = 2.0,
-        bool balanced = true, double targetFpr = 0)
+        bool balanced = true, double targetFpr = 0) =>
+        CrossValidateDetailed(samples, prior, start, folds, lambda, balanced, targetFpr).Select(r => (r.Label, r.P)).ToList();
+
+    /// <summary>Как <see cref="CrossValidate"/>, но с индексом образца — для метрик по категориям корпуса.</summary>
+    public static List<(int Index, int Label, double P)> CrossValidateDetailed(List<Sample> samples, Dictionary<string, double> prior, ModelParameters start,
+        int folds = 5, double lambda = 2.0, bool balanced = true, double targetFpr = 0)
     {
-        var result = new List<(int, double)>();
+        var result = new List<(int, int, double)>();
         var indexed = samples.Select((s, i) => (s, i)).ToList();
         for (int f = 0; f < folds; f++)
         {
             var train = indexed.Where(x => x.i % folds != f).Select(x => x.s).ToList();
-            var test = indexed.Where(x => x.i % folds == f).Select(x => x.s).ToList();
             var p = Fit(train, prior, start, lambda, balanced: balanced);
             if (targetFpr > 0)
             {
                 p = ApplyTargetFpr(p, train, prior, targetFpr);
             }
 
-            foreach (var s in test)
+            foreach (var (s, i) in indexed.Where(x => x.i % folds == f))
             {
                 double z = p.Bias + s.X.Sum(kv => p.WeightFor(kv.Key, prior.GetValueOrDefault(kv.Key)) * kv.Value);
-                result.Add((s.Label, 1 / (1 + Math.Exp(-z / p.Temperature))));
+                result.Add((i, s.Label, 1 / (1 + Math.Exp(-z / p.Temperature))));
             }
         }
 

@@ -9,6 +9,7 @@ obj/
 TestResults/
 .build/
 corpus/*/human/
+corpus/*/human-modern/
 corpus/*/ai-default/
 corpus/*/ai-masked/
 corpus/*/ai-wild/

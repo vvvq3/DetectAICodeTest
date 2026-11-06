@@ -1,0 +1,169 @@
+From 57f65fd2872deb389f63723370a9e629ff7364d8 Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Thu, 5 Nov 2026 22:32:04 +0000
+Subject: [PATCH 3/3] test: Add stats tests
+
+---
+ src/tests/stats.test.tsx | 150 +++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 150 insertions(+)
+ create mode 100644 src/tests/stats.test.tsx
+
+diff --git a/src/tests/stats.test.tsx b/src/tests/stats.test.tsx
+new file mode 100644
+index 00000000..aa7f70a0
+--- /dev/null
++++ b/src/tests/stats.test.tsx
+@@ -0,0 +1,150 @@
++import React from "react";
++import { fireEvent, GlobalTestState, queryByText, render } from "./test-utils";
++import Excalidraw from "../packages/excalidraw/index";
++import { API } from "./helpers/api";
++import { Keyboard, Pointer, UI } from "./helpers/ui";
++import { getTransformHandles } from "../element/transformHandles";
++import { CODES, KEYS } from "../keys";
++
++const { h } = window;
++
++const mouse = new Pointer("mouse");
++
++const toggleStats = () => {
++  Keyboard.withModifierKeys({ alt: true }, () => {
++    Keyboard.codePress(CODES.SLASH);
++  });
++};
++
++// returns [label, value] of each row in the stats table
++const getStatsRows = () =>
++  Array.from(document.querySelectorAll(".Stats tr")).map((row) =>
++    Array.from(row.children).map((cell) => cell.textContent),
++  );
++
++describe("stats", () => {
++  beforeEach(async () => {
++    mouse.reset();
++    await render(<Excalidraw offsetLeft={0} offsetTop={0} />);
++  });
++
++  it("toggles stats with Alt+/", () => {
++    expect(document.querySelector(".Stats")).toBeNull();
++
++    toggleStats();
++    expect(h.state.showStats).toBe(true);
++    expect(document.querySelector(".Stats")).not.toBeNull();
++
++    toggleStats();
++    expect(h.state.showStats).toBe(false);
++    expect(document.querySelector(".Stats")).toBeNull();
++  });
++
++  it("toggles stats from context menu", () => {
++    fireEvent.contextMenu(GlobalTestState.canvas, {
++      button: 2,
++      clientX: 1,
++      clientY: 1,
++    });
++    const contextMenu = document.querySelector(".context-menu");
++    fireEvent.click(
++      queryByText(contextMenu as HTMLElement, "Stats for nerds")!,
++    );
++    expect(h.state.showStats).toBe(true);
++    expect(document.querySelector(".Stats")).not.toBeNull();
++  });
++
++  it("shows info about the selected element", () => {
++    UI.createElement("rectangle", { x: 10, y: 20, width: 30, height: 40 });
++    toggleStats();
++
++    expect(getStatsRows()).toEqual(
++      expect.arrayContaining([
++        ["Type", "Rectangle"],
++        ["x", "10"],
++        ["y", "20"],
++        ["Width", "30"],
++        ["Height", "40"],
++        ["Angle", "0°"],
++      ]),
++    );
++  });
++
++  it("shows number of points of the selected line", () => {
++    UI.clickTool("line");
++    mouse.click(10, 10);
++    mouse.click(20, 10);
++    mouse.click(10, 20);
++    Keyboard.keyPress(KEYS.ENTER);
++    toggleStats();
++
++    expect(getStatsRows()).toEqual(
++      expect.arrayContaining([
++        ["Type", "Line"],
++        ["Points", "3"],
++      ]),
++    );
++  });
++
++  it("shows text of the selected text element", () => {
++    const text = API.createElement({ type: "text", text: "Hello world" });
++    h.elements = [text];
++    h.setState({ selectedElementIds: { [text.id]: true } });
++    toggleStats();
++
++    expect(getStatsRows()).toEqual(
++      expect.arrayContaining([
++        ["Type", "Text"],
++        ["Text", "Hello world"],
++      ]),
++    );
++  });
++
++  it("doesn't show element info when multiple elements are selected", () => {
++    UI.createElement("rectangle", { x: 0, size: 10 });
++    UI.createElement("rectangle", { x: 20, size: 10 });
++    Keyboard.withModifierKeys({ ctrl: true }, () => {
++      Keyboard.keyPress(KEYS.A);
++    });
++    toggleStats();
++
++    expect(API.getSelectedElements().length).toBe(2);
++    expect(getStatsRows()).not.toContainEqual(["Type", "Rectangle"]);
++  });
++
++  it("updates element info while moving", () => {
++    UI.createElement("rectangle", { x: 10, y: 20, width: 30, height: 40 });
++    toggleStats();
++
++    mouse.down(10, 20);
++    mouse.move(20, 10);
++    expect(getStatsRows()).toEqual(
++      expect.arrayContaining([
++        ["x", "30"],
++        ["y", "30"],
++      ]),
++    );
++    mouse.up();
++  });
++
++  it("updates element info while resizing", () => {
++    const rectangle = UI.createElement("rectangle", {
++      x: 10,
++      y: 20,
++      width: 30,
++      height: 40,
++    });
++    toggleStats();
++
++    const handle = getTransformHandles(rectangle, h.state.zoom, "mouse").se!;
++    mouse.down(handle[0] + handle[2] / 2, handle[1] + handle[3] / 2);
++    mouse.move(10, 20);
++    expect(getStatsRows()).toEqual(
++      expect.arrayContaining([
++        ["Width", "40"],
++        ["Height", "60"],
++      ]),
++    );
++    mouse.up();
++  });
++});
+-- 
+2.43.0
+

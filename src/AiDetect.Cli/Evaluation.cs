@@ -78,13 +78,34 @@ public static class Evaluation
         var prior = Calibrator.DefaultWeights(scored);
 
         PrintMetrics("До калибровки (экспертные веса)", scored.Select(s => (s.Item.Label, s.Probability)).ToList());
-        var cv = Calibrator.CrossValidate(samples, prior, start, lambda: o.Lambda, balanced: o.Balanced, targetFpr: o.TargetFpr);
+        var cvDetailed = Calibrator.CrossValidateDetailed(samples, prior, start, lambda: o.Lambda, balanced: o.Balanced, targetFpr: o.TargetFpr);
+        var cv = cvDetailed.Select(r => (r.Label, r.P)).ToList();
         PrintMetrics($"После калибровки (lambda={o.Lambda}, {(o.Balanced ? "с балансировкой классов" : "консервативно, без балансировки")}" +
                      (o.TargetFpr > 0 ? $", цель ложных «ИИ» ≤ {o.TargetFpr:P0}" : "") + "), 5-кратная перекрёстная проверка", cv);
         foreach (var t in new[] { 0.65, 0.85 })
         {
             var m = CorpusEvaluator.Metrics(cv, t);
             Console.WriteLine($"  порог {t * 100:0}%: ложные «ИИ» на человеческом коде={m.Fpr * 100:0}%, найдено ИИ={m.Tpr * 100:0}%");
+        }
+
+        // Перекрёстная проверка по категориям корпуса: каждая категория ИИ против всех людей и против каждой категории людей.
+        var category = cvDetailed.ToDictionary(r => r.Index, r => scored[r.Index].Item.Category);
+        var aiCats = category.Values.Distinct().Where(c => c.StartsWith("ai", StringComparison.OrdinalIgnoreCase)).OrderBy(c => c).ToList();
+        var humanCats = category.Values.Distinct().Where(c => !c.StartsWith("ai", StringComparison.OrdinalIgnoreCase)).OrderBy(c => c).ToList();
+        foreach (var hc in humanCats)
+        {
+            var hs = cvDetailed.Where(r => category[r.Index] == hc).Select(r => r.P).ToList();
+            Console.WriteLine($"  {hc}: n={hs.Count}, медиана {Median(hs) * 100:0}%, ≥50%: {hs.Count(p => p >= 0.5)}, ≥65%: {hs.Count(p => p >= 0.65)}, максимум {hs.Max() * 100:0}%");
+        }
+
+        foreach (var ac in aiCats)
+        {
+            var subset = cvDetailed.Where(r => category[r.Index] == ac || r.Label == 0).Select(r => (r.Label, r.P)).ToList();
+            PrintMetrics($"  {ac} против всех людей (CV)", subset);
+            foreach (var hc in humanCats.Where(_ => humanCats.Count > 1))
+            {
+                PrintMetrics($"    {ac} против {hc} (CV)", cvDetailed.Where(r => category[r.Index] == ac || category[r.Index] == hc).Select(r => (r.Label, r.P)).ToList());
+            }
         }
 
         var fitted = Calibrator.Fit(samples, prior, start, o.Lambda, balanced: o.Balanced);
@@ -122,6 +143,17 @@ public static class Evaluation
         var m = CorpusEvaluator.Metrics(scored);
         Console.WriteLine($"{title}: n={m.Count} (ИИ {m.Positives}), ROC AUC={m.Auc:0.000}, точность={m.Accuracy * 100:0}%, " +
                           $"ложные «ИИ» на человеческом коде={m.Fpr * 100:0}%, найдено ИИ={m.Tpr * 100:0}%, Brier={m.Brier:0.000}");
+    }
+
+    private static double Median(List<double> values)
+    {
+        if (values.Count == 0)
+        {
+            return double.NaN;
+        }
+
+        var sorted = values.OrderBy(v => v).ToList();
+        return sorted[sorted.Count / 2];
     }
 
     private static string Trim(string s, int n) => s.Length <= n ? s : s[..(n - 1)] + "…";

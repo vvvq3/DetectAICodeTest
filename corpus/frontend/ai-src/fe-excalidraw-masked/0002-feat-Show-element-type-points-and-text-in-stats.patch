@@ -1,0 +1,110 @@
+From bb1dedc86cfe9f978e72d0a3e88d6e25164f4942 Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Thu, 5 Nov 2026 22:30:25 +0000
+Subject: [PATCH 2/3] feat: Show element type, points and text in stats
+
+---
+ src/components/Stats.scss |  6 ++++++
+ src/components/Stats.tsx  | 29 ++++++++++++++++++++++++++---
+ src/locales/en.json       |  3 +++
+ 3 files changed, 35 insertions(+), 3 deletions(-)
+
+diff --git a/src/components/Stats.scss b/src/components/Stats.scss
+index a6849f3b..0778c9d6 100644
+--- a/src/components/Stats.scss
++++ b/src/components/Stats.scss
+@@ -35,6 +35,12 @@
+         text-align: right;
+       }
+     }
++    .text {
++      max-width: 120px;
++      overflow: hidden;
++      text-overflow: ellipsis;
++      white-space: nowrap;
++    }
+   }
+ 
+   :root[dir="rtl"] & {
+diff --git a/src/components/Stats.tsx b/src/components/Stats.tsx
+index 3780691e..89697be6 100644
+--- a/src/components/Stats.tsx
++++ b/src/components/Stats.tsx
+@@ -1,5 +1,6 @@
+ import React, { useEffect, useState } from "react";
+ import { getCommonBounds } from "../element/bounds";
++import { isLinearElement, isTextElement } from "../element/typeChecks";
+ import { NonDeletedExcalidrawElement } from "../element/types";
+ import {
+   getElementsStorageSize,
+@@ -45,6 +46,8 @@ export const Stats = (props: {
+   const boundingBox = getCommonBounds(props.elements);
+   const selectedElements = getTargetElements(props.elements, props.appState);
+   const selectedBoundingBox = getCommonBounds(selectedElements);
++  const selectedElement =
++    selectedElements.length === 1 ? selectedElements[0] : null;
+ 
+   if (isMobile && props.appState.openMenu) {
+     return null;
+@@ -86,9 +89,15 @@ export const Stats = (props: {
+               <td>{nFormatter(storageSizes.total, 1)}</td>
+             </tr>
+             {selectedElements.length === 1 && (
+-              <tr>
+-                <th colSpan={2}>{t("stats.element")}</th>
+-              </tr>
++              <>
++                <tr>
++                  <th colSpan={2}>{t("stats.element")}</th>
++                </tr>
++                <tr>
++                  <td>{t("stats.type")}</td>
++                  <td>{t(`toolBar.${selectedElements[0].type}`)}</td>
++                </tr>
++              </>
+             )}
+ 
+             {selectedElements.length > 1 && (
+@@ -156,6 +165,20 @@ export const Stats = (props: {
+                 </td>
+               </tr>
+             )}
++            {isLinearElement(selectedElement) && (
++              <tr>
++                <td>{t("stats.points")}</td>
++                <td>{selectedElement.points.length}</td>
++              </tr>
++            )}
++            {isTextElement(selectedElement) && (
++              <tr>
++                <td>{t("stats.text")}</td>
++                <td>
++                  <div className="text">{selectedElement.text}</div>
++                </td>
++              </tr>
++            )}
+           </tbody>
+         </table>
+       </Island>
+diff --git a/src/locales/en.json b/src/locales/en.json
+index b48b1056..def6f921 100644
+--- a/src/locales/en.json
++++ b/src/locales/en.json
+@@ -226,11 +226,14 @@
+     "element": "Element",
+     "elements": "Elements",
+     "height": "Height",
++    "points": "Points",
+     "scene": "Scene",
+     "selected": "Selected",
+     "storage": "Storage",
++    "text": "Text",
+     "title": "Stats for nerds",
+     "total": "Total",
++    "type": "Type",
+     "width": "Width"
+   }
+ }
+-- 
+2.43.0
+
