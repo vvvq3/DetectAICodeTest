@@ -117,8 +117,12 @@
    - **Подкоманды:** `status`, `stop`.
    - **Настройки:** `~/.config/detectai` — адрес GitLab, папка, журнал `share.log`.
    - **Навык** копируется в `~/.claude/skills/rundetectai` при каждом запуске.
-   - **Первый раз** на Маке: `curl -fsSL https://raw.githubusercontent.com/vvvq3/DetectAICodeTest/HEAD/scripts/rundetectai.sh | bash -s -- <gitlab-host>`; дальше в любой сессии Claude Code — `rundetectai`.
+   - **Первый раз** на Маке: `curl -fsSL https://raw.githubusercontent.com/vvvq3/DetectAICodeTest/HEAD/scripts/rundetectai.sh | bash` (GitLab по умолчанию — git.dextechnology.com, сообщение 20); дальше в любой сессии Claude Code — `rundetectai`.
    - **Проверено в контейнере** с поддельным `cloudflared` (настоящий туннель из облака не подключается): оба пути (`screen` и `nohup`), перезапуск (ровно один процесс веб-версии и туннеля), `status`, `stop`, установка через `curl | bash`.)
+
+20. > Вставь сам постоянную ссылку на мой гитлаб в команду, чтоб я не выполнял эту команду и все сразу запускалось. Вот ссылка: https://git.dextechnology.com
+
+   (Ответ: в `scripts/rundetectai.sh` — `DEFAULT_GITLAB_HOST="git.dextechnology.com"`. Порядок выбора адреса: аргумент → `AIDETECT_GITLAB_HOST` → `~/.config/detectai/gitlab-host` → адрес по умолчанию. Команда `rundetectai` без аргументов сразу запускает сервис, вопрос про адрес не задаётся. Первый запуск на Маке — `curl -fsSL https://raw.githubusercontent.com/vvvq3/DetectAICodeTest/HEAD/scripts/rundetectai.sh | bash`. Текст сообщения для коллег в `share.sh` теперь упоминает оба языка.)
 
 Итоги по этим запросам:
 - **(1–3)** Прототип построен за ночь, проверен на корпусе, всё закоммичено.
@@ -148,7 +152,7 @@
   - Фронтенд-детектор — собственный лексер и мини-парсер на C#, без внешних зависимостей и без Node.js.
 - **Языки:** `--lang auto|csharp|frontend` (псевдонимы: cs, c#, js, ts, react, angular, vue…). На странице — выпадающий список после ссылки (C#, JS/TS, Авто), значение запоминается в `localStorage`.
 - **Отчёт:** язык, плашки стека («TypeScript 4 · Angular 10 · NgRx · …»), предупреждение о строках другого языка в MR.
-- **`rundetectai`** (`scripts/rundetectai.sh` + навык `.claude/skills/rundetectai`): одной командой обновить проект на Маке, перезапустить веб-версию и получить публичную ссылку с паролем (сообщение 19).
+- **`rundetectai`** (`scripts/rundetectai.sh` + навык `.claude/skills/rundetectai`): одной командой обновить проект на Маке, перезапустить веб-версию и получить публичную ссылку с паролем (сообщение 19). GitLab по умолчанию — `git.dextechnology.com` (сообщение 20).
 - **Запуск:**
   - Mac/Linux: `bash run.sh <ссылка>` (сам ставит .NET SDK 10 в `~/.dotnet` и собирает в `.build/`, пересобирает при изменении исходников).
   - Windows: `.\run.cmd <ссылка>` (вызывает `run.ps1` с `-ExecutionPolicy Bypass`; ставит .NET в `%LOCALAPPDATA%\Microsoft\dotnet`).

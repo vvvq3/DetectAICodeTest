@@ -2,12 +2,12 @@
 # rundetectai — одной командой: развернуть или обновить детектор ИИ-кода, перезапустить веб-версию
 # и получить публичную ссылку с паролем (туннель Cloudflare через share.sh).
 #
-#   bash rundetectai.sh [gitlab-host]   запустить или перезапустить (адрес GitLab запоминается после первого раза)
+#   bash rundetectai.sh [gitlab-host]   запустить или перезапустить (по умолчанию GitLab — git.dextechnology.com)
 #   bash rundetectai.sh status          текущая ссылка и пароль, если сервис работает
 #   bash rundetectai.sh stop            остановить сервис и туннель
 #
 # Первый запуск на Маке (одна строка в Терминале или в сессии Claude Code):
-#   curl -fsSL https://raw.githubusercontent.com/vvvq3/DetectAICodeTest/HEAD/scripts/rundetectai.sh | bash -s -- gitlab.company.com
+#   curl -fsSL https://raw.githubusercontent.com/vvvq3/DetectAICodeTest/HEAD/scripts/rundetectai.sh | bash
 # Скрипт ставит навык Claude Code «rundetectai» (~/.claude/skills/rundetectai). Дальше в любой сессии Claude Code на этом Маке
 # достаточно написать: rundetectai
 #
@@ -19,6 +19,8 @@ REPO_URL="https://github.com/vvvq3/DetectAICodeTest.git"
 RAW_URL="https://raw.githubusercontent.com/vvvq3/DetectAICodeTest/HEAD/scripts"
 BRANCH="${DETECTAI_BRANCH:-claude/inspiring-lamport-i2ixa7}"
 PORT="${AIDETECT_PORT:-5057}"
+# GitLab команды — адрес по умолчанию (другой можно передать аргументом: rundetectai gitlab.other.com).
+DEFAULT_GITLAB_HOST="git.dextechnology.com"
 CONF="${DETECTAI_CONFIG:-$HOME/.config/detectai}"
 SESSION="detectai"
 mkdir -p "$CONF"
@@ -131,6 +133,7 @@ GITLAB_HOST="${1:-${AIDETECT_GITLAB_HOST:-}}"
 if [ -z "$GITLAB_HOST" ] && [ -f "$CONF/gitlab-host" ]; then
   GITLAB_HOST="$(cat "$CONF/gitlab-host")"
 fi
+GITLAB_HOST="${GITLAB_HOST:-$DEFAULT_GITLAB_HOST}"
 if [ -z "$GITLAB_HOST" ]; then
   say "Нужен адрес вашего GitLab (с него будут проверяться MR), например: rundetectai gitlab.company.com"
   exit 3

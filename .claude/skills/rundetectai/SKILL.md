@@ -1,7 +1,7 @@
 ---
 name: rundetectai
 description: Запускает или перезапускает веб-версию детектора ИИ-кода (DetectAICodeTest) на этом компьютере и выдаёт публичную ссылку с паролем. Используй, когда пользователь пишет «rundetectai» (с косой чертой или без), «запусти детектор», «перезапусти детектор», «дай ссылку на детектор», а также «rundetectai stop» или «rundetectai status».
-argument-hint: "[адрес GitLab | stop | status]"
+argument-hint: "[stop | status | другой адрес GitLab]"
 allowed-tools: Bash(bash:*), Bash(curl:*), Bash(git:*), Bash(tail:*), Bash(cat:*)
 ---
 
@@ -26,9 +26,9 @@ allowed-tools: Bash(bash:*), Bash(curl:*), Bash(git:*), Bash(tail:*), Bash(cat:*
    - **Если этого файла нет**, выполни:
      `curl -fsSL https://raw.githubusercontent.com/vvvq3/DetectAICodeTest/HEAD/scripts/rundetectai.sh | bash -s -- $ARGUMENTS`
    - **Куда ставится проект:** запускай в текущей папке сессии. Скрипт сам выбирает папку: та же, что в прошлый раз, или `./DetectAICodeTest`.
-   - **Без аргументов:** адрес GitLab берётся из прошлого запуска.
+   - **Без аргументов:** GitLab — `git.dextechnology.com` (по умолчанию) или адрес из прошлого запуска.
 
-2. **Код выхода 3** — адрес GitLab ещё не задан. Спроси у пользователя адрес (например `gitlab.company.com`) и повтори команду с ним.
+2. **Код выхода 3** — адрес GitLab не задан (не должно случаться: по умолчанию `git.dextechnology.com`). Тогда спроси адрес у пользователя и повтори команду с ним.
 
 3. **При успехе** ответь по-русски коротко и только это:
    - ссылка;

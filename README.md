@@ -60,8 +60,10 @@ $env:GITLAB_TOKEN = "glpat-xxxxxxxxxxxxxxxx"
 **Первый раз** — одна строка в Терминале Мака или в сессии Claude Code на Маке (папка — любая, проект появится в `./DetectAICodeTest`):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vvvq3/DetectAICodeTest/HEAD/scripts/rundetectai.sh | bash -s -- gitlab.company.com
+curl -fsSL https://raw.githubusercontent.com/vvvq3/DetectAICodeTest/HEAD/scripts/rundetectai.sh | bash
 ```
+
+GitLab по умолчанию — `git.dextechnology.com`. Другой адрес передаётся аргументом: `rundetectai gitlab.other.com`.
 
 Скрипт заодно ставит навык Claude Code `rundetectai` в `~/.claude/skills`. **Дальше** в любой сессии Claude Code на этом Маке, в том числе открытой с телефона, достаточно написать:
 
@@ -69,7 +71,7 @@ curl -fsSL https://raw.githubusercontent.com/vvvq3/DetectAICodeTest/HEAD/scripts
 - `rundetectai status` — текущая ссылка и пароль;
 - `rundetectai stop` — остановить.
 
-Адрес GitLab и папка проекта запоминаются в `~/.config/detectai`. Ссылка работает, пока Мак включён и в сети; `caffeinate` не даёт ему уснуть.
+Папка проекта (и адрес GitLab, если задавали другой) запоминаются в `~/.config/detectai`. Ссылка работает, пока Мак включён и в сети; `caffeinate` не даёт ему уснуть.
 
 ### Как дать доступ к веб-версии коллегам
 

@@ -112,7 +112,7 @@ if command -v caffeinate >/dev/null 2>&1; then
   AWAKE_PID=$!
 fi
 
-MESSAGE="Детектор ИИ-кода в C# MR: $URL
+MESSAGE="Детектор ИИ-кода в MR (C# и JavaScript/TypeScript): $URL
 Пароль: $PASSWORD (имя пользователя — любое)
 На странице один раз введите свой токен GitLab (право read_api), затем вставляйте ссылки на MR с $GITLAB_HOST."
 if command -v pbcopy >/dev/null 2>&1; then
