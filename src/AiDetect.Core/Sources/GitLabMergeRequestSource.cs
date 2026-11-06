@@ -591,7 +591,7 @@ public sealed partial class GitLabMergeRequestSource : IMergeRequestSource, IDis
         }
     }
 
-    private static async Task EnsureSuccessAsync(HttpResponseMessage resp, string what, CancellationToken ct)
+    private async Task EnsureSuccessAsync(HttpResponseMessage resp, string what, CancellationToken ct)
     {
         if (resp.IsSuccessStatusCode)
         {
@@ -604,9 +604,23 @@ public sealed partial class GitLabMergeRequestSource : IMergeRequestSource, IDis
             body = body[..300];
         }
 
+        // API GitLab всегда отвечает JSON. 403 в виде HTML-страницы (обычно «403 Forbidden / nginx») приходит от прокси перед GitLab:
+        // запрос до GitLab не дошёл, токен и путь к проекту тут ни при чём.
+        bool fromGitLab = resp.Content.Headers.ContentType?.MediaType?.Contains("json", StringComparison.OrdinalIgnoreCase) == true
+            || body.TrimStart().StartsWith('{');
+        if (resp.StatusCode == HttpStatusCode.Forbidden && !fromGitLab)
+        {
+            var host = new Uri(_url.BaseUrl).Host;
+            throw new SourceException(
+                $"Сервер {host} ответил 403 ещё до GitLab (страница прокси, а не ответ API): компьютер, на котором запущен детектор, не пускают к GitLab. " +
+                "Обычно GitLab открыт только из корпоративной сети, через VPN или по белому списку IP. Подключите VPN на этом компьютере и повторите. Токен и ссылка на MR тут ни при чём.");
+        }
+
         throw resp.StatusCode switch
         {
             HttpStatusCode.Unauthorized => new SourceException("GitLab ответил 401: нужен токен. Задайте GITLAB_TOKEN (Personal Access Token с правом read_api) или --token."),
+            HttpStatusCode.Forbidden when body.Contains("insufficient_scope", StringComparison.Ordinal) =>
+                new SourceException($"GitLab ответил 403 на {what}: у токена нет права read_api. Создайте токен с правом read_api."),
             HttpStatusCode.Forbidden => new SourceException($"GitLab ответил 403 на {what}: у токена нет прав (нужно read_api) или нет доступа к проекту."),
             HttpStatusCode.NotFound => new SourceException($"GitLab ответил 404 на {what}: MR/проект не найден или нет доступа (у приватных проектов без токена тоже 404)."),
             _ => new SourceException($"GitLab ответил {(int)resp.StatusCode} на {what}: {body}"),

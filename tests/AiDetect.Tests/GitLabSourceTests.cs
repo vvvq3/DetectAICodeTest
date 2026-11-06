@@ -138,4 +138,39 @@ public class GitLabSourceTests
 
         Assert.Contains("GITLAB_TOKEN", ex.Message);
     }
+
+    [Fact]
+    public async Task LoadAsync_ProxyForbiddenPage_SaysNetworkNotToken()
+    {
+        var fake = new FakeGitLab();
+        fake.Routes[$"{Api}/merge_requests/7"] = () => new HttpResponseMessage(HttpStatusCode.Forbidden)
+        {
+            Content = new StringContent("<html><head><title>403 Forbidden</title></head><body><center>nginx</center></body></html>", Encoding.UTF8, "text/html"),
+        };
+        using var source = new GitLabMergeRequestSource(Url, "token", TestLanguages.Registry.Files, fake);
+
+        var ex = await Assert.ThrowsAsync<SourceException>(() => source.LoadAsync());
+
+        Assert.Contains("403", ex.Message);
+        Assert.Contains("VPN", ex.Message);
+        Assert.Contains("gitlab.test", ex.Message);
+    }
+
+    [Theory]
+    [InlineData("{\"error\":\"insufficient_scope\"}", "read_api")]
+    [InlineData("{\"message\":\"403 Forbidden\"}", "нет доступа к проекту")]
+    public async Task LoadAsync_GitLabForbidden_BlamesToken(string json, string expected)
+    {
+        var fake = new FakeGitLab();
+        fake.Routes[$"{Api}/merge_requests/7"] = () => new HttpResponseMessage(HttpStatusCode.Forbidden)
+        {
+            Content = new StringContent(json, Encoding.UTF8, "application/json"),
+        };
+        using var source = new GitLabMergeRequestSource(Url, "token", TestLanguages.Registry.Files, fake);
+
+        var ex = await Assert.ThrowsAsync<SourceException>(() => source.LoadAsync());
+
+        Assert.Contains(expected, ex.Message);
+        Assert.DoesNotContain("VPN", ex.Message);
+    }
 }
