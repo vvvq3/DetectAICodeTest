@@ -11,8 +11,8 @@
 - Общение с пользователем — на русском.
 - Код анализируемых MR никуда не отправлять (никаких внешних API и ИИ-сервисов) — только локальный анализ.
 - Работать в ветке, которую назначила текущая сессия; основная линия разработки — `claude/inspiring-lamport-i2ixa7`. Часто коммитить и пушить. PR не создавать без просьбы.
-- **Ветку `v1` и тег `v1.0.0` не менять и не удалять** — это зафиксированная версия 1 (детектор для C#), точка отката.
-- Новые детекторы (другие языки) добавлять так, чтобы детектор C# продолжал работать и проходить тесты; план переноса — docs/CONTEXT.md, раздел 10.
+- **Ветки `v1`, `v2` и теги `v1.0.0`, `v2.0.0` не менять и не удалять.** Это точки отката: v1 — детектор C#, v2 — C# и фронтенд (JS/TS).
+- **Новые языки** — отдельный модуль `src/AiDetect.Languages.<Язык>` с `ILanguageAnalyzer` и строка в `src/AiDetect.Cli/AppLanguages.cs`. Рецепт — docs/CONTEXT.md, раздел 10. Существующие детекторы должны давать прежний результат: регрессия — `eval` на их корпусах.
 - После каждой заметной задачи обновлять docs/CONTEXT.md: дописать новое сообщение пользователя в раздел 2, обновить разделы о состоянии проекта.
-- Сборка и тесты: `dotnet build src/AiDetect.Cli -c Release -o .build`, `dotnet test tests/AiDetect.Tests`. Если .NET нет — `curl -sSL https://dot.net/v1/dotnet-install.sh | bash -s -- --channel 10.0 --install-dir ~/.dotnet`.
-- Корпус оценки не хранится в git: восстанавливается `python3 scripts/rebuild_corpus.py`, оценка — `scripts/evaluate.sh`.
+- **Сборка и тесты:** `dotnet build src/AiDetect.Cli -c Release -o .build`, `dotnet test tests/AiDetect.Tests`, `dotnet test tests/AiDetect.Frontend.Tests`. Если .NET нет — `curl -sSL https://dot.net/v1/dotnet-install.sh | bash -s -- --channel 10.0 --install-dir ~/.dotnet`.
+- **Корпус оценки не хранится в git** (только манифесты и патчи в `corpus/<язык>/`). Восстановление — `python3 scripts/rebuild_corpus.py --lang csharp|frontend`, оценка — `scripts/evaluate.sh csharp|frontend`.

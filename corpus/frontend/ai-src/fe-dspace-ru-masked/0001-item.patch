@@ -1,0 +1,687 @@
+From 75615aeaca53c82ed979886d8631ac6aa6353507 Mon Sep 17 00:00:00 2001
+From: Dev <dev@example.local>
+Date: Fri, 6 Nov 2026 03:13:19 +0000
+Subject: [PATCH 1/2] =?UTF-8?q?=D1=81=D1=82=D1=80=D0=B0=D0=BD=D0=B8=D1=86?=
+ =?UTF-8?q?=D0=B0=20=C2=AB=D0=BC=D0=BE=D0=B8=20=D0=BF=D0=BE=D1=81=D0=BB?=
+ =?UTF-8?q?=D0=B5=D0=B4=D0=BD=D0=B8=D0=B5=20=D0=B7=D0=B0=D0=B3=D1=80=D1=83?=
+ =?UTF-8?q?=D0=B7=D0=BA=D0=B8=C2=BB:=20=D1=81=D0=BF=D0=B8=D1=81=D0=BE?=
+ =?UTF-8?q?=D0=BA=20item'=D0=BE=D0=B2=20=D1=8E=D0=B7=D0=B5=D1=80=D0=B0=20?=
+ =?UTF-8?q?=D1=81=20=D1=84=D0=B8=D0=BB=D1=8C=D1=82=D1=80=D0=BE=D0=BC=20?=
+ =?UTF-8?q?=D0=BF=D0=BE=20=D1=81=D1=82=D0=B0=D1=82=D1=83=D1=81=D1=83?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ src/app/app-routing-paths.ts                  |   6 +
+ src/app/app-routing.module.ts                 |   5 +
+ .../my-upload-element.component.html          |  13 ++
+ .../my-upload-element.component.spec.ts       | 131 ++++++++++++++++
+ .../my-upload-element.component.ts            |  67 ++++++++
+ .../my-uploads-page-routing.module.ts         |  15 ++
+ .../my-uploads-page.component.html            |  31 ++++
+ .../my-uploads-page.component.spec.ts         | 145 ++++++++++++++++++
+ .../my-uploads-page.component.ts              | 106 +++++++++++++
+ .../my-uploads-page/my-uploads-page.module.ts |  26 ++++
+ src/assets/i18n/en.json5                      |  15 ++
+ 11 files changed, 560 insertions(+)
+ create mode 100644 src/app/my-uploads-page/my-upload-element/my-upload-element.component.html
+ create mode 100644 src/app/my-uploads-page/my-upload-element/my-upload-element.component.spec.ts
+ create mode 100644 src/app/my-uploads-page/my-upload-element/my-upload-element.component.ts
+ create mode 100644 src/app/my-uploads-page/my-uploads-page-routing.module.ts
+ create mode 100644 src/app/my-uploads-page/my-uploads-page.component.html
+ create mode 100644 src/app/my-uploads-page/my-uploads-page.component.spec.ts
+ create mode 100644 src/app/my-uploads-page/my-uploads-page.component.ts
+ create mode 100644 src/app/my-uploads-page/my-uploads-page.module.ts
+
+diff --git a/src/app/app-routing-paths.ts b/src/app/app-routing-paths.ts
+index 8db4ba5aa..ad4c33584 100644
+--- a/src/app/app-routing-paths.ts
++++ b/src/app/app-routing-paths.ts
+@@ -24,6 +24,12 @@ export function getProfileModuleRoute() {
+   return `/${PROFILE_MODULE_PATH}`;
+ }
+ 
++export const MY_UPLOADS_MODULE_PATH = 'my-uploads';
++
++export function getMyUploadsModuleRoute() {
++  return `/${MY_UPLOADS_MODULE_PATH}`;
++}
++
+ export const REGISTER_PATH = 'register';
+ 
+ export function getRegisterRoute() {
+diff --git a/src/app/app-routing.module.ts b/src/app/app-routing.module.ts
+index ddf4ab2e6..67e28288e 100644
+--- a/src/app/app-routing.module.ts
++++ b/src/app/app-routing.module.ts
+@@ -10,6 +10,7 @@ import {
+   FORGOT_PASSWORD_PATH,
+   REGISTER_PATH,
+   PROFILE_MODULE_PATH,
++  MY_UPLOADS_MODULE_PATH,
+   ADMIN_MODULE_PATH,
+   BITSTREAM_MODULE_PATH,
+   INFO_MODULE_PATH,
+@@ -67,6 +68,10 @@ import { ForbiddenComponent } from './forbidden/forbidden.component';
+               path: PROFILE_MODULE_PATH,
+               loadChildren: './profile-page/profile-page.module#ProfilePageModule', canActivate: [AuthenticatedGuard, EndUserAgreementCurrentUserGuard]
+             },
++            {
++              path: MY_UPLOADS_MODULE_PATH,
++              loadChildren: './my-uploads-page/my-uploads-page.module#MyUploadsPageModule', canActivate: [AuthenticatedGuard, EndUserAgreementCurrentUserGuard]
++            },
+             { path: PROCESS_MODULE_PATH, loadChildren: './process-page/process-page.module#ProcessPageModule', canActivate: [AuthenticatedGuard, EndUserAgreementCurrentUserGuard] },
+             { path: INFO_MODULE_PATH, loadChildren: './info/info.module#InfoModule' },
+             { path: FORBIDDEN_PATH, component: ForbiddenComponent },
+diff --git a/src/app/my-uploads-page/my-upload-element/my-upload-element.component.html b/src/app/my-uploads-page/my-upload-element/my-upload-element.component.html
+new file mode 100644
+index 000000000..7f5c17442
+--- /dev/null
++++ b/src/app/my-uploads-page/my-upload-element/my-upload-element.component.html
+@@ -0,0 +1,13 @@
++<ng-container *ngIf="(item$ | async) as item">
++  <div class="d-flex" *ngVar="(item.firstMetadataValue('dc.title') || ('mydspace.results.no-title' | translate)) as title">
++    <div class="flex-grow-1 pr-2">
++      <a *ngIf="itemPageRoute; else plainTitle" class="lead" [routerLink]="[itemPageRoute]">{{title}}</a>
++      <ng-template #plainTitle><span class="lead">{{title}}</span></ng-template>
++      <div class="text-muted">{{'my-uploads.last-modified' | translate}}: {{item.lastModified | date:dateFormat}}</div>
++    </div>
++    <div>
++      <ds-mydspace-item-status [status]="status"></ds-mydspace-item-status>
++    </div>
++  </div>
++</ng-container>
++<ds-loading *ngIf="!(item$ | async)" [showMessage]="false"></ds-loading>
+diff --git a/src/app/my-uploads-page/my-upload-element/my-upload-element.component.spec.ts b/src/app/my-uploads-page/my-upload-element/my-upload-element.component.spec.ts
+new file mode 100644
+index 000000000..ee8190cde
+--- /dev/null
++++ b/src/app/my-uploads-page/my-upload-element/my-upload-element.component.spec.ts
+@@ -0,0 +1,131 @@
++import { async, ComponentFixture, TestBed } from '@angular/core/testing';
++import { NO_ERRORS_SCHEMA } from '@angular/core';
++import { By } from '@angular/platform-browser';
++import { RouterTestingModule } from '@angular/router/testing';
++import { TranslateModule } from '@ngx-translate/core';
++import { take } from 'rxjs/operators';
++import { MyUploadElementComponent } from './my-upload-element.component';
++import { LinkService } from '../../core/cache/builders/link.service';
++import { Item } from '../../core/shared/item.model';
++import { WorkspaceItem } from '../../core/submission/models/workspaceitem.model';
++import { WorkflowItem } from '../../core/submission/models/workflowitem.model';
++import { getMockLinkService } from '../../shared/mocks/link-service.mock';
++import { MyDspaceItemStatusType } from '../../shared/object-collection/shared/mydspace-item-status/my-dspace-item-status-type';
++import { createSuccessfulRemoteDataObject$ } from '../../shared/remote-data.utils';
++import { VarDirective } from '../../shared/utils/var.directive';
++
++describe('MyUploadElementComponent', () => {
++  let component: MyUploadElementComponent;
++  let fixture: ComponentFixture<MyUploadElementComponent>;
++
++  let linkService: LinkService;
++  let item: Item;
++
++  function init() {
++    linkService = getMockLinkService();
++    item = Object.assign(new Item(), {
++      id: 'fake-item-id',
++      lastModified: '2020-12-01T10:15:00.000+0000',
++      metadata: {
++        'dc.title': [
++          {
++            value: 'Test upload',
++            language: null
++          }
++        ]
++      }
++    });
++  }
++
++  beforeEach(async(() => {
++    init();
++    TestBed.configureTestingModule({
++      declarations: [MyUploadElementComponent, VarDirective],
++      imports: [TranslateModule.forRoot(), RouterTestingModule.withRoutes([])],
++      providers: [
++        { provide: LinkService, useValue: linkService }
++      ],
++      schemas: [NO_ERRORS_SCHEMA]
++    }).compileComponents();
++  }));
++
++  beforeEach(() => {
++    fixture = TestBed.createComponent(MyUploadElementComponent);
++    component = fixture.componentInstance;
++  });
++
++  describe('when the object is an archived item', () => {
++    beforeEach(() => {
++      component.object = item;
++      fixture.detectChanges();
++    });
++
++    it('should have the archived status', () => {
++      expect(component.status).toEqual(MyDspaceItemStatusType.ARCHIVED);
++    });
++
++    it('should use the object itself as item', (done) => {
++      component.item$.pipe(take(1)).subscribe((i) => {
++        expect(i).toBe(item);
++        done();
++      });
++    });
++
++    it('should not resolve the item link', () => {
++      expect(linkService.resolveLink).not.toHaveBeenCalled();
++    });
++
++    it('should display the title as a link to the item page', () => {
++      const link = fixture.debugElement.query(By.css('a'));
++      expect(link.nativeElement.textContent).toContain('Test upload');
++      expect(link.nativeElement.getAttribute('href')).toEqual('/items/fake-item-id');
++    });
++  });
++
++  describe('when the object is a workspace item', () => {
++    beforeEach(() => {
++      component.object = Object.assign(new WorkspaceItem(), {
++        item: createSuccessfulRemoteDataObject$(item)
++      });
++      fixture.detectChanges();
++    });
++
++    it('should have the workspace status', () => {
++      expect(component.status).toEqual(MyDspaceItemStatusType.WORKSPACE);
++    });
++
++    it('should init the item from the item link', (done) => {
++      component.item$.pipe(take(1)).subscribe((i) => {
++        expect(linkService.resolveLink).toHaveBeenCalled();
++        expect(i).toBe(item);
++        done();
++      });
++    });
++
++    it('should display the title without a link', () => {
++      expect(fixture.debugElement.query(By.css('a'))).toBeNull();
++      expect(fixture.debugElement.query(By.css('span.lead')).nativeElement.textContent).toContain('Test upload');
++    });
++  });
++
++  describe('when the object is a workflow item', () => {
++    beforeEach(() => {
++      component.object = Object.assign(new WorkflowItem(), {
++        item: createSuccessfulRemoteDataObject$(item)
++      });
++      fixture.detectChanges();
++    });
++
++    it('should have the workflow status', () => {
++      expect(component.status).toEqual(MyDspaceItemStatusType.WORKFLOW);
++    });
++
++    it('should init the item from the item link', (done) => {
++      component.item$.pipe(take(1)).subscribe((i) => {
++        expect(linkService.resolveLink).toHaveBeenCalled();
++        expect(i).toBe(item);
++        done();
++      });
++    });
++  });
++});
+diff --git a/src/app/my-uploads-page/my-upload-element/my-upload-element.component.ts b/src/app/my-uploads-page/my-upload-element/my-upload-element.component.ts
+new file mode 100644
+index 000000000..54010df2d
+--- /dev/null
++++ b/src/app/my-uploads-page/my-upload-element/my-upload-element.component.ts
+@@ -0,0 +1,67 @@
++import { Component, Input, OnInit } from '@angular/core';
++import { Observable, of as observableOf } from 'rxjs';
++import { find, map } from 'rxjs/operators';
++import { LinkService } from '../../core/cache/builders/link.service';
++import { RemoteData } from '../../core/data/remote-data';
++import { DSpaceObject } from '../../core/shared/dspace-object.model';
++import { Item } from '../../core/shared/item.model';
++import { SubmissionObject } from '../../core/submission/models/submission-object.model';
++import { WorkflowItem } from '../../core/submission/models/workflowitem.model';
++import { MyDspaceItemStatusType } from '../../shared/object-collection/shared/mydspace-item-status/my-dspace-item-status-type';
++import { followLink } from '../../shared/utils/follow-link-config.model';
++import { isNotUndefined } from '../../shared/empty.util';
++import { getItemPageRoute } from '../../+item-page/item-page-routing-paths';
++
++@Component({
++  selector: 'ds-my-upload-element',
++  templateUrl: './my-upload-element.component.html'
++})
++/**
++ * Одна загрузка в списке: название, дата и статус
++ */
++export class MyUploadElementComponent implements OnInit {
++
++  /**
++   * Item, workspace или workflow item из выдачи поиска
++   */
++  @Input() object: DSpaceObject;
++
++  /**
++   * Сам item, у workspace/workflow достаём его по ссылке
++   */
++  item$: Observable<Item>;
++
++  /**
++   * Статус для бейджа
++   */
++  status: MyDspaceItemStatusType;
++
++  /**
++   * Ссылка на страницу item'а, есть только у архивных
++   */
++  itemPageRoute: string;
++
++  /**
++   * Формат даты
++   */
++  dateFormat = 'yyyy-MM-dd HH:mm';
++
++  constructor(protected linkService: LinkService) {
++  }
++
++  ngOnInit(): void {
++    if (this.object instanceof Item) {
++      this.status = MyDspaceItemStatusType.ARCHIVED;
++      this.itemPageRoute = getItemPageRoute(this.object.id);
++      this.item$ = observableOf(this.object);
++    } else {
++      this.status = this.object instanceof WorkflowItem ? MyDspaceItemStatusType.WORKFLOW : MyDspaceItemStatusType.WORKSPACE;
++      this.linkService.resolveLink(this.object, followLink('item'));
++      this.item$ = ((this.object as SubmissionObject).item as Observable<RemoteData<Item>>).pipe(
++        find((rd: RemoteData<Item>) => rd.hasSucceeded && isNotUndefined(rd.payload)),
++        map((rd: RemoteData<Item>) => rd.payload)
++      );
++    }
++  }
++
++}
+diff --git a/src/app/my-uploads-page/my-uploads-page-routing.module.ts b/src/app/my-uploads-page/my-uploads-page-routing.module.ts
+new file mode 100644
+index 000000000..55133686f
+--- /dev/null
++++ b/src/app/my-uploads-page/my-uploads-page-routing.module.ts
+@@ -0,0 +1,15 @@
++import { NgModule } from '@angular/core';
++import { RouterModule } from '@angular/router';
++import { I18nBreadcrumbResolver } from '../core/breadcrumbs/i18n-breadcrumb.resolver';
++import { MyUploadsPageComponent } from './my-uploads-page.component';
++
++@NgModule({
++  imports: [
++    RouterModule.forChild([
++      { path: '', pathMatch: 'full', component: MyUploadsPageComponent, resolve: { breadcrumb: I18nBreadcrumbResolver }, data: { breadcrumbKey: 'my-uploads', title: 'my-uploads.title' } }
++    ])
++  ]
++})
++export class MyUploadsPageRoutingModule {
++
++}
+diff --git a/src/app/my-uploads-page/my-uploads-page.component.html b/src/app/my-uploads-page/my-uploads-page.component.html
+new file mode 100644
+index 000000000..59a91fb6f
+--- /dev/null
++++ b/src/app/my-uploads-page/my-uploads-page.component.html
+@@ -0,0 +1,31 @@
++<div class="container">
++  <h2 class="border-bottom pb-2">{{'my-uploads.head' | translate}}</h2>
++  <div class="form-inline mb-3">
++    <label for="my-uploads-status" class="mr-2">{{'my-uploads.filter.status' | translate}}</label>
++    <select id="my-uploads-status" class="form-control" [ngModel]="currentStatus" (ngModelChange)="onStatusChange($event)">
++      <option value="">{{'my-uploads.filter.status.all' | translate}}</option>
++      <option *ngFor="let option of statusOptions" [value]="option.value">{{option.label | translate}}</option>
++    </select>
++  </div>
++  <ng-container *ngVar="(uploadsRD$ | async) as uploadsRD">
++    <ds-pagination *ngIf="uploadsRD?.payload?.totalElements > 0"
++                   [paginationOptions]="pageConfig"
++                   [pageInfoState]="uploadsRD?.payload"
++                   [collectionSize]="uploadsRD?.payload?.totalElements"
++                   [hideGear]="true"
++                   [hidePagerWhenSinglePage]="true"
++                   [disableRouteParameterUpdate]="true"
++                   (pageChange)="onPageChange($event)">
++      <ul class="list-unstyled">
++        <li *ngFor="let result of uploadsRD?.payload?.page" class="border-bottom py-3">
++          <ds-my-upload-element [object]="result.indexableObject"></ds-my-upload-element>
++        </li>
++      </ul>
++    </ds-pagination>
++    <div *ngIf="uploadsRD?.hasSucceeded && uploadsRD?.payload?.totalElements === 0" class="alert alert-info w-100" role="alert">
++      {{'my-uploads.empty' | translate}}
++    </div>
++    <ds-error *ngIf="uploadsRD?.hasFailed" message="{{'error.items' | translate}}"></ds-error>
++    <ds-loading *ngIf="!uploadsRD || uploadsRD?.isLoading" message="{{'loading.items' | translate}}"></ds-loading>
++  </ng-container>
++</div>
+diff --git a/src/app/my-uploads-page/my-uploads-page.component.spec.ts b/src/app/my-uploads-page/my-uploads-page.component.spec.ts
+new file mode 100644
+index 000000000..33cec242e
+--- /dev/null
++++ b/src/app/my-uploads-page/my-uploads-page.component.spec.ts
+@@ -0,0 +1,145 @@
++import { async, ComponentFixture, TestBed } from '@angular/core/testing';
++import { NO_ERRORS_SCHEMA } from '@angular/core';
++import { By } from '@angular/platform-browser';
++import { RouterTestingModule } from '@angular/router/testing';
++import { TranslateModule } from '@ngx-translate/core';
++import { MyUploadsPageComponent } from './my-uploads-page.component';
++import { SearchService } from '../core/shared/search/search.service';
++import { MyDSpaceResponseParsingService } from '../core/data/mydspace-response-parsing.service';
++import { MyDSpaceRequest } from '../core/data/request.models';
++import { SortDirection, SortOptions } from '../core/cache/models/sort-options.model';
++import { Item } from '../core/shared/item.model';
++import { WorkspaceItem } from '../core/submission/models/workspaceitem.model';
++import { WorkflowItem } from '../core/submission/models/workflowitem.model';
++import { ItemSearchResult } from '../shared/object-collection/shared/item-search-result.model';
++import { WorkspaceItemSearchResult } from '../shared/object-collection/shared/workspace-item-search-result.model';
++import { WorkflowItemSearchResult } from '../shared/object-collection/shared/workflow-item-search-result.model';
++import { SearchFilter } from '../shared/search/search-filter.model';
++import { SearchResult } from '../shared/search/search-result.model';
++import { createSuccessfulRemoteDataObject$ } from '../shared/remote-data.utils';
++import { createPaginatedList } from '../shared/testing/utils.test';
++import { VarDirective } from '../shared/utils/var.directive';
++
++describe('MyUploadsPageComponent', () => {
++  let component: MyUploadsPageComponent;
++  let fixture: ComponentFixture<MyUploadsPageComponent>;
++
++  let searchService: SearchService;
++
++  let results: SearchResult<any>[];
++
++  function init() {
++    results = [
++      Object.assign(new ItemSearchResult(), {
++        indexableObject: Object.assign(new Item(), { id: 'archived-item-id' })
++      }),
++      Object.assign(new WorkspaceItemSearchResult(), {
++        indexableObject: Object.assign(new WorkspaceItem(), { id: 'workspace-item-id' })
++      }),
++      Object.assign(new WorkflowItemSearchResult(), {
++        indexableObject: Object.assign(new WorkflowItem(), { id: 'workflow-item-id' })
++      })
++    ];
++    searchService = jasmine.createSpyObj('searchService', {
++      search: createSuccessfulRemoteDataObject$(createPaginatedList(results)),
++      setServiceOptions: {}
++    });
++  }
++
++  beforeEach(async(() => {
++    init();
++    TestBed.configureTestingModule({
++      declarations: [MyUploadsPageComponent, VarDirective],
++      imports: [TranslateModule.forRoot(), RouterTestingModule.withRoutes([])],
++      providers: [
++        { provide: SearchService, useValue: searchService }
++      ],
++      schemas: [NO_ERRORS_SCHEMA]
++    }).compileComponents();
++  }));
++
++  beforeEach(() => {
++    fixture = TestBed.createComponent(MyUploadsPageComponent);
++    component = fixture.componentInstance;
++    fixture.detectChanges();
++  });
++
++  it('should use the mydspace parser and request for the search', () => {
++    expect(searchService.setServiceOptions).toHaveBeenCalledWith(MyDSpaceResponseParsingService, MyDSpaceRequest);
++  });
++
++  it('should search the uploads in the workspace configuration, most recent first', () => {
++    expect(searchService.search).toHaveBeenCalledWith(jasmine.objectContaining({
++      configuration: 'workspace',
++      filters: [],
++      sort: new SortOptions('lastModified', SortDirection.DESC),
++      pagination: jasmine.objectContaining({ currentPage: 1, pageSize: 20 })
++    }));
++  });
++
++  it('should display an element for each upload', () => {
++    const elements = fixture.debugElement.queryAll(By.css('ds-my-upload-element'));
++    expect(elements.length).toEqual(3);
++  });
++
++  it('should not display the empty message', () => {
++    expect(fixture.debugElement.query(By.css('.alert-info'))).toBeNull();
++  });
++
++  describe('onPageChange', () => {
++    const toPage = 2;
++
++    beforeEach(() => {
++      component.onPageChange(toPage);
++    });
++
++    it('should search the uploads for the new page', () => {
++      expect(searchService.search).toHaveBeenCalledWith(jasmine.objectContaining({
++        pagination: jasmine.objectContaining({ currentPage: toPage })
++      }));
++    });
++  });
++
++  describe('onStatusChange', () => {
++    describe('when a status is selected', () => {
++      beforeEach(() => {
++        component.onPageChange(3);
++        component.onStatusChange('workflow');
++      });
++
++      it('should search the uploads with the status filter from the first page', () => {
++        expect(searchService.search).toHaveBeenCalledWith(jasmine.objectContaining({
++          filters: [new SearchFilter('f.namedresourcetype', ['workflow'], 'authority')],
++          pagination: jasmine.objectContaining({ currentPage: 1 })
++        }));
++      });
++    });
++
++    describe('when all statuses are selected', () => {
++      beforeEach(() => {
++        component.onStatusChange('workflow');
++        component.onStatusChange('');
++      });
++
++      it('should search the uploads without a status filter', () => {
++        expect((searchService.search as jasmine.Spy).calls.mostRecent().args[0].filters).toEqual([]);
++      });
++    });
++  });
++
++  describe('when the user has no uploads', () => {
++    beforeEach(() => {
++      (searchService.search as jasmine.Spy).and.returnValue(createSuccessfulRemoteDataObject$(createPaginatedList([])));
++      component.setUploads();
++      fixture.detectChanges();
++    });
++
++    it('should display the empty message', () => {
++      expect(fixture.debugElement.query(By.css('.alert-info'))).not.toBeNull();
++    });
++
++    it('should not display any upload', () => {
++      expect(fixture.debugElement.queryAll(By.css('ds-my-upload-element')).length).toEqual(0);
++    });
++  });
++});
+diff --git a/src/app/my-uploads-page/my-uploads-page.component.ts b/src/app/my-uploads-page/my-uploads-page.component.ts
+new file mode 100644
+index 000000000..677457351
+--- /dev/null
++++ b/src/app/my-uploads-page/my-uploads-page.component.ts
+@@ -0,0 +1,106 @@
++import { Component, OnInit } from '@angular/core';
++import { Observable } from 'rxjs';
++import { RemoteData } from '../core/data/remote-data';
++import { PaginatedList } from '../core/data/paginated-list.model';
++import { DSpaceObject } from '../core/shared/dspace-object.model';
++import { SearchService } from '../core/shared/search/search.service';
++import { MyDSpaceResponseParsingService } from '../core/data/mydspace-response-parsing.service';
++import { MyDSpaceRequest } from '../core/data/request.models';
++import { SortDirection, SortOptions } from '../core/cache/models/sort-options.model';
++import { SearchResult } from '../shared/search/search-result.model';
++import { SearchFilter } from '../shared/search/search-filter.model';
++import { PaginatedSearchOptions } from '../shared/search/paginated-search-options.model';
++import { PaginationComponentOptions } from '../shared/pagination/pagination-component-options.model';
++import { MyDspaceItemStatusType } from '../shared/object-collection/shared/mydspace-item-status/my-dspace-item-status-type';
++import { MyDSpaceConfigurationValueType } from '../+my-dspace-page/my-dspace-configuration-value-type';
++import { isNotEmpty } from '../shared/empty.util';
++
++@Component({
++  selector: 'ds-my-uploads-page',
++  templateUrl: './my-uploads-page.component.html'
++})
++/**
++ * Страница "Мои последние загрузки" - item'ы, которые засабмитил текущий пользователь
++ */
++export class MyUploadsPageComponent implements OnInit {
++
++  /**
++   * Загрузки пользователя на текущей странице
++   */
++  uploadsRD$: Observable<RemoteData<PaginatedList<SearchResult<DSpaceObject>>>>;
++
++  /**
++   * Пагинация, по 20 штук на страницу
++   */
++  pageConfig: PaginationComponentOptions = Object.assign(new PaginationComponentOptions(), {
++    id: 'my-uploads-pagination',
++    pageSize: 20,
++    currentPage: 1
++  });
++
++  /**
++   * Сначала свежие
++   */
++  sortConfig: SortOptions = new SortOptions('lastModified', SortDirection.DESC);
++
++  /**
++   * Варианты фильтра по статусу.
++   * value - authority фасета namedresourcetype, label - готовые ключи из mydspace
++   */
++  statusOptions = [
++    { value: 'workspace', label: MyDspaceItemStatusType.WORKSPACE },
++    { value: 'workflow', label: MyDspaceItemStatusType.WORKFLOW },
++    { value: 'item', label: MyDspaceItemStatusType.ARCHIVED }
++  ];
++
++  /**
++   * Выбранный статус, пустая строка - все
++   */
++  currentStatus = '';
++
++  constructor(protected searchService: SearchService) {
++    // парсер и запрос как в mydspace, в выдаче workspace/workflow item'ы
++    this.searchService.setServiceOptions(MyDSpaceResponseParsingService, MyDSpaceRequest);
++  }
++
++  ngOnInit(): void {
++    this.setUploads();
++  }
++
++  /**
++   * Переключили страницу
++   * @param event номер новой страницы
++   */
++  onPageChange(event) {
++    this.pageConfig = Object.assign(new PaginationComponentOptions(), this.pageConfig, {
++      currentPage: event
++    });
++    this.setUploads();
++  }
++
++  /**
++   * Поменяли статус в фильтре - начинаем с первой страницы
++   * @param status выбранный статус
++   */
++  onStatusChange(status: string) {
++    this.currentStatus = status;
++    this.pageConfig = Object.assign(new PaginationComponentOptions(), this.pageConfig, {
++      currentPage: 1
++    });
++    this.setUploads();
++  }
++
++  /**
++   * Запрашиваем загрузки для текущей страницы и статуса
++   */
++  setUploads() {
++    const filters = isNotEmpty(this.currentStatus) ? [new SearchFilter('f.namedresourcetype', [this.currentStatus], 'authority')] : [];
++    this.uploadsRD$ = this.searchService.search(new PaginatedSearchOptions({
++      configuration: MyDSpaceConfigurationValueType.Workspace,
++      filters: filters,
++      pagination: this.pageConfig,
++      sort: this.sortConfig
++    }));
++  }
++
++}
+diff --git a/src/app/my-uploads-page/my-uploads-page.module.ts b/src/app/my-uploads-page/my-uploads-page.module.ts
+new file mode 100644
+index 000000000..a15d63c05
+--- /dev/null
++++ b/src/app/my-uploads-page/my-uploads-page.module.ts
+@@ -0,0 +1,26 @@
++import { NgModule } from '@angular/core';
++import { CommonModule } from '@angular/common';
++import { SharedModule } from '../shared/shared.module';
++import { SearchService } from '../core/shared/search/search.service';
++import { MyUploadsPageRoutingModule } from './my-uploads-page-routing.module';
++import { MyUploadsPageComponent } from './my-uploads-page.component';
++import { MyUploadElementComponent } from './my-upload-element/my-upload-element.component';
++
++@NgModule({
++  imports: [
++    MyUploadsPageRoutingModule,
++    CommonModule,
++    SharedModule
++  ],
++  declarations: [
++    MyUploadsPageComponent,
++    MyUploadElementComponent
++  ],
++  providers: [
++    // свой инстанс, т.к. страница меняет парсер ответа (см. MyUploadsPageComponent)
++    SearchService
++  ]
++})
++export class MyUploadsPageModule {
++
++}
+diff --git a/src/assets/i18n/en.json5 b/src/assets/i18n/en.json5
+index de764f4de..99aba951e 100644
+--- a/src/assets/i18n/en.json5
++++ b/src/assets/i18n/en.json5
+@@ -2161,6 +2161,21 @@
+   "menu.section.workflow": "Administer Workflow",
+ 
+ 
++  "my-uploads.breadcrumbs": "My recent uploads",
++
++  "my-uploads.empty": "There are no uploads to show",
++
++  "my-uploads.filter.status": "Status",
++
++  "my-uploads.filter.status.all": "All",
++
++  "my-uploads.head": "My recent uploads",
++
++  "my-uploads.last-modified": "Last modified",
++
++  "my-uploads.title": "My recent uploads",
++
++
+   "mydspace.description": "",
+ 
+   "mydspace.general.text-here": "here",
+-- 
+2.43.0
+

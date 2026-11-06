@@ -14,6 +14,7 @@ fe-redash-duplicate-dashboard	ai-default	getredash/redash	dcdff66e6260517e954785
 fe-spartacus-back-to-top	ai-default	SAP/spartacus	c6d9076037c8275af30b0a8fe2e8e2cfb170f08c	feat: add back to top CMS component	opus
 fe-vkui-rating	ai-default	VKCOM/VKUI	bfccc2015100836574aabe3cc55b42c3bb88c5a6	Rating: add star rating component	opus
 fe-directus-export-masked	ai-masked	directus/directus	14ac17f8ce69487639b14e8a00857478e5029689	Export items in batches, allow picking fields	opus
+fe-dspace-ru-masked	ai-masked	DSpace/dspace-angular	e867badcb5a126365fe8ed8583029c1c1e440809	страница «мои последние загрузки»	opus
 fe-excalidraw-masked	ai-masked	excalidraw/excalidraw	aef3644c93eea3434357dfed4eaf16cdeb4a81c7	feat: Show element type, points and text in stats	opus
 fe-gauzy-birthdays-masked	ai-masked	ever-co/ever-gauzy	a821fa463067c42899691bbfd93b91125a0ed92e	feat: upcoming birthdays widget on dashboard	opus
 fe-jitsi-ru-masked	ai-masked	jitsi/jitsi-meet	76b4899c3966b1c8c972e029169735ae9330edbb	таймер встречи: можно скрыть в настройках	opus

@@ -12,6 +12,11 @@ DOTNET="${DOTNET:-dotnet}"
 if [ "${2:-}" = "--refresh" ]; then
   python3 scripts/rebuild_corpus.py --lang "$LANG_ID"
 fi
-"$DOTNET" .build/aidetect.dll calibrate "corpus/$LANG_ID" --lang "$LANG_ID" --lambda "${LAMBDA:-16}" -o "model/weights.$LANG_ID.json" --no-color
+if [ "$LANG_ID" = "frontend" ]; then
+  # Фронтенд: менее жёсткая привязка к экспертным весам, консервативный порог (≤ 3% ложных «ИИ»), более резкая шкала.
+  "$DOTNET" .build/aidetect.dll calibrate "corpus/$LANG_ID" --lang "$LANG_ID" --lambda "${LAMBDA:-2}" --target-fpr 0.03 --temperature 1.0 -o "model/weights.$LANG_ID.json" --no-color
+else
+  "$DOTNET" .build/aidetect.dll calibrate "corpus/$LANG_ID" --lang "$LANG_ID" --lambda "${LAMBDA:-16}" -o "model/weights.$LANG_ID.json" --no-color
+fi
 "$DOTNET" build src/AiDetect.Cli -c Release -o .build -v q --nologo >/dev/null
-"$DOTNET" .build/aidetect.dll eval "corpus/$LANG_ID" --lang "$LANG_ID" --no-color -v
+"$DOTNET" .build/aidetect.dll eval "corpus/$LANG_ID" --lang "$LANG_ID" --no-artifacts --no-color -v

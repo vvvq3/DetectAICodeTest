@@ -3,7 +3,8 @@ const path = require('path');
 (async () => {
   const dir = process.argv[2];
   const scale = Number(process.argv[3] || 2);
-  const names = ['01-eshop-catalog-reviews', '02-bitwarden-folder-cleanup', '03-eshopweb-wishlist-project-style'];
+  // Имена примеров: из аргументов (после масштаба) или C#-набор по умолчанию.
+  const names = process.argv.length > 4 ? process.argv.slice(4) : ['01-eshop-catalog-reviews', '02-bitwarden-folder-cleanup', '03-eshopweb-wishlist-project-style'];
   const b = await chromium.launch();
   const ctx = await b.newContext({ viewport: { width: 1040, height: 1200 }, deviceScaleFactor: scale, colorScheme: 'light' });
   const p = await ctx.newPage();
