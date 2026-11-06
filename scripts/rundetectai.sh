@@ -169,7 +169,7 @@ else
 fi
 cd "$DIR" || fail "нет доступа к $DIR"
 printf '%s' "$DIR" > "$CONF/dir"
-say "• Версия: $(git log -1 --format='%h %s' 2>/dev/null | cut -c1-80)"
+say "• Версия: $(git log -1 --format='%h %s' 2>/dev/null)"
 install_skill "$DIR"
 
 # 3. Запустить веб-версию и туннель в фоне — они продолжают работать после завершения этой команды.
@@ -197,7 +197,7 @@ for i in $(seq 1 900); do
     fail "запуск не удался (подробности выше; полный журнал: $LOG)"
   fi
   if [ $((i % 30)) -eq 0 ]; then
-    say "  …жду ($((i / 60)) мин $((i % 60)) с): $(grep -v '^$' "$LOG" 2>/dev/null | tail -1 | cut -c1-90)"
+    say "  …жду ($((i / 60)) мин $((i % 60)) с): $(grep -v '^$' "$LOG" 2>/dev/null | tail -1)"
   fi
   sleep 1
 done
